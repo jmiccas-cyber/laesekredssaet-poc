@@ -1,19 +1,26 @@
-// Læsekredssæt – v3.0 POC frontend
-// Connects to Supabase; implements Booker/Admin basic flows with central filtering and date inputs.
-
+// Læsekredssæt – v3.0 Updated frontend
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-// === Configure these two values ===
+// === Configure these two values (REQUIRED) ===
 const SUPABASE_URL = 'https://qlkrzinyqirnigcwadki.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsa3J6aW55cWlybmlnY3dhZGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NjY2NjgsImV4cCI6MjA3ODM0MjY2OH0.-SV3dn7reKHeYis40I-aF3av0_XmCP-ZqB9KR6JT2so'
-
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+// Status banner (visible without DevTools)
+const statusBox = document.getElementById('statusBox')
+function showStatus(msg, tone='err') {
+  if (!statusBox) return
+  statusBox.style.display = ''
+  statusBox.className = `card ${tone}`
+  statusBox.textContent = msg
+}
+function hideStatus(){ if(statusBox){ statusBox.style.display='none' }}
 
 // Cached state
 const state = {
-  me: { bibliotek_id: 'GENT' }, // demo default; replace with auth profile in real app
+  me: { bibliotek_id: 'LBL1' }, // demo default; replace with auth integration
   centrals: [],
-  ownersFilter: new Set(), // selected central IDs
+  ownersFilter: new Set(), // selected central IDs for Booker
 }
 
 // UI Elements
@@ -31,7 +38,20 @@ const clearBtn  = document.getElementById('clearBtn')
 const bookerResults = document.getElementById('bookerResults')
 
 const adminOwner = document.getElementById('adminOwner')
-const loadPending = document.getElementById('loadPending')
+const loadAdminData = document.getElementById('loadAdminData')
+const regionalsTable = document.getElementById('regionalsTable')
+const addRegional = document.getElementById('addRegional')
+const newRegionalId = document.getElementById('newRegionalId')
+const setsTable = document.getElementById('setsTable')
+const refreshSets = document.getElementById('refreshSets')
+const createSet = document.getElementById('createSet')
+const newTitle = document.getElementById('newTitle')
+const newAuthor = document.getElementById('newAuthor')
+const newISBN = document.getElementById('newISBN')
+const newFAUST = document.getElementById('newFAUST')
+const newVisibility = document.getElementById('newVisibility')
+const newLoanWeeks = document.getElementById('newLoanWeeks')
+const newBufferDays = document.getElementById('newBufferDays')
 const adminResults = document.getElementById('adminResults')
 
 // Role toggle logic
@@ -45,12 +65,21 @@ toggleAdmin.addEventListener('click', () => {
 })
 
 // Init
-init().catch(console.error)
+init().catch(e => showStatus('Init error: ' + e.message))
 
 async function init() {
+  const ok = await testConnection()
+  if (!ok) return
   await loadCentrals()
   populateCentralSelect()
   populateAdminOwner()
+}
+
+async function testConnection() {
+  const { data, error } = await supabase.from('tbl_bibliotek').select('bibliotek_id').limit(1)
+  if (error) { showStatus('❌ Database error: ' + error.message); return false }
+  hideStatus()
+  return true
 }
 
 async function loadCentrals() {
@@ -60,7 +89,7 @@ async function loadCentrals() {
     .eq('is_central', true)
     .eq('active', true)
     .order('bibliotek_navn', { ascending: true })
-  if (error) { console.error(error); return }
+  if (error) { showStatus('loadCentrals: ' + error.message); return }
   state.centrals = data || []
 }
 
@@ -88,6 +117,7 @@ function populateAdminOwner() {
   })
 }
 
+// Booker: search logic
 searchBtn.addEventListener('click', () => runSearch())
 clearBtn.addEventListener('click', () => {
   qInput.value = ''; startDate.value = ''; endDate.value = ''; state.ownersFilter.clear()
@@ -99,32 +129,50 @@ async function runSearch() {
   const q = qInput.value.trim()
   const s = startDate.value ? new Date(startDate.value) : null
   const e = endDate.value ? new Date(endDate.value) : null
-
-  // Pick search mode
-  if (!q && !s) {
-    bookerResults.innerHTML = `<div class="muted">Angiv enten titel/forfatter/ISBN/FAUST eller en periode.</div>`
-    return
-  }
+  const owners = Array.from(state.ownersFilter)
 
   let sets = []
-  if (q) {
-    sets = await searchByTitleOrAuthor(q)
-  }
-  if (!q && s && e) {
-    sets = await searchByPeriod(s, e)
-  } else if (q && s && e) {
-    // intersect title results with those available in period
-    const periodSets = await searchByPeriod(s, e)
-    const periodSetIds = new Set(periodSets.map(x => x.set_id))
-    sets = sets.filter(x => periodSetIds.has(x.set_id))
+  // Case 1: no text and no dates -> show all sets for selected centrals (or all centrals if none selected)
+  if (!q and not s and not e) {
+    sets = await listSetsForOwners(owners)
+  } else {
+    // Title search
+    if (q) {
+      sets = await searchByTitleOrAuthor(q, owners)
+    }
+    // Period filter
+    if (s && e) {
+      const periodSets = await searchByPeriod(s, e, owners)
+      if (q) {
+        const okIds = new Set(periodSets.map(x => x.set_id))
+        sets = sets.filter(x => okIds.has(x.set_id))
+      } else {
+        sets = periodSets
+      }
+    }
   }
 
-  // Group by owner (central)
   const groups = groupBy(sets, s => s.owner_bibliotek_id)
   renderBookerResults(groups, s, e)
 }
 
-async function searchByTitleOrAuthor(q) {
+async function listSetsForOwners(owners) {
+  let query = supabase
+    .from('tbl_saet')
+    .select('set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,loan_weeks,buffer_days,requested_count,active')
+    .eq('active', true)
+
+  if (owners.length) query = query.in('owner_bibliotek_id', owners)
+
+  const { data, error } = await query.limit(1000)
+  if (error) { showStatus('listSets: ' + error.message); return [] }
+  const myCentral = await getMyCentralId()
+  return (data || []).filter(row =>
+    row.visibility === 'national' || row.owner_bibliotek_id === myCentral
+  )
+}
+
+async function searchByTitleOrAuthor(q, owners) {
   const or = [
     `title.ilike.%${q}%`,
     `author.ilike.%${q}%`,
@@ -137,42 +185,31 @@ async function searchByTitleOrAuthor(q) {
     .or(or)
     .eq('active', true)
 
-  // Optional filter by selected centrals
-  const owners = Array.from(state.ownersFilter)
   if (owners.length) query = query.in('owner_bibliotek_id', owners)
 
   const { data, error } = await query.limit(500)
-  if (error) { console.error(error); return [] }
-
-  // Visibility filter (national OR same central as me). In title search we show all centrals as per spec,
-  // but still respect visibility rules: include regional only if owner == my central.
+  if (error) { showStatus('searchByTitleOrAuthor: ' + error.message); return [] }
   const myCentral = await getMyCentralId()
   return (data || []).filter(row =>
     row.visibility === 'national' || row.owner_bibliotek_id === myCentral
   )
 }
 
-async function searchByPeriod(s, e) {
-  // Start with all active sets; narrow to ownersFilter if selected
+async function searchByPeriod(s, e, owners) {
   let query = supabase
     .from('tbl_saet')
     .select('set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,loan_weeks,buffer_days,requested_count,active')
     .eq('active', true)
 
-  const owners = Array.from(state.ownersFilter)
   if (owners.length) query = query.in('owner_bibliotek_id', owners)
 
   const { data, error } = await query.limit(1000)
-  if (error) { console.error(error); return [] }
-
+  if (error) { showStatus('searchByPeriod: ' + error.message); return [] }
   const myCentral = await getMyCentralId()
-
-  // For each set, check visibility and availability (no overlaps in period)
   const sets = (data || []).filter(row =>
     row.visibility === 'national' || row.owner_bibliotek_id === myCentral
   )
 
-  // Check overlaps in batches (client-side loop, server filter per set)
   const available = []
   for (const row of sets) {
     const ok = await isSetAvailableInPeriod(row.set_id, s, e)
@@ -182,26 +219,23 @@ async function searchByPeriod(s, e) {
 }
 
 async function isSetAvailableInPeriod(setId, s, e) {
-  // Fetch bookings for this set that overlap
   const { data, error } = await supabase
     .from('tbl_booking')
     .select('start_date,end_date,status')
     .eq('set_id', setId)
     .in('status', ['pending','approved'])
 
-  if (error) { console.error(error); return false }
+  if (error) { showStatus('isSetAvailableInPeriod: ' + error.message); return false }
   const bookings = data || []
   const hasOverlap = bookings.some(b => rangesOverlap(s, e, new Date(b.start_date), new Date(b.end_date)))
   return !hasOverlap
 }
 
 function rangesOverlap(s1, e1, s2, e2) {
-  // inclusive overlap check
   return (s1 <= e2) && (s2 <= e1)
 }
 
 async function getMyCentralId() {
-  // Look up my central via relation; demo fallback = 'GENT'
   const me = state.me.bibliotek_id
   const { data, error } = await supabase
     .from('tbl_bibliotek_relation')
@@ -211,7 +245,7 @@ async function getMyCentralId() {
     .limit(1)
     .maybeSingle()
 
-  if (error) { console.warn('central lookup failed; fallback GENT', error); return 'GENT' }
+  if (error) { showStatus('getMyCentralId: ' + error.message); return 'GENT' }
   return data?.central_id || 'GENT'
 }
 
@@ -252,7 +286,6 @@ function renderBookerResults(groups, s, e) {
       const tr = document.createElement('tr')
       const loanWeeks = row.loan_weeks ?? 8
       const bufferDays = row.buffer_days ?? 0
-      const endCalc = s ? addDays(addWeeks(s, loanWeeks), bufferDays) : null
       tr.innerHTML = `
         <td><strong>${row.title}</strong><br><span class="muted">${row.author || ''} · ${row.isbn || ''}</span></td>
         <td>${row.visibility}</td>
@@ -263,7 +296,6 @@ function renderBookerResults(groups, s, e) {
       `
       tbody.appendChild(tr)
 
-      // Attach booking handler
       tr.querySelector('button[data-action="book"]').addEventListener('click', async () => {
         if (!s || !e) {
           alert('Vælg start- og slutdato før booking.')
@@ -289,73 +321,156 @@ function renderBookerResults(groups, s, e) {
   })
 }
 
-// Admin
-loadPending.addEventListener('click', async () => {
-  const owner = adminOwner.value
-  const { data, error } = await supabase
-    .from('tbl_booking')
-    .select('booking_id,set_id,requester_bibliotek_id,start_date,end_date,status')
-    .eq('owner_bibliotek_id', owner)
-    .eq('status','pending')
-    .order('created_at', { ascending: true })
-  if (error) { adminResults.innerHTML = `<div class="err card">Fejl: ${error.message}</div>`; return }
-  renderAdminPending(data || [])
+// ---------------- Admin: Region & Sæt maintenance ----------------
+loadAdminData.addEventListener('click', async () => {
+  await loadRegionals()
+  await loadSets()
 })
 
-function renderAdminPending(rows) {
-  adminResults.innerHTML = ''
-  if (!rows.length) { adminResults.innerHTML = `<div class="muted">Ingen pending bookinger.</div>`; return }
+refreshSets.addEventListener('click', loadSets)
+
+addRegional.addEventListener('click', async () => {
+  const owner = adminOwner.value
+  const child = (newRegionalId.value || '').trim()
+  if (!owner || !child) { showStatus('Angiv både central (øverst) og bibliotek_id for tilknytning'); return }
+  // Ensure child exists
+  const { data: exists, error: exErr } = await supabase.from('tbl_bibliotek').select('bibliotek_id').eq('bibliotek_id', child).maybeSingle()
+  if (exErr) { showStatus('Opslag fejl: ' + exErr.message); return }
+  if (!exists) { showStatus('Bibliotek findes ikke i tbl_bibliotek: ' + child); return }
+  const { error } = await supabase.from('tbl_bibliotek_relation').insert({ bibliotek_id: child, central_id: owner, active: true })
+  if (error) { showStatus('Tilføj relation fejl: ' + error.message); return }
+  newRegionalId.value = ''
+  await loadRegionals()
+  showStatus('Relation tilføjet', 'ok'); setTimeout(hideStatus, 1500)
+})
+
+async function loadRegionals() {
+  const owner = adminOwner.value
+  const { data, error } = await supabase
+    .from('tbl_bibliotek_relation')
+    .select('relation_id,bibliotek_id,central_id,active')
+    .eq('central_id', owner)
+    .order('bibliotek_id', { ascending: true })
+  if (error) { showStatus('loadRegionals: ' + error.message); return }
+
+  const table = document.createElement('table')
+  table.innerHTML = `
+    <thead><tr><th>Bibliotek</th><th>Aktiv</th><th>Handling</th></tr></thead>
+    <tbody></tbody>
+  `
+  const tbody = table.querySelector('tbody')
+  ;(data || []).forEach(r => {
+    const tr = document.createElement('tr')
+    tr.innerHTML = `
+      <td>${r.bibliotek_id}</td>
+      <td><input type="checkbox" ${r.active ? 'checked' : ''} data-rel="${r.relation_id}" /></td>
+      <td><button class="ghost" data-del="${r.relation_id}">Fjern</button></td>
+    `
+    tbody.appendChild(tr)
+
+    tr.querySelector('input[type="checkbox"]').addEventListener('change', async (ev) => {
+      const { error } = await supabase.from('tbl_bibliotek_relation').update({ active: ev.target.checked }).eq('relation_id', r.relation_id)
+      if (error) { showStatus('Opdater relation: ' + error.message); ev.target.checked = !ev.target.checked; return }
+      showStatus('Relation opdateret', 'ok'); setTimeout(hideStatus, 1200)
+    })
+    tr.querySelector('button[data-del]').addEventListener('click', async () => {
+      const { error } = await supabase.from('tbl_bibliotek_relation').delete().eq('relation_id', r.relation_id)
+      if (error) { showStatus('Slet relation: ' + error.message); return }
+      await loadRegionals()
+      showStatus('Relation fjernet', 'ok'); setTimeout(hideStatus, 1200)
+    })
+  })
+  regionalsTable.innerHTML = ''
+  regionalsTable.appendChild(table)
+}
+
+async function loadSets() {
+  const owner = adminOwner.value
+  const { data, error } = await supabase
+    .from('tbl_saet')
+    .select('set_id,title,author,isbn,faust,visibility,loan_weeks,buffer_days,active,requested_count,allow_substitution,allow_partial,min_delivery,notes')
+    .eq('owner_bibliotek_id', owner)
+    .order('title', { ascending: true })
+  if (error) { showStatus('loadSets: ' + error.message); return }
 
   const table = document.createElement('table')
   table.innerHTML = `
     <thead>
-      <tr><th>ID</th><th>Sæt</th><th>Requester</th><th>Periode</th><th>Handling</th></tr>
+      <tr>
+        <th>Titel</th><th>Synlighed</th><th>Uger</th><th>Buffer</th><th>Aktiv</th><th>Min.lev</th><th>Delvis</th><th>Subst.</th><th>Gem</th>
+      </tr>
     </thead>
     <tbody></tbody>
   `
   const tbody = table.querySelector('tbody')
-
-  rows.forEach(r => {
+  ;(data || []).forEach(r => {
     const tr = document.createElement('tr')
     tr.innerHTML = `
-      <td>${r.booking_id}</td>
-      <td>${r.set_id}</td>
-      <td>${r.requester_bibliotek_id}</td>
-      <td>${r.start_date} → ${r.end_date}</td>
+      <td><input type="text" value="${escapeHtml(r.title || '')}" data-f="title"/></td>
       <td>
-        <button class="primary" data-approve="${r.booking_id}">Godkend</button>
-        <button class="ghost" data-reject="${r.booking_id}">Afvis</button>
+        <select data-f="visibility">
+          <option value="national" ${r.visibility==='national'?'selected':''}>national</option>
+          <option value="regional" ${r.visibility==='regional'?'selected':''}>regional</option>
+        </select>
       </td>
+      <td><input type="number" min="1" value="${r.loan_weeks||8}" data-f="loan_weeks"/></td>
+      <td><input type="number" min="0" value="${r.buffer_days||0}" data-f="buffer_days"/></td>
+      <td><input type="checkbox" ${r.active ? 'checked' : ''} data-f="active"/></td>
+      <td><input type="number" min="0" value="${r.min_delivery||0}" data-f="min_delivery"/></td>
+      <td><input type="checkbox" ${r.allow_partial ? 'checked' : ''} data-f="allow_partial"/></td>
+      <td><input type="checkbox" ${r.allow_substitution ? 'checked' : ''} data-f="allow_substitution"/></td>
+      <td><button class="primary" data-save="${r.set_id}">Gem</button></td>
     `
     tbody.appendChild(tr)
 
-    tr.querySelector('button[data-approve]').addEventListener('click', async () => {
-      // Failsafe: overlap check again
-      const ok = await isSetAvailableInPeriod(r.set_id, new Date(r.start_date), new Date(r.end_date))
-      if (!ok) { alert('Allerede reserveret – kan ikke godkende.'); return }
-      const { error } = await supabase
-        .from('tbl_booking')
-        .update({ status: 'approved' })
-        .eq('booking_id', r.booking_id)
-      if (error) { alert('Fejl: ' + error.message); return }
-      alert('Godkendt.'); loadPending.click()
-    })
-
-    tr.querySelector('button[data-reject]').addEventListener('click', async () => {
-      const reason = prompt('Afvisningsårsag (valgfri):') || null
-      const { error } = await supabase
-        .from('tbl_booking')
-        .update({ status: 'rejected', notes: reason })
-        .eq('booking_id', r.booking_id)
-      if (error) { alert('Fejl: ' + error.message); return }
-      alert('Afvist.'); loadPending.click()
+    tr.querySelector('button[data-save]').addEventListener('click', async () => {
+      const payload = collectRowPayload(tr)
+      const { error } = await supabase.from('tbl_saet').update(payload).eq('set_id', r.set_id)
+      if (error) { showStatus('Gem sæt: ' + error.message); return }
+      showStatus('Sæt opdateret', 'ok'); setTimeout(hideStatus, 1200)
     })
   })
-
-  adminResults.appendChild(table)
+  setsTable.innerHTML = ''
+  setsTable.appendChild(table)
 }
 
-// Utils
+function collectRowPayload(tr) {
+  const get = (sel) => tr.querySelector(sel)
+  const title = get('[data-f="title"]').value
+  const visibility = get('[data-f="visibility"]').value
+  const loan_weeks = parseInt(get('[data-f="loan_weeks"]').value,10) || 8
+  const buffer_days = parseInt(get('[data-f="buffer_days"]').value,10) || 0
+  const active = get('[data-f="active"]').checked
+  const min_delivery = parseInt(get('[data-f="min_delivery"]').value,10) || 0
+  const allow_partial = get('[data-f="allow_partial"]').checked
+  const allow_substitution = get('[data-f="allow_substitution"]').checked
+  return { title, visibility, loan_weeks, buffer_days, active, min_delivery, allow_partial, allow_substitution }
+}
+
+createSet.addEventListener('click', async () => {
+  const owner = adminOwner.value
+  const payload = {
+    title: (newTitle.value||'').trim(),
+    author: (newAuthor.value||'').trim() || null,
+    isbn: (newISBN.value||'').trim() || null,
+    faust: (newFAUST.value||'').trim() || null,
+    requested_count: 10,
+    loan_weeks: parseInt(newLoanWeeks.value,10) || 8,
+    buffer_days: parseInt(newBufferDays.value,10) || 0,
+    visibility: newVisibility.value,
+    owner_bibliotek_id: owner,
+    active: true
+  }
+  if (!payload.title) { showStatus('Titel er påkrævet'); return }
+  const { error } = await supabase.from('tbl_saet').insert(payload)
+  if (error) { showStatus('Opret sæt: ' + error.message); return }
+  newTitle.value=''; newAuthor.value=''; newISBN.value=''; newFAUST.value=''
+  await loadSets()
+  showStatus('Sæt oprettet', 'ok'); setTimeout(hideStatus, 1200)
+})
+
+// ---------------- Utils ----------------
 function addWeeks(d, w) { const x = new Date(d); x.setDate(x.getDate() + w*7); return x }
 function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x }
 function fmtDate(d) { return d.toISOString().slice(0,10) }
+function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Læsekredssæt – v3.0 (POC Final)</title>
+  <title>Læsekredssæt – v3.0 (POC Final) – Updated UI</title>
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
     header { display:flex; gap:12px; align-items:center; margin-bottom: 16px; }
@@ -13,7 +13,7 @@
     .card { border:1px solid #e5e5e5; border-radius:14px; padding:16px; margin:12px 0; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
     .row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
     label { display:block; font-size:.9rem; margin-bottom:6px; }
-    input[type="text"], select, input[type="date"] { padding:8px; border:1px solid #ccc; border-radius:8px; min-width: 180px; }
+    input[type="text"], select, input[type="date"], input[type="number"] { padding:8px; border:1px solid #ccc; border-radius:8px; min-width: 180px; }
     button.primary { background:#111; color:#fff; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; }
     button.ghost { background:transparent; border:1px solid #ccc; padding:8px 12px; border-radius:8px; cursor:pointer; }
     .muted { color:#666; }
@@ -26,12 +26,13 @@
     .err { background:#ffe9e9; border-color:#ffc3c3; }
     footer { margin-top: 32px; color:#666; font-size:.9rem; }
     .group { margin: 12px 0; }
+    .split { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+    .small { font-size: .85rem; }
   </style>
 </head>
 <body>
-<div id="statusBox" style="padding:10px;margin:10px;border:2px solid #c00;color:#c00;font-family:monospace">
-  Connecting to database...
-</div>
+  <div id="statusBox" class="card err" style="display:none;"></div>
 
   <header>
     <h1>Læsekredssæt – v3.0</h1>
@@ -47,8 +48,8 @@
     <div class="row">
       <div>
         <label for="centralSelect">Centralbibliotek</label>
-        <select id="centralSelect" multiple size="3" style="min-width:220px;"></select>
-        <div class="muted">Vælg ét/flere centraler – tom = alle</div>
+        <select id="centralSelect" multiple size="4" style="min-width:220px;"></select>
+        <div class="muted small">Vælg ét/flere – tom = alle centralbiblioteker</div>
       </div>
       <div>
         <label for="q">Titel / Forfatter / ISBN / FAUST</label>
@@ -67,26 +68,72 @@
         <button id="clearBtn" class="ghost">Ryd</button>
       </div>
     </div>
+    <div class="muted small">Tip: Uden datoer og søgetekst viser systemet alle sæt for valgte centraler (eller alle centraler, hvis ingen er valgt).</div>
     <div id="bookerResults" class="group"></div>
   </section>
 
   <!-- Admin View -->
   <section id="adminSection" class="card" style="display:none;">
-    <h2>Admin – Godkend & afvis</h2>
+    <h2>Admin – Region & Sæt</h2>
+
     <div class="row">
       <div>
-        <label for="adminOwner">Mit bibliotek (owner_bibliotek_id)</label>
+        <label for="adminOwner">Mit centralbibliotek</label>
         <select id="adminOwner" style="min-width:220px;"></select>
       </div>
       <div>
-        <button id="loadPending" class="primary">Hent pending</button>
+        <button id="loadAdminData" class="primary">Hent data</button>
       </div>
     </div>
+
+    <div class="split">
+      <div class="card">
+        <h3>Region – tilknyttede biblioteker</h3>
+        <div class="row">
+          <div>
+            <label for="newRegionalId">Tilføj bibliotek_id</label>
+            <input id="newRegionalId" type="text" placeholder="fx LBL42" />
+          </div>
+          <div>
+            <button id="addRegional" class="primary">Tilføj</button>
+          </div>
+        </div>
+        <div id="regionalsTable"></div>
+        <div class="muted small">Bemærk: biblioteket skal findes i <code>tbl_bibliotek</code>. Denne liste redigerer relationer i <code>tbl_bibliotek_relation</code>.</div>
+      </div>
+
+      <div class="card">
+        <h3>Sæt – vedligehold</h3>
+        <div class="row">
+          <div><button id="refreshSets" class="ghost">Opdater</button></div>
+          <div class="muted small">Redigér felter og gem pr. række.</div>
+        </div>
+        <div id="setsTable"></div>
+
+        <h4>Opret nyt sæt</h4>
+        <div class="row">
+          <div><input id="newTitle" type="text" placeholder="Titel" /></div>
+          <div><input id="newAuthor" type="text" placeholder="Forfatter" /></div>
+          <div><input id="newISBN" type="text" placeholder="ISBN" /></div>
+          <div><input id="newFAUST" type="text" placeholder="FAUST" /></div>
+          <div>
+            <select id="newVisibility">
+              <option value="national">national</option>
+              <option value="regional">regional</option>
+            </select>
+          </div>
+          <div><input id="newLoanWeeks" type="number" min="1" value="8" /></div>
+          <div><input id="newBufferDays" type="number" min="0" value="0" /></div>
+          <div><button id="createSet" class="primary">Opret</button></div>
+        </div>
+      </div>
+    </div>
+
     <div id="adminResults" class="group"></div>
   </section>
 
   <footer>
-    <div class="muted">Tilslut Supabase i <code>script.js</code> (SUPABASE_URL / ANON_KEY). Kun ASCII i databaseobjekter. UI-tekster må bruge danske tegn.</div>
+    <div class="muted">Supabase forbindes i <code>script.js</code> (SUPABASE_URL / ANON_KEY). Kun ASCII i databaseobjekter. UI-tekster må bruge danske tegn.</div>
   </footer>
 
   <script type="module" src="./script.js"></script>
