@@ -18,7 +18,7 @@ function hideStatus(){ if(statusBox){ statusBox.style.display='none' }}
 
 // Cached state
 const state = {
-  me: { bibliotek_id: 'LBL1' }, // demo default; replace with auth integration
+  me: { bibliotek_id: 'GENT' }, // demo default; replace with auth integration
   centrals: [],
   ownersFilter: new Set(), // selected central IDs for Booker
 }
