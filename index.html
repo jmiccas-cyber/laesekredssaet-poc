@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Læsekredssæt – v3.0 (POC Final) – Updated UI</title>
+  <title>Læsekredssæt – v3.0 (POC Final)</title>
   <style>
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
     header { display:flex; gap:12px; align-items:center; margin-bottom: 16px; }
@@ -20,25 +20,22 @@
     table { width:100%; border-collapse: collapse; }
     th, td { border-bottom:1px solid #eee; padding:8px; text-align:left;}
     th { background:#fafafa; }
-    .badge { display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid #ddd; font-size:.8rem; margin-right:6px; }
-    .ok { background:#e8fbf0; border-color:#bfe8cf; }
-    .warn { background:#fff4e5; border-color:#ffe1b3; }
-    .err { background:#ffe9e9; border-color:#ffc3c3; }
-    footer { margin-top: 32px; color:#666; font-size:.9rem; }
-    .group { margin: 12px 0; }
+    .ok { background:#e8fbf0; border:1px solid #bfe8cf; }
+    .err { background:#ffe9e9; border:1px solid #ffc3c3; }
+    .small { font-size:.85rem; }
     .split { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
-    .small { font-size: .85rem; }
   </style>
 </head>
 <body>
+  <!-- Visible status/errors (no DevTools needed) -->
   <div id="statusBox" class="card err" style="display:none;"></div>
 
   <header>
     <h1>Læsekredssæt – v3.0</h1>
     <div class="role-toggle" id="roleToggle">
-      <button id="toggleBooker" class="active">Booker</button>
-      <button id="toggleAdmin">Admin</button>
+      <button id="toggleBooker" class="active" type="button">Booker</button>
+      <button id="toggleAdmin" type="button">Admin</button>
     </div>
   </header>
 
@@ -48,7 +45,7 @@
     <div class="row">
       <div>
         <label for="centralSelect">Centralbibliotek</label>
-        <select id="centralSelect" multiple size="4" style="min-width:220px;"></select>
+        <select id="centralSelect" multiple size="5" style="min-width:260px;"></select>
         <div class="muted small">Vælg ét/flere – tom = alle centralbiblioteker</div>
       </div>
       <div>
@@ -64,11 +61,11 @@
         <input id="endDate" type="date" />
       </div>
       <div>
-        <button id="searchBtn" class="primary">Søg</button>
-        <button id="clearBtn" class="ghost">Ryd</button>
+        <button id="searchBtn" class="primary" type="button">Søg</button>
+        <button id="clearBtn" class="ghost" type="button">Ryd</button>
       </div>
     </div>
-    <div class="muted small">Tip: Uden datoer og søgetekst viser systemet alle sæt for valgte centraler (eller alle centraler, hvis ingen er valgt).</div>
+    <div class="muted small">Uden datoer/tekst → alle sæt for valgte centraler (eller alle centraler, hvis ingen valgt).</div>
     <div id="bookerResults" class="group"></div>
   </section>
 
@@ -79,10 +76,10 @@
     <div class="row">
       <div>
         <label for="adminOwner">Mit centralbibliotek</label>
-        <select id="adminOwner" style="min-width:220px;"></select>
+        <select id="adminOwner" style="min-width:260px;"></select>
       </div>
       <div>
-        <button id="loadAdminData" class="primary">Hent data</button>
+        <button id="loadAdminData" class="primary" type="button">Hent data</button>
       </div>
     </div>
 
@@ -95,18 +92,18 @@
             <input id="newRegionalId" type="text" placeholder="fx LBL42" />
           </div>
           <div>
-            <button id="addRegional" class="primary">Tilføj</button>
+            <button id="addRegional" class="primary" type="button">Tilføj</button>
           </div>
         </div>
         <div id="regionalsTable"></div>
-        <div class="muted small">Bemærk: biblioteket skal findes i <code>tbl_bibliotek</code>. Denne liste redigerer relationer i <code>tbl_bibliotek_relation</code>.</div>
+        <div class="muted small">Redigerer relationer i <code>tbl_bibliotek_relation</code>. Biblioteket skal findes i <code>tbl_bibliotek</code>.</div>
       </div>
 
       <div class="card">
         <h3>Sæt – vedligehold</h3>
         <div class="row">
-          <div><button id="refreshSets" class="ghost">Opdater</button></div>
-          <div class="muted small">Redigér felter og gem pr. række.</div>
+          <div><button id="refreshSets" class="ghost" type="button">Opdater</button></div>
+          <div class="muted small">Redigér felter og klik “Gem”.</div>
         </div>
         <div id="setsTable"></div>
 
@@ -124,17 +121,12 @@
           </div>
           <div><input id="newLoanWeeks" type="number" min="1" value="8" /></div>
           <div><input id="newBufferDays" type="number" min="0" value="0" /></div>
-          <div><button id="createSet" class="primary">Opret</button></div>
+          <div><button id="createSet" class="primary" type="button">Opret</button></div>
         </div>
       </div>
     </div>
-
     <div id="adminResults" class="group"></div>
   </section>
-
-  <footer>
-    <div class="muted">Supabase forbindes i <code>script.js</code> (SUPABASE_URL / ANON_KEY). Kun ASCII i databaseobjekter. UI-tekster må bruge danske tegn.</div>
-  </footer>
 
   <script type="module" src="./script.js"></script>
 </body>
