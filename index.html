@@ -13,22 +13,24 @@
     .card { border:1px solid #e5e5e5; border-radius:14px; padding:16px; margin:12px 0; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
     .row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
     label { display:block; font-size:.9rem; margin-bottom:6px; }
-    input[type="text"], select, input[type="date"], input[type="number"] { padding:8px; border:1px solid #ccc; border-radius:8px; min-width: 180px; }
+    input[type="text"], select, input[type="date"], input[type="number"], input[type="tel"], input[type="email"], textarea {
+      padding:8px; border:1px solid #ccc; border-radius:8px; min-width: 180px;
+    }
+    textarea { min-width: 360px; min-height: 68px; }
     button.primary { background:#111; color:#fff; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; }
     button.ghost { background:transparent; border:1px solid #ccc; padding:8px 12px; border-radius:8px; cursor:pointer; }
     .muted { color:#666; }
+    .small { font-size:.85rem; }
     table { width:100%; border-collapse: collapse; }
     th, td { border-bottom:1px solid #eee; padding:8px; text-align:left;}
-    th { background:#fafafa; }
+    th { background:#fafafa; position: sticky; top: 0; }
     .ok { background:#e8fbf0; border:1px solid #bfe8cf; }
     .err { background:#ffe9e9; border:1px solid #ffc3c3; }
-    .small { font-size:.85rem; }
     .split { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    @media (max-width: 900px) { .split { grid-template-columns: 1fr; } }
+    @media (max-width: 1100px) { .split { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
-  <!-- Visible status/errors (no DevTools needed) -->
   <div id="statusBox" class="card err" style="display:none;"></div>
 
   <header>
@@ -66,7 +68,16 @@
       </div>
     </div>
     <div class="muted small">Uden datoer/tekst → alle sæt for valgte centraler (eller alle centraler, hvis ingen valgt).</div>
-    <div id="bookerResults" class="group"></div>
+    <div id="bookerResults"></div>
+
+    <div class="card" style="margin-top:20px;">
+      <h3>Min profil (forsendelse & kontakt)</h3>
+      <div id="profileForm" class="row"></div>
+      <div>
+        <button id="saveProfile" class="primary" type="button">Gem profil</button>
+      </div>
+      <div class="muted small">Du kan opdatere adresse, kontakt og forsendelsesnoter. Tilknytning til central ændres ikke her.</div>
+    </div>
   </section>
 
   <!-- Admin View -->
@@ -96,7 +107,7 @@
           </div>
         </div>
         <div id="regionalsTable"></div>
-        <div class="muted small">Redigerer relationer i <code>tbl_bibliotek_relation</code>. Biblioteket skal findes i <code>tbl_bibliotek</code>.</div>
+        <div class="muted small">Redigerer relationer i <code>tbl_bibliotek_relation</code> og profilfelter i <code>tbl_bibliotek</code>.</div>
       </div>
 
       <div class="card">
