@@ -11,7 +11,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 // Cached state
 const state = {
-  me: { bibliotek_id: 'LBL1' }, // demo default; replace with auth profile in real app
+  me: { bibliotek_id: 'GENT' }, // demo default; replace with auth profile in real app
   centrals: [],
   ownersFilter: new Set(), // selected central IDs
 }
