@@ -1,298 +1,421 @@
-// --- Læsekredssæt POC v2.8 — script.js (ASCII + periodesøgning + overlap + admin) ---
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+/* global SUPABASE_URL, SUPABASE_ANON_KEY */
+(function () {
+  'use strict';
 
-// ✅ Supabase (din URL + anon key)
-const supabaseUrl = 'https://qlkrzinyqirnigcwadki.supabase.co'
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsa3J6aW55cWlybmlnY3dhZGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NjY2NjgsImV4cCI6MjA3ODM0MjY2OH0.-SV3dn7reKHeYis40I-aF3av0_XmCP-ZqB9KR6JT2so'
-const supabase = createClient(supabaseUrl, supabaseKey)
+  // ---------- Supabase init ----------
+  const statusEl = document.getElementById('status');
+  const errEl = document.getElementById('error');
 
-// --- DOM ---
-const qInput = document.getElementById('searchInput')
-const fromEl  = document.getElementById('fromDate')
-const toEl    = document.getElementById('toDate')
-const btn     = document.getElementById('searchButton')
-const results = document.getElementById('results')
-const adminPanel = document.getElementById('adminPanel')
-const adminTable = document.getElementById('adminTable')
+  function setStatus(msg) { statusEl.textContent = msg; }
+  function setError(msg) { errEl.textContent = msg || ''; }
 
-// --- Utils (datoer) ---
-const parseDate = (s) => s ? new Date(s + 'T00:00:00') : null
-const formatDate = (d) => d.toISOString().slice(0,10)
-const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x }
-const addWeeks = (d,w) => addDays(d, w*7)
-const overlaps = (aStart, aEnd, bStart, bEnd) => (aStart <= bEnd) && (bStart <= aEnd)
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    setError('Supabase client not initialized – mangler URL eller ANON KEY i index.html.');
+  }
 
-// Beregn næste ledige startdato for ønsket periode (start -> end), givet eksisterende bookinger
-function nextAvailableStart(requestStart, requestEnd, existingRanges) {
-  if (!existingRanges || existingRanges.length===0) return requestStart
-  // sortér efter start
-  const rs = existingRanges.slice().sort((a,b)=> (a.s-b.s))
-  let start = new Date(requestStart)
-  let end   = new Date(requestEnd)
-  for (const r of rs) {
-    if (overlaps(start, end, r.s, r.e)) {
-      // skub start til dagen efter r.e
-      start = addDays(r.e, 1)
-      const span = Math.round((requestEnd - requestStart) / 86400000) // antal dage
-      end = addDays(start, span)
+  const sb = window.__APP.supabase = (window.supabase && SUPABASE_URL && SUPABASE_ANON_KEY)
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
+
+  // ---------- DOM refs ----------
+  const modeBookerBtn = document.getElementById('modeBooker');
+  const modeAdminBtn = document.getElementById('modeAdmin');
+  const bookerCard = document.getElementById('bookerCard');
+  const adminCard = document.getElementById('adminCard');
+
+  const bibliotekSelect = document.getElementById('bibliotekSelect');
+  const qInput = document.getElementById('q');
+  const startInput = document.getElementById('startDato');
+  const slutInput = document.getElementById('slutDato');
+  const btnSearch = document.getElementById('btnSearch');
+  const saetList = document.getElementById('saetList');
+  const bookerMsg = document.getElementById('bookerMsg');
+
+  const adminCentralSelect = document.getElementById('adminCentralSelect');
+  const btnLoadPending = document.getElementById('btnLoadPending');
+  const pendingList = document.getElementById('pendingList');
+  const adminMsg = document.getElementById('adminMsg');
+
+  // ---------- Mode switch ----------
+  modeBookerBtn.addEventListener('click', () => {
+    window.__APP.mode = 'booker';
+    modeBookerBtn.classList.add('active');
+    modeAdminBtn.classList.remove('active');
+    bookerCard.style.display = '';
+    adminCard.style.display = 'none';
+    setStatus('Booker-visning');
+    setError('');
+  });
+
+  modeAdminBtn.addEventListener('click', () => {
+    window.__APP.mode = 'admin';
+    modeAdminBtn.classList.add('active');
+    modeBookerBtn.classList.remove('active');
+    bookerCard.style.display = 'none';
+    adminCard.style.display = '';
+    setStatus('Admin-visning');
+    setError('');
+  });
+
+  // ---------- Helpers ----------
+  function iso(d) {
+    if (!d) return null;
+    const dt = new Date(d);
+    if (Number.isNaN(dt.getTime())) return null;
+    // Return yyyy-mm-dd (no TZ) for date-only comparisons stored as date
+    return dt.toISOString().slice(0, 10);
+  }
+
+  function overlap(aStart, aEnd, bStart, bEnd) {
+    // date strings "YYYY-MM-DD"
+    return (aStart <= bEnd) && (bStart <= aEnd);
+  }
+
+  // ---------- Load biblioteker ----------
+  async function loadBiblioteker() {
+    if (!sb) return;
+    setStatus('Henter biblioteker...');
+    const { data, error } = await sb
+      .from('tbl_bibliotek')
+      .select('bibliotek_id, navn, type')
+      .order('navn', { ascending: true });
+
+    if (error) { setError('Fejl ved hentning af biblioteker: ' + error.message); return; }
+
+    // Booker select (alle biblioteker)
+    bibliotekSelect.innerHTML = '';
+    for (const b of data) {
+      const opt = document.createElement('option');
+      opt.value = b.bibliotek_id;
+      opt.textContent = `${b.navn}${b.type === 'Central' ? ' (Central)' : ''}`;
+      bibliotekSelect.appendChild(opt);
+    }
+
+    // Admin: kun Central
+    adminCentralSelect.innerHTML = '';
+    for (const b of data.filter(x => x.type === 'Central')) {
+      const opt = document.createElement('option');
+      opt.value = b.bibliotek_id;
+      opt.textContent = b.navn;
+      adminCentralSelect.appendChild(opt);
+    }
+
+    if (data.length) {
+      window.__APP.currentBibliotekId = bibliotekSelect.value;
+      setStatus('Biblioteker indlæst.');
     }
   }
-  return start
-}
 
-// --- Søgning (fritekst +/eller periode) ---
-btn.addEventListener('click', runSearch)
-qInput.addEventListener('keypress', (e)=>{ if(e.key==='Enter') runSearch() })
-fromEl.addEventListener('change', ()=> {/*no-op*/})
-toEl.addEventListener('change', ()=> {/*no-op*/})
+  // Hent central ID for valgt bibliotek
+  async function getCentralForBibliotek(bibliotekId) {
+    if (!sb || !bibliotekId) return null;
+    const { data, error } = await sb
+      .from('tbl_bibliotek_relation')
+      .select('central_bibliotek_id')
+      .eq('bibliotek_id', bibliotekId)
+      .eq('aktiv', true)
+      .maybeSingle();
 
-async function runSearch() {
-  const term = (qInput?.value||'').trim()
-  const from = parseDate(fromEl.value)
-  const to   = parseDate(toEl.value)
-
-  results.innerHTML = '<p>⏳ Søger…</p>'
-
-  // 1) Hent sæt (filtrér på fritekst hvis angivet)
-  let query = supabase.from('tbl_saet')
-    .select('id,titel,forfatter,isbn,faust,antal_oenskede_eksemplarer,centralbibliotek_id,standard_laaneperiode_uger,buffer_dage')
-    .limit(100)
-
-  if (term) {
-    query = query.or(`titel.ilike.%${term}%,forfatter.ilike.%${term}%,isbn.ilike.%${term}%,faust.ilike.%${term}%`)
-  }
-  const { data: sets, error: setErr } = await query
-  if (setErr) {
-    results.innerHTML = `<p style="color:red;">Fejl: ${escapeHtml(setErr.message)}</p>`
-    return
-  }
-  if (!sets || sets.length===0) {
-    results.innerHTML = '<p>Ingen sæt fundet.</p>'
-    return
+    if (error) { setError('Fejl ved opslag af centralbibliotek: ' + error.message); return null; }
+    return data ? data.central_bibliotek_id : null;
   }
 
-  // 2) Hvis periode er valgt, hent bookinger for alle de fundne sæt i den periode (Pending/Approved regnes som optaget)
-  let bookingsBySet = {}
-  if (from && to) {
-    const ids = sets.map(s=>s.id)
-    // hent kun bookinger for disse sæt, der kan overlappe (bredt filter)
-    const { data: bks, error: bkErr } = await supabase
+  // ---------- Søg sæt ----------
+  btnSearch.addEventListener('click', doSearch);
+  bibliotekSelect.addEventListener('change', () => {
+    window.__APP.currentBibliotekId = bibliotekSelect.value;
+  });
+
+  async function doSearch() {
+    setError('');
+    saetList.innerHTML = '';
+    bookerMsg.textContent = '';
+
+    const bibId = window.__APP.currentBibliotekId = bibliotekSelect.value;
+    if (!bibId) { setError('Vælg et bibliotek.'); return; }
+
+    const centralId = window.__APP.currentCentralId = await getCentralForBibliotek(bibId);
+    if (!centralId) {
+      // Måske er det et centralbibliotek selv – i så fald er centralId = bibId
+      window.__APP.currentCentralId = centralId || bibId;
+    }
+
+    const q = (qInput.value || '').trim();
+    const start = iso(startInput.value);
+    const slut = iso(slutInput.value);
+
+    if (!start || !slut) {
+      setError('Vælg både start- og slutdato.');
+      return;
+    }
+    if (start > slut) {
+      setError('Startdato kan ikke være efter slutdato.');
+      return;
+    }
+
+    setStatus('Søger sæt...');
+    // Filter: synlighed = Land ELLER (Region og central_bibliotek_id = brugerens central)
+    const visibilityFilter = `synlighed.eq.Land,and(synlighed.eq.Region,central_bibliotek_id.eq.${window.__APP.currentCentralId})`;
+
+    // Basisselekt
+    let query = sb
+      .from('tbl_saet')
+      .select('set_id, titel, forfatter, isbn, faust, antal_onskede, standard_laneperiode_uger, buffer_dage, synlighed, central_bibliotek_id, aktiv, substitution_tilladt, delvis_leverance_tilladt, minimum_leverance')
+      .eq('aktiv', true)
+      .or(visibilityFilter)
+      .order('titel', { ascending: true });
+
+    // Søgning
+    if (q) {
+      // simpelt OR-udtryk over tekstfelter
+      query = query.or(
+        `titel.ilike.%${q}%,forfatter.ilike.%${q}%,isbn.ilike.%${q}%,faust.ilike.%${q}%`
+      );
+    }
+
+    const { data: saet, error } = await query;
+    if (error) { setError('Fejl ved søgning: ' + error.message); return; }
+    setStatus(`Fandt ${saet.length} sæt. Tjekker kalender...`);
+
+    // Tjek kalender-tilgængelighed pr. sæt (Approved overlaps)
+    for (const s of saet) {
+      const avail = await isSetAvailable(s.set_id, start, slut);
+      renderSetItem(s, avail, { start, slut, bibId });
+    }
+
+    bookerMsg.textContent = 'Kalender styrer udlånbarhed i POC. Inventarstatus er info-only.';
+    setStatus('Færdig.');
+  }
+
+  async function isSetAvailable(setId, start, slut) {
+    // hent approved bookinger der overlapper
+    const { data, error } = await sb
       .from('tbl_booking')
-      .select('id,set_id,start_dato,slut_dato,status')
-      .in('set_id', ids)
-      .in('status', ['Pending','Approved']) // POC: disse spærrer kalenderen
-    if (bkErr) {
-      results.innerHTML = `<p style="color:red;">Fejl (bookings): ${escapeHtml(bkErr.message)}</p>`
-      return
-    }
-    // grupper
-    for (const b of (bks||[])) {
-      const s = new Date(b.start_dato + 'T00:00:00')
-      const e = new Date(b.slut_dato  + 'T00:00:00')
-      ;(bookingsBySet[b.set_id] ||= []).push({ s, e, status:b.status })
-    }
+      .select('start_dato, slut_dato, status')
+      .eq('set_id', setId)
+      .eq('status', 'Approved');
+
+    if (error) { setError('Fejl ved kalenderopslag: ' + error.message); return { ok:false, conflicts:[] }; }
+
+    const conflicts = (data || []).filter(b => overlap(start, slut, b.start_dato, b.slut_dato));
+    return { ok: conflicts.length === 0, conflicts };
   }
 
-  // 3) Render (med badge for kalender/inventar placeholder)
-  renderResults(sets, { from, to, bookingsBySet })
-}
+  function renderSetItem(s, avail, ctx) {
+    const div = document.createElement('div');
+    div.className = 'item';
 
-function renderResults(rows, ctx) {
-  const { from, to, bookingsBySet } = ctx
-  let html = `
-    <table class="result-table">
-      <thead>
-        <tr>
-          <th>Titel</th>
-          <th>Forfatter</th>
-          <th>ISBN</th>
-          <th>FAUST</th>
-          <th>Antal ønskede</th>
-          <th>Badges</th>
-          <th>Handling</th>
-        </tr>
-      </thead>
-      <tbody>
-  `
-  for (const row of rows) {
-    // Kalenderbadge
-    let calBadge = `<span class="badge ok">Kalender: (ingen periode valgt)</span>`
-    let nextStartText = ''
-    if (from && to) {
-      const ranges = (bookingsBySet[row.id]||[]).map(r => ({ s: r.s, e: r.e }))
-      const conflicts = ranges.some(r => overlaps(from, to, r.s, r.e))
-      if (conflicts) {
-        const next = nextAvailableStart(from, to, ranges)
-        nextStartText = ` (Næste ledige: ${formatDate(next)})`
-        calBadge = `<span class="badge warn">Reserveret i perioden</span>${nextStartText}`
-      } else {
-        calBadge = `<span class="badge ok">Ledig i perioden</span>`
+    const head = document.createElement('div');
+    head.style.display = 'flex';
+    head.style.gap = '8px';
+    head.style.alignItems = 'center';
+
+    const h3 = document.createElement('h3');
+    const subj = `<strong>${s.titel}</strong> ${s.forfatter ? '· ' + s.forfatter : ''}`;
+    h3.innerHTML = subj;
+
+    const badge = document.createElement('span');
+    badge.className = 'badge ' + (avail.ok ? 'ok' : 'warn');
+    badge.textContent = avail.ok ? 'Ledig (kalender)' : 'Ikke ledig i perioden';
+
+    head.appendChild(h3);
+    head.appendChild(badge);
+    head.appendChild(document.createElement('div')).className = 'right';
+    div.appendChild(head);
+
+    const meta = document.createElement('div');
+    meta.className = 'muted';
+    meta.textContent = `ISBN: ${s.isbn || '-'} · FAUST: ${s.faust || '-'} · Synlighed: ${s.synlighed}${s.synlighed === 'Region' ? ' (central krævet)' : ''}`;
+    div.appendChild(meta);
+
+    // Booking form
+    const form = document.createElement('div');
+    form.className = 'row';
+    form.style.marginTop = '10px';
+
+    const kontakt = document.createElement('input');
+    kontakt.placeholder = 'Kontaktperson';
+    kontakt.ariaLabel = 'Kontaktperson';
+    const email = document.createElement('input');
+    email.type = 'email';
+    email.placeholder = 'E-mail';
+    email.ariaLabel = 'E-mail';
+
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'primary';
+    btn.textContent = 'Anmod om booking';
+    btn.disabled = !avail.ok; // kun gyldige (i POC)
+
+    btn.addEventListener('click', async () => {
+      setError('');
+      setStatus('Opretter booking...');
+      btn.disabled = true;
+      const { data, error } = await sb
+        .from('tbl_booking')
+        .insert([{
+          set_id: s.set_id,
+          bibliotek_id: ctx.bibId,
+          kontakt_navn: kontakt.value || null,
+          kontakt_email: email.value || null,
+          start_dato: ctx.start,
+          slut_dato: ctx.slut,
+          status: 'Pending'
+        }])
+        .select('booking_id')
+        .single();
+
+      if (error) {
+        setError('Fejl ved oprettelse af booking: ' + error.message);
+        btn.disabled = false;
+        return;
       }
+      setStatus('Booking oprettet (Pending).');
+      const note = document.createElement('div');
+      note.className = 'success';
+      note.textContent = 'Anmodning sendt. Du får svar, når sættet er godkendt/afvist.';
+      div.appendChild(note);
+    });
+
+    form.appendChild(kontakt);
+    form.appendChild(email);
+    form.appendChild(btn);
+    div.appendChild(form);
+
+    // Konfliktinfo
+    if (!avail.ok && avail.conflicts?.length) {
+      const k = document.createElement('div');
+      k.className = 'note';
+      const next = nextAvailableDate(avail.conflicts, ctx.start, ctx.slut);
+      k.textContent = `Næste mulige start (estimat): ${next || '—'}`;
+      div.appendChild(k);
     }
 
-    // Inventarbadge (POC-info, ikke styrende endnu)
-    const invBadge = `<span class="badge">Inventar: info</span>`
-
-    html += `
-      <tr>
-        <td>${escapeHtml(row.titel ?? '')}</td>
-        <td>${escapeHtml(row.forfatter ?? '')}</td>
-        <td>${escapeHtml(row.isbn ?? '')}</td>
-        <td>${escapeHtml(row.faust ?? '')}</td>
-        <td>${row.antal_oenskede_eksemplarer ?? ''}</td>
-        <td>${calBadge} ${invBadge}</td>
-        <td>
-          <button class="bookBtn"
-            data-id="${row.id}"
-            data-laaneuger="${row.standard_laaneperiode_uger ?? 8}"
-            data-buffer="${row.buffer_dage ?? 0}">
-            Book
-          </button>
-        </td>
-      </tr>
-    `
+    saetList.appendChild(div);
   }
-  html += '</tbody></table>'
-  results.innerHTML = html
 
-  // Aktivér Book-knapper
-  document.querySelectorAll('.bookBtn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const setId   = btn.getAttribute('data-id')
-      const weeks   = parseInt(btn.getAttribute('data-laaneuger')||'8', 10)
-      const buffer  = parseInt(btn.getAttribute('data-buffer')||'0', 10)
-      openBookingFlow(setId, weeks, buffer)
-    })
-  })
-}
-
-// --- Booking-flow med overlap-tjek + auto slutdato + “næste ledige” ---
-async function openBookingFlow(setId, weeks, bufferDays) {
-  // 1) Vælg start (default = fromDate hvis sat)
-  const uiStart = fromEl.value || ''
-  const startInput = prompt(`Startdato (YYYY-MM-DD):`, uiStart)
-  if (!startInput) return
-
-  const start = parseDate(startInput)
-  if (isNaN(start)) { alert('Ugyldig dato'); return }
-
-  // 2) Beregn slutdato = start + uger + buffer
-  const end = addDays(addWeeks(start, weeks), bufferDays)
-
-  // 3) Hent eksisterende bookinger for sættet (Pending/Approved spærrer)
-  const { data: bks, error } = await supabase
-    .from('tbl_booking')
-    .select('start_dato,slut_dato,status')
-    .eq('set_id', setId)
-    .in('status', ['Pending','Approved'])
-  if (error) { alert('Fejl ved overlap-tjek: ' + error.message); return }
-
-  const ranges = (bks||[]).map(b => ({
-    s: new Date(b.start_dato + 'T00:00:00'),
-    e: new Date(b.slut_dato  + 'T00:00:00')
-  }))
-
-  // 4) Overlap?
-  const conflict = ranges.some(r => overlaps(start, end, r.s, r.e))
-  if (conflict) {
-    const next = nextAvailableStart(start, end, ranges)
-    const spanDays = Math.round((end - start)/86400000)
-    const nextEnd  = addDays(next, spanDays)
-    const accept = confirm(
-      `Valgt periode er optaget.\n`+
-      `Næste ledige startdato: ${formatDate(next)}\n\n`+
-      `Vil du booke ${formatDate(next)} → ${formatDate(nextEnd)} i stedet?`
-    )
-    if (!accept) return
-    await createBooking(setId, formatDate(next), formatDate(nextEnd))
-  } else {
-    await createBooking(setId, formatDate(start), formatDate(end))
+  function nextAvailableDate(conflicts, desiredStart /* yyyy-mm-dd */) {
+    // simpelt estimat: vælg seneste slut_dato + 1 dag
+    const latest = conflicts
+      .map(c => c.slut_dato)
+      .sort()
+      .pop();
+    if (!latest) return null;
+    const d = new Date(latest);
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().slice(0, 10);
   }
-}
 
-async function createBooking(setId, startStr, endStr) {
-  const borrower = prompt('Lånerbibliotek (navn):')
-  if (!borrower) return
+  // ---------- Admin pending ----------
+  btnLoadPending.addEventListener('click', loadPending);
 
-  const payload = {
-    set_id: setId,
-    laaner_bibliotek: borrower,
-    start_dato: startStr,
-    slut_dato: endStr,
-    status: 'Pending',
-    oprettet_dato: new Date().toISOString()
+  async function loadPending() {
+    setError('');
+    pendingList.innerHTML = '';
+    adminMsg.textContent = '';
+
+    const centralId = adminCentralSelect.value;
+    if (!centralId) { setError('Vælg centralbibliotek.'); return; }
+
+    setStatus('Henter afventende bookinger...');
+    // Find sæt der hører til denne central (enten Land (må alle se) — men til godkendelse viser vi typisk Region + Land)
+    // Vi henter Pending for sæt hvor set.central_bibliotek_id = centralId ELLER synlighed = 'Land'
+    const { data, error } = await sb
+      .from('tbl_booking')
+      .select('booking_id, set_id, bibliotek_id, kontakt_navn, kontakt_email, start_dato, slut_dato, status, tbl_saet!inner(set_id, titel, synlighed, central_bibliotek_id), tbl_bibliotek!inner(bibliotek_id, navn)')
+      .eq('status', 'Pending')
+      .or(`tbl_saet.synlighed.eq.Land,and(tbl_saet.synlighed.eq.Region,tbl_saet.central_bibliotek_id.eq.${centralId})`)
+      .order('start_dato', { ascending: true });
+
+    if (error) { setError('Fejl ved indlæsning: ' + error.message); return; }
+
+    for (const b of (data || [])) {
+      renderPending(b);
+    }
+    adminMsg.textContent = `${data?.length || 0} afventende.`;
+    setStatus('Færdig.');
   }
-  const { error } = await supabase.from('tbl_booking').insert([payload])
-  if (error) { alert('Fejl: ' + error.message); return }
-  alert(`Booking sendt til godkendelse:\n${startStr} → ${endStr}`)
-}
 
-// --- Admin (simple pending-oversigt + godkend/afvis). Vises hvis ?admin=1 ---
-initAdminIfNeeded()
-async function initAdminIfNeeded() {
-  const params = new URLSearchParams(location.search)
-  if (params.get('admin') !== '1') return
-  adminPanel.style.display = 'block'
-  await loadPending()
-}
+  function renderPending(b) {
+    const div = document.createElement('div');
+    div.className = 'item';
 
-async function loadPending() {
-  adminTable.innerHTML = '<p>⏳ Henter pending…</p>'
-  const { data, error } = await supabase
-    .from('tbl_booking')
-    .select('id,set_id,laaner_bibliotek,start_dato,slut_dato,status')
-    .eq('status','Pending')
-    .order('oprettet_dato', { ascending:false })
+    const h3 = document.createElement('h3');
+    h3.innerHTML = `<strong>${b.tbl_saet.titel}</strong> · ${b.tbl_saet.synlighed}`;
+    div.appendChild(h3);
 
-  if (error) { adminTable.innerHTML = `<p style="color:red;">Fejl: ${escapeHtml(error.message)}</p>`; return }
-  if (!data || data.length===0) { adminTable.innerHTML = '<p class="muted">Ingen pending-bookinger.</p>'; return }
+    const meta = document.createElement('div');
+    meta.className = 'muted';
+    meta.textContent = `Booking: ${b.start_dato} → ${b.slut_dato} · Fra: ${b.tbl_bibliotek.navn} · Kontakt: ${b.kontakt_navn || '-'} (${b.kontakt_email || '-'})`;
+    div.appendChild(meta);
 
-  // Hent titler for visning
-  const setIds = [...new Set(data.map(x=>x.set_id))]
-  const { data: sets } = await supabase.from('tbl_saet').select('id,titel').in('id', setIds)
-  const mapTitle = Object.fromEntries((sets||[]).map(s=>[s.id, s.titel||'']))
+    const row = document.createElement('div');
+    row.className = 'row';
+    const approve = document.createElement('button');
+    approve.type = 'button';
+    approve.className = 'primary';
+    approve.textContent = 'Godkend';
 
-  let html = `
-    <table>
-      <thead>
-        <tr><th>Titel</th><th>Lånerbibliotek</th><th>Periode</th><th>Status</th><th>Handling</th></tr>
-      </thead>
-      <tbody>
-  `
-  for (const r of data) {
-    html += `
-      <tr>
-        <td>${escapeHtml(mapTitle[r.set_id]||r.set_id)}</td>
-        <td>${escapeHtml(r.laaner_bibliotek||'')}</td>
-        <td>${escapeHtml(r.start_dato)} → ${escapeHtml(r.slut_dato)}</td>
-        <td>${escapeHtml(r.status)}</td>
-        <td class="row-actions">
-          <button data-id="${r.id}" data-act="approve">Godkend</button>
-          <button data-id="${r.id}" data-act="reject"  style="background:var(--danger);color:white;border:1px solid var(--border)">Afvis</button>
-        </td>
-      </tr>
-    `
+    const reject = document.createElement('button');
+    reject.type = 'button';
+    reject.className = 'ghost';
+    reject.textContent = 'Afvis';
+
+    const info = document.createElement('div');
+    info.className = 'note';
+
+    approve.addEventListener('click', async () => {
+      setError('');
+      info.textContent = 'Validerer kalender...';
+      const clash = await isSetAvailable(b.set_id, b.start_dato, b.slut_dato);
+      if (!clash.ok) {
+        info.textContent = '';
+        setError('Kan ikke godkende: Konflikt i perioden.');
+        return;
+      }
+      const { error } = await sb
+        .from('tbl_booking')
+        .update({ status: 'Approved' })
+        .eq('booking_id', b.booking_id);
+      if (error) { setError('Fejl ved godkendelse: ' + error.message); return; }
+      info.textContent = 'Godkendt.';
+      approve.disabled = true; reject.disabled = true;
+    });
+
+    reject.addEventListener('click', async () => {
+      setError('');
+      const { error } = await sb
+        .from('tbl_booking')
+        .update({ status: 'Rejected' })
+        .eq('booking_id', b.booking_id);
+      if (error) { setError('Fejl ved afvisning: ' + error.message); return; }
+      info.textContent = 'Afvist.';
+      approve.disabled = true; reject.disabled = true;
+    });
+
+    row.appendChild(approve);
+    row.appendChild(reject);
+    row.appendChild(info);
+    div.appendChild(row);
+
+    pendingList.appendChild(div);
   }
-  html += '</tbody></table>'
-  adminTable.innerHTML = html
 
-  adminTable.querySelectorAll('button[data-act]').forEach(b=>{
-    b.addEventListener('click', async ()=>{
-      const id = b.getAttribute('data-id')
-      const act = b.getAttribute('data-act')
-      const newStatus = act==='approve' ? 'Approved' : 'Rejected'
-      const { error } = await supabase.from('tbl_booking').update({ status: newStatus }).eq('id', id)
-      if (error) { alert('Fejl: ' + error.message); return }
-      await loadPending()
-    })
-  })
-}
+  // ---------- Init on load ----------
+  (async function init() {
+    try {
+      if (!window.__APP.supabase) return;
+      await loadBiblioteker();
+      // Sæt default-datoer (8 ugers standard)
+      const today = new Date();
+      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
+      const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 56);
+      startInput.value = start.toISOString().slice(0,10);
+      slutInput.value = end.toISOString().slice(0,10);
+      setStatus('Klar.');
+    } catch (e) {
+      setError(String(e?.message || e));
+    }
+  })();
 
-// --- Helpers ---
-function escapeHtml(str) {
-  return String(str)
-    .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
-    .replaceAll('"','&quot;').replaceAll("'",'&#039;')
-}
-
-console.log('📘 Læsekredssæt POC v2.8 – UI med periode/overlap/admin indlæst')
+})();
