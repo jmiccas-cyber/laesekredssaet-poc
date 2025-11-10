@@ -1,68 +1,161 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="da">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Læsekredssæt – POC v2.8</title>
-  <link rel="stylesheet" href="style.css" />
+
+  <!-- 🔹 Enkel mørk styling -->
+  <style>
+    :root {
+      --bg: #0f1115;
+      --card: #171a21;
+      --text: #e7e9ee;
+      --muted: #9aa3b2;
+      --accent: #4da3ff;
+      --accent2: #6ce5b1;
+      --danger: #ff6161;
+      --border: #232834;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    header {
+      padding: 24px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg,#12151c,#0f1115);
+    }
+    header h1 { margin: 0 0 6px 0; font-size: 22px; }
+    header p  { margin: 0; color: var(--muted); font-size: 14px; }
+
+    main.container {
+      max-width: 980px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+
+    .searchbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      padding: 14px;
+      border-radius: 14px;
+    }
+    .searchbar input {
+      width: 100%;
+      padding: 12px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0c0f14;
+      color: var(--text);
+      outline: none;
+    }
+    .searchbar button {
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--accent);
+      color: #08131e;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .searchbar button:hover { filter: brightness(1.1); }
+
+    .note {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .results {
+      margin-top: 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      overflow-x: auto;
+    }
+
+    table.result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    .result-table thead th {
+      text-align: left;
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .result-table tbody td {
+      padding: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .result-table tbody tr:hover {
+      background: #141825;
+    }
+
+    .bookBtn {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      background: var(--accent2);
+      color: #072316;
+      font-weight: 600;
+      transition: 0.2s;
+    }
+    .bookBtn:hover { filter: brightness(1.05); }
+
+    footer {
+      color: var(--muted);
+      text-align: center;
+      padding: 24px 0 40px;
+      font-size: 12px;
+    }
+  </style>
 </head>
 
 <body>
   <header>
     <h1>Læsekredssæt – POC v2.8</h1>
-    <p class="subtitle">Gentofte Centralbibliotek · Demonstrationsversion</p>
+    <p>Søg på Titel, Forfatter, ISBN eller FAUST og opret en test-booking</p>
   </header>
 
-  <main>
-    <section id="search-section">
-      <h2>Søg læsekredssæt</h2>
-      <form id="search-form">
-        <input type="text" id="searchQuery" placeholder="Titel, Forfatter, FAUST eller ISBN" />
-        <input type="date" id="startDate" />
-        <input type="date" id="endDate" />
-        <button type="submit">Søg</button>
-      </form>
-      <div id="results"></div>
+  <main class="container">
+    <!-- 🔍 Søgefelt -->
+    <section class="searchbar" aria-label="Søgning">
+      <input id="searchInput" type="search"
+             placeholder="Søg fx 'Hemingway', '978870...' eller 'FAUST 12345'" />
+      <button id="searchButton" type="button">Søg</button>
     </section>
 
-    <section id="booking-section" hidden>
-      <h2>Booking</h2>
-      <form id="booking-form">
-        <label>Bibliotek:</label>
-        <input type="text" id="libName" required />
-        <label>Kontaktperson:</label>
-        <input type="text" id="contact" required />
-        <label>E-mail:</label>
-        <input type="email" id="email" required />
-        <label>Periode:</label>
-        <input type="date" id="bookFrom" required />
-        <input type="date" id="bookTo" required />
-        <button type="submit">Send anmodning</button>
-      </form>
-    </section>
+    <div class="note">
+      POC-note: Bookinger gemmes i <code>tblBooking</code> som <em>Pending</em>.
+      Kalender-/overlapkontrol er forenklet i denne version.
+    </div>
 
-    <section id="admin-section">
-      <h2>Centralbibliotek – Administration</h2>
-      <p>Her kan du se sæt, registrere retur og importere beholdning (demonstration).</p>
-      <input type="file" id="fileUpload" accept=".csv, .xlsx" />
-      <button id="importBtn">Importer beholdning</button>
-      <div id="inventory-log"></div>
+    <!-- 📚 Resultater -->
+    <section id="results" class="results" aria-live="polite">
+      <p class="muted">Indtast et søgeord og tryk <strong>Søg</strong>.</p>
     </section>
   </main>
 
   <footer>
-    <p>POC v2.8 · Statisk version · Data opdateres manuelt</p>
+    Læsekredssæt POC • v2.8 • Supabase + Vercel
   </footer>
 
-  <script src="script.js"></script>
-
-<!-- Supabase client -->
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-<script>
-  // TODO: paste your real values from Settings → API
-  window.SUPABASE_URL = "https://qlkrzinyqirnigcwadki.supabase.co";
-  window.SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsa3J6aW55cWlybmlnY3dhZGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NjY2NjgsImV4cCI6MjA3ODM0MjY2OH0.-SV3dn7reKHeYis40I-aF3av0_XmCP-ZqB9KR6JT2so";
-</script>
-
+  <!-- ⚙️ Hovedscript (ES-modul kræves) -->
+  <script type="module" src="./script.js"></script>
 </body>
 </html>

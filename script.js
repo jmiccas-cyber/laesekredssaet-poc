@@ -1,195 +1,138 @@
-/* Læsekredssæt – POC v2.8
- * script.js — Supabase-connected search + simple availability
- * -----------------------------------------------------------
- * Requirements in index.html (before this script):
- *  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
- *  <script>
- *    window.SUPABASE_URL = "https://YOUR-PROJECT.supabase.co";
- *    window.SUPABASE_ANON_KEY = "YOUR-ANON-KEY";
- *  </script>
- */
+// --- Læsekredssæt POC v2.8 — script.js ---
+// Kræver: <script type="module" src="script.js"></script> i index.html
 
-// ---------- Supabase client ----------
-let sb = null;
-(function initSupabase() {
-  const url = window.SUPABASE_URL;
-  const key = window.SUPABASE_ANON_KEY;
-  if (!url || !key) {
-    console.error("Supabase URL/Anon key missing. Set them in index.html.");
-    return;
-  }
-  sb = window.supabase.createClient(url, key);
-})();
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-// ---------- DOM helpers ----------
-const $ = (id) => document.getElementById(id);
-const resultsDiv = $("results");
-const importBtn = $("importBtn");
-const fileUpload = $("fileUpload");
+// ✅ DINE SUPABASE OPLYSNINGER
+const supabaseUrl = 'https://qlkrzinyqirnigcwadki.supabase.co'
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsa3J6aW55cWlybmlnY3dhZGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NjY2NjgsImV4cCI6MjA3ODM0MjY2OH0.-SV3dn7reKHeYis40I-aF3av0_XmCP-ZqB9KR6JT2so'
 
-// Simple message helpers
-function setStatus(el, html) {
-  el.innerHTML = html;
-}
-function escapeHTML(str) {
-  return (str ?? "")
-    .toString()
-    .replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m]));
-}
+const supabase = createClient(supabaseUrl, supabaseKey)
+console.log('✅ Supabase client initialized:', !!supabase)
 
-// ---------- Data access ----------
-/**
- * Search Saet by title/author/FAUST/ISBN (case-insensitive).
- * If q is empty, returns a default list (limit 20).
- */
-async function searchSaet(q) {
-  if (!sb) throw new Error("Supabase client not initialized");
+// --- DOM ELEMENTER (tilpas til dine IDs i index.html) ---
+const searchInput  = document.getElementById('searchInput')
+const searchButton = document.getElementById('searchButton')
+const resultsDiv   = document.getElementById('results')
 
-  if (!q || q.trim() === "") {
-    const { data, error } = await sb.from("Saet").select("*").limit(20);
-    if (error) throw error;
-    return data;
+// --- SØGNING I tblSæt ---
+async function searchSets() {
+  const term = (searchInput?.value || '').trim()
+
+  if (!term) {
+    resultsDiv.innerHTML = '<p>Indtast søgeord…</p>'
+    return
   }
 
-  const needle = `%${q.trim()}%`;
-  const { data, error } = await sb
-    .from("Saet")
-    .select("*")
-    .or(
-      `Titel.ilike.${needle},Forfatter.ilike.${needle},FAUST.ilike.${needle},ISBN.ilike.${needle}`
-    )
-    .limit(50);
+  resultsDiv.innerHTML = '<p>⏳ Søger…</p>'
 
-  if (error) throw error;
-  return data;
-}
+  const { data, error } = await supabase
+    .from('tblSæt')
+    .select('*')
+    .or(`Titel.ilike.%${term}%,Forfatter.ilike.%${term}%,ISBN.ilike.%${term}%,FAUST.ilike.%${term}%`)
+    .limit(50)
 
-/**
- * Returns count of available copies for a set (by matching ISBN or FAUST) from Beholdning.
- * Counts rows with Status = 'Ledig'.
- */
-async function getAvailableCountForSet(setRow) {
-  if (!sb) return 0;
-  const filters = [];
-  if (setRow?.ISBN) filters.push(`ISBN.eq.${setRow.ISBN}`);
-  if (setRow?.FAUST) filters.push(`FAUST.eq.${setRow.FAUST}`);
-
-  // If neither ISBN nor FAUST exists, we can't correlate; return 0 gracefully.
-  if (filters.length === 0) return 0;
-
-  // Build a query with OR if both exist
-  let q = sb.from("Beholdning").select("Stregkode", { count: "exact", head: true }).eq("Status", "Ledig");
-  if (filters.length === 2) {
-    q = q.or(filters.join(","));
-  } else {
-    // Single filter
-    const [single] = filters;
-    const [col, , val] = single.split(".");
-    q = q.eq(col, val);
-  }
-
-  const { count, error } = await q;
   if (error) {
-    console.warn("Availability count error:", error);
-    return 0;
+    console.error('Fejl ved søgning:', error)
+    resultsDiv.innerHTML = `<p style="color:red;">Fejl ved søgning: ${error.message}</p>`
+    return
   }
-  return count ?? 0;
+
+  if (!data || data.length === 0) {
+    resultsDiv.innerHTML = '<p>Ingen resultater.</p>'
+    return
+  }
+
+  renderResults(data)
 }
 
-/**
- * Given an array of Saet rows, attach a computed 'availableCount' for each (in parallel).
- */
-async function attachAvailability(sets) {
-  const withCounts = await Promise.all(
-    sets.map(async (s) => {
-      const available = await getAvailableCountForSet(s);
-      return { ...s, availableCount: available };
+// --- VISNING AF RESULTATER ---
+function renderResults(rows) {
+  let html = `
+    <table class="result-table">
+      <thead>
+        <tr>
+          <th>Titel</th>
+          <th>Forfatter</th>
+          <th>ISBN</th>
+          <th>FAUST</th>
+          <th>Antal ønskede</th>
+          <th>CentralbibliotekID</th>
+          <th>Handling</th>
+        </tr>
+      </thead>
+      <tbody>
+  `
+  for (const row of rows) {
+    html += `
+      <tr>
+        <td>${escapeHtml(row.Titel ?? '')}</td>
+        <td>${escapeHtml(row.Forfatter ?? '')}</td>
+        <td>${escapeHtml(row.ISBN ?? '')}</td>
+        <td>${escapeHtml(row.FAUST ?? '')}</td>
+        <td>${row.AntalØnskedeEksemplarer ?? ''}</td>
+        <td>${row.CentralbibliotekID ?? ''}</td>
+        <td><button class="bookBtn" data-id="${row.id}">Book</button></td>
+      </tr>
+    `
+  }
+  html += '</tbody></table>'
+  resultsDiv.innerHTML = html
+
+  document.querySelectorAll('.bookBtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-id')
+      openBookingForm(id)
     })
-  );
-  return withCounts;
+  })
 }
 
-// ---------- Rendering ----------
-function renderResults(sets) {
-  resultsDiv.innerHTML = "";
-  if (!sets || sets.length === 0) {
-    resultsDiv.innerHTML = "<p>Ingen resultater.</p>";
-    return;
+// --- BOOKING DIALOG (POC simpel) ---
+function openBookingForm(setId) {
+  const borrower = prompt('Lånerbibliotek (navn):')
+  if (!borrower) return
+  const fromDate = prompt('Startdato (YYYY-MM-DD):')
+  const toDate   = prompt('Slutdato (YYYY-MM-DD):')
+  if (!fromDate || !toDate) return
+
+  createBooking(setId, borrower, fromDate, toDate)
+}
+
+// --- GEM BOOKING I tblBooking ---
+async function createBooking(setId, borrower, fromDate, toDate) {
+  const booking = {
+    SetID: setId,
+    LånerBibliotek: borrower,
+    StartDato: fromDate,
+    SlutDato: toDate,
+    Status: 'Pending',
+    OprettetDato: new Date().toISOString()
   }
 
-  sets.forEach((s) => {
-    const card = document.createElement("div");
-    card.className = "result-card";
-    const title = escapeHTML(s.Titel);
-    const author = escapeHTML(s.Forfatter);
-    const faust = escapeHTML(s.FAUST);
-    const isbn = escapeHTML(s.ISBN);
-    const synlighed = escapeHTML(s.Synlighed);
-    const antal = s.Antal ?? "—";
-    const avail = Number.isFinite(s.availableCount) ? s.availableCount : "—";
-    const availBadgeClass = typeof s.availableCount === "number" && s.availableCount > 0 ? "green" : "red";
-    const availText = typeof s.availableCount === "number" ? (s.availableCount > 0 ? "Ledig" : "Optaget") : "Ukendt";
+  const { error } = await supabase.from('tblBooking').insert([booking])
 
-    card.innerHTML = `
-      <strong>${title}</strong> — ${author}<br/>
-      FAUST: ${faust} · ISBN: ${isbn}<br/>
-      <span class="badge blue">Synlighed: ${synlighed || "—"}</span>
-      <span class="badge">Antal: ${antal}</span>
-      <span class="badge ${availBadgeClass}">${availText}${typeof avail === "number" ? ` (${avail})` : ""}</span>
-    `;
-    resultsDiv.appendChild(card);
-  });
-}
-
-// ---------- Events ----------
-$("search-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const q = $("searchQuery").value;
-  setStatus(resultsDiv, "Søger…");
-
-  try {
-    const sets = await searchSaet(q);
-    const withAvail = await attachAvailability(sets);
-    renderResults(withAvail);
-  } catch (err) {
-    console.error(err);
-    setStatus(resultsDiv, `<p style="color:red">Fejl ved søgning: ${escapeHTML(err.message)}</p>`);
+  if (error) {
+    console.error('Fejl ved oprettelse af booking:', error)
+    alert('Fejl: ' + error.message)
+    return
   }
-});
-
-// Demo import handler (no backend write in POC)
-if (importBtn) {
-  importBtn.addEventListener("click", () => {
-    const log = $("inventory-log");
-    if (!fileUpload || !fileUpload.files || fileUpload.files.length === 0) {
-      setStatus(log, "<p style='color:red'>Vælg en fil først.</p>");
-      return;
-    }
-    const file = fileUpload.files[0];
-    setStatus(log, `<p>Importerede: <strong>${escapeHTML(file.name)}</strong> (demo – ingen backend endnu)</p>`);
-  });
+  alert('Booking sendt til godkendelse ✅')
 }
 
-// Optional: UX niceties (keyup = live search)
-$("searchQuery").addEventListener("keyup", debounce(async () => {
-  const q = $("searchQuery").value;
-  if (!q || q.length < 2) return; // avoid spamming
-  setStatus(resultsDiv, "Søger…");
-  try {
-    const sets = await searchSaet(q);
-    const withAvail = await attachAvailability(sets);
-    renderResults(withAvail);
-  } catch (err) {
-    console.error(err);
-    setStatus(resultsDiv, `<p style="color:red">Fejl ved søgning: ${escapeHTML(err.message)}</p>`);
-  }
-}, 350));
-
-// ---------- Utilities ----------
-function debounce(fn, wait = 300) {
-  let t = null;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(() => fn.apply(null, args), wait);
-  };
+// --- HJÆLPEFUNKTION: HTML-escape ---
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'",'&#039;')
 }
+
+// --- EVENT LISTENERS ---
+searchButton?.addEventListener('click', searchSets)
+searchInput?.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') searchSets()
+})
+
+console.log('📘 Læsekredssæt POC v2.8 script indlæst')
