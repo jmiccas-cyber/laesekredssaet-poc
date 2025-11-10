@@ -26,6 +26,14 @@
     th { background:#fafafa; position: sticky; top: 0; }
     .ok { background:#e8fbf0; border:1px solid #bfe8cf; }
     .err { background:#ffe9e9; border:1px solid #ffc3c3; }
+
+    /* Tabs */
+    .tabs { display:flex; gap:6px; border-bottom:1px solid #e5e5e5; margin-top:12px; }
+    .tabs button { border:none; background:#f5f5f5; padding:8px 12px; border-top-left-radius:10px; border-top-right-radius:10px; cursor:pointer; }
+    .tabs button.active { background:#fff; border:1px solid #e5e5e5; border-bottom-color:#fff; }
+    .tab-panel { display:none; padding-top:12px; }
+    .tab-panel.active { display:block; }
+
     .split { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     @media (max-width: 1100px) { .split { grid-template-columns: 1fr; } }
   </style>
@@ -82,7 +90,7 @@
 
   <!-- Admin View -->
   <section id="adminSection" class="card" style="display:none;">
-    <h2>Admin – Region & Sæt</h2>
+    <h2>Admin – Region, Sæt & Eksemplarer</h2>
 
     <div class="row">
       <div>
@@ -94,9 +102,16 @@
       </div>
     </div>
 
-    <div class="split">
+    <!-- Tabs -->
+    <div class="tabs">
+      <button id="tabBtnRegion" class="active" type="button">Region – tilknyttede biblioteker</button>
+      <button id="tabBtnSets" type="button">Sæt – vedligehold</button>
+      <button id="tabBtnCopies" type="button">Eksemplarer (beholdning)</button>
+    </div>
+
+    <!-- Region tab -->
+    <div id="tabRegion" class="tab-panel active">
       <div class="card">
-        <h3>Region – tilknyttede biblioteker</h3>
         <div class="row">
           <div>
             <label for="newRegionalId">Tilføj bibliotek_id</label>
@@ -109,9 +124,11 @@
         <div id="regionalsTable"></div>
         <div class="muted small">Redigerer relationer i <code>tbl_bibliotek_relation</code> og profilfelter i <code>tbl_bibliotek</code>.</div>
       </div>
+    </div>
 
+    <!-- Sets tab -->
+    <div id="tabSets" class="tab-panel">
       <div class="card">
-        <h3>Sæt – vedligehold</h3>
         <div class="row">
           <div><button id="refreshSets" class="ghost" type="button">Opdater</button></div>
           <div class="muted small">Redigér felter og klik “Gem”.</div>
@@ -136,6 +153,35 @@
         </div>
       </div>
     </div>
+
+    <!-- Copies tab -->
+    <div id="tabCopies" class="tab-panel">
+      <div class="card">
+        <div class="row">
+          <div style="min-width:320px;">
+            <label for="copiesSetSelect">Vælg sæt</label>
+            <select id="copiesSetSelect" style="min-width:320px;"></select>
+          </div>
+          <div>
+            <button id="loadCopies" class="ghost" type="button">Hent eksemplarer</button>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="newCopyBarcode">Ny stregkode</label>
+            <input id="newCopyBarcode" type="text" placeholder="scannes/indtastes…" />
+          </div>
+          <div>
+            <button id="addCopy" class="primary" type="button">Tilføj eksemplar</button>
+          </div>
+        </div>
+
+        <div id="copiesTable"></div>
+        <div class="muted small">Filtrerer på <code>owner_bibliotek_id = dit central</code> og samme <code>ISBN/FAUST</code> som det valgte sæt.</div>
+      </div>
+    </div>
+
     <div id="adminResults" class="group"></div>
   </section>
 
