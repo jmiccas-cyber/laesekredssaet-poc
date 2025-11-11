@@ -54,8 +54,13 @@
     <h2>Booker – Søg & book</h2>
     <div class="row">
       <div>
+        <label for="loginAsSelect">Login som bibliotek (simuleret)</label>
+        <select id="loginAsSelect" size="6" style="min-width:260px;"></select>
+        <div class="muted small">Vælg et regionalt bibliotek at simulere – sæt hentes automatisk.</div>
+      </div>
+      <div>
         <label for="centralSelect">Centralbibliotek</label>
-        <select id="centralSelect" multiple size="5" style="min-width:260px;"></select>
+        <select id="centralSelect" multiple size="6" style="min-width:260px;"></select>
         <div class="muted small">Vælg ét/flere – tom = alle centralbiblioteker</div>
       </div>
       <div>
@@ -102,14 +107,12 @@
       </div>
     </div>
 
-    <!-- Tabs -->
     <div class="tabs">
       <button id="tabBtnRegion" class="active" type="button">Region – tilknyttede biblioteker</button>
       <button id="tabBtnSets" type="button">Sæt – vedligehold</button>
       <button id="tabBtnCopies" type="button">Eksemplarer (beholdning)</button>
     </div>
 
-    <!-- Region tab -->
     <div id="tabRegion" class="tab-panel active">
       <div class="card">
         <div class="row">
@@ -126,7 +129,6 @@
       </div>
     </div>
 
-    <!-- Sets tab -->
     <div id="tabSets" class="tab-panel">
       <div class="card">
         <div class="row">
@@ -154,7 +156,6 @@
       </div>
     </div>
 
-    <!-- Copies tab -->
     <div id="tabCopies" class="tab-panel">
       <div class="card">
         <div class="row">
