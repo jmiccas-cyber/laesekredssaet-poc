@@ -126,7 +126,7 @@ async function init(){
   await Promise.all([loadCentrals(), loadAllRegionals()])
   populateCentralSelect()
   populateLoginAsSelect()
-  populateAdminOwner()
+  populateAdminOwner()          // <— manglede før
   await loadMyProfile()
   renderMyProfile()
 }
@@ -180,6 +180,20 @@ function populateLoginAsSelect(){
     opt.textContent = `${b.bibliotek_navn} (${b.bibliotek_id}) · ${b.central_id}`
     loginAsSelect.appendChild(opt)
   })
+}
+// >>> NEW: populateAdminOwner (manglede)
+function populateAdminOwner(){
+  adminOwner.innerHTML = ''
+  state.centrals.forEach(c => {
+    const opt = document.createElement('option')
+    opt.value = c.bibliotek_id
+    opt.textContent = `${c.bibliotek_navn} (${c.bibliotek_id})`
+    adminOwner.appendChild(opt)
+  })
+  // Vælg første som default hvis findes
+  if (state.centrals.length) {
+    adminOwner.value = state.centrals[0].bibliotek_id
+  }
 }
 
 // === Booker: login as (simuleret) ===
@@ -295,24 +309,19 @@ async function computeNextAvailableForSets(sets){
   return result
 }
 function findNextWindow(bookings, from, loanWeeks, bufferDays){
-  // Sorter og find første hul ≥ from, hvor [start, end] ikke overlapper
   const neededDays = loanWeeks*7 + bufferDays
   const sorted = bookings.sort((a,b)=>a.s - b.s)
   let start = new Date(from)
 
   for (const b of sorted){
     const end = addDays(start, neededDays - 1)
-    // overlapper det foreslåede interval [start,end] med b?
     if (rangesOverlap(start, end, b.s, b.e)) {
-      // skub start til dagen efter denne booking slutter
       start = addDays(b.e, 1)
       continue
     } else {
-      // fundet hul før denne booking
       return { start, end }
     }
   }
-  // intet overlap med nogen booking → brug aktuel start
   const end = addDays(start, neededDays - 1)
   return { start, end }
 }
@@ -345,7 +354,7 @@ function renderBookerTable(items, s, e, nextMap){
     const nextTxt = next ? `${fmtDate(next.start)} → ${fmtDate(next.end)}` : '—'
     const tr = document.createElement('tr'); tr.innerHTML = `
       <td><strong>${escapeHtml(row.title||'')}</strong><br><span class="muted">${escapeHtml(row.author||'')} · ${escapeHtml(row.isbn||row.faust||'')}</span></td>
-      <td>${escapeHtml(row.central_bibliotek)}</td>
+      <td>${escapeHtml(row.owner_bibliotek_id)}</td>
       <td>${row.visibility}</td>
       <td>${loanWeeks} uger${bufferDays? ' + '+bufferDays+' dage':''}</td>
       <td>${nextTxt}</td>
@@ -354,7 +363,6 @@ function renderBookerTable(items, s, e, nextMap){
     tbody.appendChild(tr)
 
     tr.querySelector('button').addEventListener('click', async ()=>{
-      // Hvis bruger ikke har valgt datoer, brug "næste ledige periode"
       let sDate = s, eDate = e
       if (!sDate || !eDate) {
         if (!next) { alert('Ingen ledig periode fundet. Vælg datoer manuelt.'); return }
