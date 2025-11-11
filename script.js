@@ -1,40 +1,41 @@
-// Læsekredssæt – v3.0: Booker forbedringer + Admin faner
+// Læsekredssæt – v3.0: Booker + Admin (Region/Sæt/Eksemplarer) + rapporter
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-// === Supabase ===
+// ===== Supabase (indsat) =====
 const SUPABASE_URL = 'https://qlkrzinyqirnigcwadki.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsa3J6aW55cWlybmlnY3dhZGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NjY2NjgsImV4cCI6MjA3ODM0MjY2OH0.-SV3dn7reKHeYis40I-aF3av0_XmCP-ZqB9KR6JT2so'
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-// === Beholdning kolonnenavne (admin) ===
+// ===== Konstanter for beholdning (kolonnenavne) =====
 const COPY_TABLE = 'tbl_beholdning'
 const COPY_BARCODE_COL = 'barcode'
-const COPY_STATUS_COL  = 'status'
+const COPY_BOOKING_COL = 'booking_status'     // POC-bookingstatus
+const COPY_LOAN_COL    = 'loan_status'        // Udlånsstatus (FBI-API senere, read-only nu)
 const COPY_TITLE_COL   = 'title'
 const COPY_AUTHOR_COL  = 'author'
 const COPY_ISBN_COL    = 'isbn'
 const COPY_FAUST_COL   = 'faust'
 const COPY_OWNER_COL   = 'owner_bibliotek_id'
 
-// === Status banner ===
+// ===== Status banner =====
 const statusBox = document.getElementById('statusBox')
-const showStatus = (msg, tone='err') => { statusBox.style.display=''; statusBox.className=`card ${tone}`; statusBox.textContent=String(msg) }
+const showStatus = (msg, tone='err') => { statusBox.style.display=''; statusBox.className=`status card ${tone}`; statusBox.textContent=String(msg) }
 const hideStatus = () => { statusBox.style.display='none' }
 
-// === State ===
+// ===== State =====
 const state = {
-  me: { bibliotek_id: 'GENT-L1' },   // simuleret login-bibliotek
+  me: { bibliotek_id: 'GENT-L1' },   // simuleret login som regionalt bibliotek
   centrals: [],
-  allRegionals: [],                  // alle ikke-central biblioteker (aktive)
-  ownersFilter: new Set(),           // valgte centraler i UI
+  allRegionals: [],
+  ownersFilter: new Set(),
   myProfile: null,
-  regionalMap: new Map(),            // admin region-profilmap
+  regionalMap: new Map(),
   setsForOwner: [],
   selectedSet: null,
   copies: []
 }
 
-// === Elements (fælles) ===
+// ===== Elements =====
 const toggleBooker = document.getElementById('toggleBooker')
 const toggleAdmin  = document.getElementById('toggleAdmin')
 const bookerSection = document.getElementById('bookerSection')
@@ -87,35 +88,34 @@ const loadCopies = document.getElementById('loadCopies')
 const newCopyBarcode = document.getElementById('newCopyBarcode')
 const addCopy = document.getElementById('addCopy')
 const copiesTable = document.getElementById('copiesTable')
+const reportBookedButLoaned = document.getElementById('reportBookedButLoaned')
+const reportArea = document.getElementById('reportArea')
 
-// === Role toggle ===
+// ===== Role toggle =====
 toggleBooker.addEventListener('click', () => {
   toggleBooker.classList.add('active'); toggleAdmin.classList.remove('active')
-  bookerSection.style.display = ''; adminSection.style.display = 'none'
+  bookerSection.classList.remove('hidden'); adminSection.classList.add('hidden')
 })
 toggleAdmin.addEventListener('click', () => {
   toggleAdmin.classList.add('active'); toggleBooker.classList.remove('active')
-  bookerSection.style.display = 'none'; adminSection.style.display = ''
+  bookerSection.classList.add('hidden'); adminSection.classList.remove('hidden')
 })
 
-// === Tabs logic (admin) ===
+// ===== Tabs logic (admin) =====
 const allTabButtons = [tabBtnRegion, tabBtnSets, tabBtnCopies]
 const allPanels = [tabRegion, tabSets, tabCopies]
 function activateTab(btn) {
   allTabButtons.forEach(b => b.classList.toggle('active', b === btn))
-  const map = new Map([
-    [tabBtnRegion, tabRegion],
-    [tabBtnSets, tabSets],
-    [tabBtnCopies, tabCopies]
-  ])
-  allPanels.forEach(p => p.classList.remove('active'))
-  map.get(btn).classList.add('active')
+  allPanels.forEach(p => p.classList.add('hidden'))
+  if (btn === tabBtnRegion) tabRegion.classList.remove('hidden')
+  if (btn === tabBtnSets)   tabSets.classList.remove('hidden')
+  if (btn === tabBtnCopies) tabCopies.classList.remove('hidden')
 }
 tabBtnRegion.addEventListener('click', () => activateTab(tabBtnRegion))
 tabBtnSets.addEventListener('click',   () => activateTab(tabBtnSets))
 tabBtnCopies.addEventListener('click', () => activateTab(tabBtnCopies))
 
-// === Init ===
+// ===== Init =====
 init().catch(e => showStatus('Init error: ' + (e?.message || e), 'err'))
 async function init(){
   showStatus('Forbinder til database…')
@@ -126,12 +126,14 @@ async function init(){
   await Promise.all([loadCentrals(), loadAllRegionals()])
   populateCentralSelect()
   populateLoginAsSelect()
-  populateAdminOwner()          // <— manglede før
-  await loadMyProfile()
-  renderMyProfile()
+  populateAdminOwner()
+  await loadMyProfile(); renderMyProfile()
+
+  // auto-list visning ved load (ingen filtre ⇒ alle sæt)
+  runSearch()
 }
 
-// === Load helpers ===
+// ===== Load helpers =====
 async function loadCentrals() {
   const { data, error } = await supabase
     .from('tbl_bibliotek')
@@ -142,7 +144,6 @@ async function loadCentrals() {
   state.centrals = data || []
 }
 async function loadAllRegionals() {
-  // alle aktive, ikke-central biblioteker + deres central via relation
   const [{ data: libs, error: e1 }, { data: rels, error: e2 }] = await Promise.all([
     supabase.from('tbl_bibliotek')
       .select('bibliotek_id,bibliotek_navn,active')
@@ -152,12 +153,8 @@ async function loadAllRegionals() {
   ])
   if (e1) { showStatus('loadAllRegionals.libs: ' + e1.message, 'err'); return }
   if (e2) { showStatus('loadAllRegionals.rels: ' + e2.message, 'err'); return }
-
   const relMap = new Map(rels.map(r => [r.bibliotek_id, r.central_id]))
-  state.allRegionals = (libs || []).map(l => ({
-    ...l,
-    central_id: relMap.get(l.bibliotek_id) || '—'
-  }))
+  state.allRegionals = (libs || []).map(l => ({ ...l, central_id: relMap.get(l.bibliotek_id) || '—' }))
 }
 function populateCentralSelect(){
   centralSelect.innerHTML = ''
@@ -180,8 +177,12 @@ function populateLoginAsSelect(){
     opt.textContent = `${b.bibliotek_navn} (${b.bibliotek_id}) · ${b.central_id}`
     loginAsSelect.appendChild(opt)
   })
+  // auto-vælg første hvis findes
+  if (state.allRegionals.length) {
+    loginAsSelect.value = state.allRegionals[0].bibliotek_id
+    state.me.bibliotek_id = state.allRegionals[0].bibliotek_id
+  }
 }
-// >>> NEW: populateAdminOwner (manglede)
 function populateAdminOwner(){
   adminOwner.innerHTML = ''
   state.centrals.forEach(c => {
@@ -190,23 +191,19 @@ function populateAdminOwner(){
     opt.textContent = `${c.bibliotek_navn} (${c.bibliotek_id})`
     adminOwner.appendChild(opt)
   })
-  // Vælg første som default hvis findes
-  if (state.centrals.length) {
-    adminOwner.value = state.centrals[0].bibliotek_id
-  }
+  if (state.centrals.length) adminOwner.value = state.centrals[0].bibliotek_id
 }
 
-// === Booker: login as (simuleret) ===
+// ===== Booker: login as (simuleret) =====
 loginAsSelect.addEventListener('change', async () => {
   const sel = loginAsSelect.value
   if (!sel) return
   state.me.bibliotek_id = sel
-  await loadMyProfile()          // opdater profil-panelet til det valgte bibliotek
-  renderMyProfile()
-  runSearch()                    // hent sæt automatisk
+  await loadMyProfile(); renderMyProfile()
+  runSearch() // auto-hent sæt for valgt login
 })
 
-// === Booker: søg ===
+// ===== Booker: søg =====
 searchBtn.addEventListener('click', () => runSearch())
 clearBtn.addEventListener('click', () => {
   qInput.value=''; startDate.value=''; endDate.value=''; state.ownersFilter.clear()
@@ -232,14 +229,8 @@ async function runSearch(){
   }
 
   // Udvid med Central-kolonne + næste ledige periode
-  const withCentral = sets.map(s => ({
-    ...s,
-    central_bibliotek: s.owner_bibliotek_id
-  }))
-
-  const nextMap = await computeNextAvailableForSets(withCentral)
-
-  renderBookerTable(withCentral, s, e, nextMap)
+  const extended = await addNextAvailability(sets)
+  renderBookerTable(extended, s, e)
 }
 
 async function listSetsForOwners(owners){
@@ -294,30 +285,27 @@ async function getMyCentralId(){
   return data?.central_id || 'GENT'
 }
 
-// Næste ledige periode – beregnes pr. sæt
-async function computeNextAvailableForSets(sets){
-  const result = new Map()
-  await Promise.all(sets.map(async (s)=>{
+// Næste ledige periode pr. sæt
+async function addNextAvailability(sets){
+  const result=[]
+  await Promise.all((sets||[]).map(async s=>{
     const from = startDate.value ? new Date(startDate.value) : today()
     const { data, error } = await supabase.from('tbl_booking')
       .select('start_date,end_date,status').eq('set_id', s.set_id).in('status',['pending','approved']).order('start_date')
-    if(error){ result.set(s.set_id, null); return }
-    const bookings = (data||[]).map(b=>({ s:new Date(b.start_date), e:new Date(b.end_date) }))
+    const bookings = error ? [] : (data||[]).map(b=>({ s:new Date(b.start_date), e:new Date(b.end_date) }))
     const next = findNextWindow(bookings, from, s.loan_weeks ?? 8, s.buffer_days ?? 0)
-    result.set(s.set_id, next) // {start: Date, end: Date} eller null
+    result.push({ ...s, next_window: next })
   }))
   return result
 }
 function findNextWindow(bookings, from, loanWeeks, bufferDays){
   const neededDays = loanWeeks*7 + bufferDays
-  const sorted = bookings.sort((a,b)=>a.s - b.s)
+  const sorted = [...bookings].sort((a,b)=>a.s - b.s)
   let start = new Date(from)
-
   for (const b of sorted){
     const end = addDays(start, neededDays - 1)
     if (rangesOverlap(start, end, b.s, b.e)) {
-      start = addDays(b.e, 1)
-      continue
+      start = addDays(b.e, 1) // skub efter overlap
     } else {
       return { start, end }
     }
@@ -326,8 +314,8 @@ function findNextWindow(bookings, from, loanWeeks, bufferDays){
   return { start, end }
 }
 
-// Tabelvisning (én tabel) inkl. Centralbibliotek + Næste ledige periode
-function renderBookerTable(items, s, e, nextMap){
+// Tabelvisning (én tabel)
+function renderBookerTable(items, s, e){
   if(!items || !items.length){
     bookerResults.innerHTML = `<div class="muted">Ingen resultater for dine filtre.</div>`
     return
@@ -350,7 +338,7 @@ function renderBookerTable(items, s, e, nextMap){
 
   items.forEach(row=>{
     const loanWeeks=row.loan_weeks??8, bufferDays=row.buffer_days??0
-    const next = nextMap.get(row.set_id)
+    const next = row.next_window
     const nextTxt = next ? `${fmtDate(next.start)} → ${fmtDate(next.end)}` : '—'
     const tr = document.createElement('tr'); tr.innerHTML = `
       <td><strong>${escapeHtml(row.title||'')}</strong><br><span class="muted">${escapeHtml(row.author||'')} · ${escapeHtml(row.isbn||row.faust||'')}</span></td>
@@ -387,7 +375,7 @@ function renderBookerTable(items, s, e, nextMap){
   bookerResults.appendChild(table)
 }
 
-// === Booker: Min profil ===
+// ===== Booker: Min profil =====
 async function loadMyProfile(){
   const { data, error } = await supabase.from('tbl_bibliotek')
     .select('bibliotek_id,bibliotek_navn,addr_line1,addr_line2,postal_code,city,contact_name,contact_email,contact_phone,shipping_notes')
@@ -407,7 +395,7 @@ function renderMyProfile(){
     <div><label>Kontakt</label><input id="pf_contact" type="text" value="${escapeHtml(p.contact_name||'')}" /></div>
     <div><label>Email</label><input id="pf_email" type="email" value="${escapeHtml(p.contact_email||'')}" /></div>
     <div><label>Telefon</label><input id="pf_phone" type="tel" value="${escapeHtml(p.contact_phone||'')}" /></div>
-    <div style="flex-basis:100%;"><label>Forsendelsesnoter</label><textarea id="pf_notes">${escapeHtml(p.shipping_notes||'')}</textarea></div>
+    <div style="grid-column:1/-1;"><label>Forsendelsesnoter</label><textarea id="pf_notes">${escapeHtml(p.shipping_notes||'')}</textarea></div>
   `
 }
 saveProfile.addEventListener('click', async ()=>{
@@ -422,13 +410,12 @@ saveProfile.addEventListener('click', async ()=>{
   showStatus('Profil gemt','ok'); setTimeout(hideStatus,1500)
 })
 
-// === Admin: Region & Sæt & Copies ===
+// ===== Admin: Region & Sæt & Copies =====
 loadAdminData.addEventListener('click', async ()=>{
   await loadRegionalsWithProfiles()
   await loadSets(true)
 })
 
-// ---- Region
 addRegional.addEventListener('click', async ()=>{
   const owner=adminOwner.value, child=(newRegionalId.value||'').trim()
   if(!owner||!child){ showStatus('Angiv både central og bibliotek_id','err'); return }
@@ -436,11 +423,12 @@ addRegional.addEventListener('click', async ()=>{
   if(exErr){ showStatus('Opslag fejl: '+exErr.message,'err'); return }
   if(!exists){ showStatus('Bibliotek findes ikke: '+child,'err'); return }
   const { error } = await supabase.from('tbl_bibliotek_relation').insert({ bibliotek_id: child, central_id: owner, active:true })
-  if(error){ showStatus('Tilføj relation fejl: '+error.message,'err'); return }
+  if(error){ showStatus('Tilføj relation: '+error.message,'err'); return }
   newRegionalId.value=''
   await loadRegionalsWithProfiles()
-  showStatus('Relation tilføjet','ok'); setTimeout(hideStatus,1500)
+  showStatus('Relation tilføjet','ok'); setTimeout(hideStatus,1200)
 })
+
 async function loadRegionalsWithProfiles(){
   const owner=adminOwner.value
   const { data:rels, error } = await supabase.from('tbl_bibliotek_relation')
@@ -509,7 +497,7 @@ function renderRegionalEditor(relRows){
   regionalsTable.innerHTML=''; regionalsTable.appendChild(table)
 }
 
-// ---- Sets
+// ---- SÆT
 refreshSets.addEventListener('click', ()=>loadSets(true))
 createSet.addEventListener('click', createNewSet)
 
@@ -519,7 +507,6 @@ async function loadSets(fillCopiesDropdown=false){
     .select('set_id,title,author,isbn,faust,visibility,loan_weeks,buffer_days,active,requested_count,allow_substitution,allow_partial,min_delivery,notes,owner_bibliotek_id')
     .eq('owner_bibliotek_id', owner).order('title')
   if(error){ showStatus('loadSets: '+error.message,'err'); return }
-
   state.setsForOwner = data || []
   renderSetsTable(state.setsForOwner)
 
@@ -582,7 +569,7 @@ async function createNewSet(){
   showStatus('Sæt oprettet','ok'); setTimeout(hideStatus,1500)
 }
 
-// ---- Copies (admin)
+// ---- EKSEMPLARER
 copiesSetSelect.addEventListener('change', ()=>{
   state.selectedSet = state.setsForOwner.find(s => String(s.set_id)===String(copiesSetSelect.value)) || null
 })
@@ -595,7 +582,7 @@ async function loadCopiesForSelectedSet(){
   const owner = adminOwner.value
 
   let q = supabase.from(COPY_TABLE)
-    .select(`${COPY_BARCODE_COL}, ${COPY_STATUS_COL}, ${COPY_TITLE_COL}, ${COPY_AUTHOR_COL}, ${COPY_ISBN_COL}, ${COPY_FAUST_COL}, ${COPY_OWNER_COL}`)
+    .select(`${COPY_BARCODE_COL}, ${COPY_BOOKING_COL}, ${COPY_LOAN_COL}, ${COPY_TITLE_COL}, ${COPY_AUTHOR_COL}, ${COPY_ISBN_COL}, ${COPY_FAUST_COL}, ${COPY_OWNER_COL}`)
     .eq(COPY_OWNER_COL, owner)
 
   if (s.isbn)  q = q.eq(COPY_ISBN_COL, s.isbn)
@@ -609,21 +596,22 @@ async function loadCopiesForSelectedSet(){
 function renderCopiesTable(){
   const table=document.createElement('table'); table.innerHTML=`
     <thead>
-      <tr><th>Stregkode</th><th>Status</th><th>Titel</th><th>Forfatter</th><th>ISBN</th><th>FAUST</th><th>Gem</th><th>Slet</th></tr>
+      <tr><th>Stregkode</th><th>Bookingstatus</th><th>Udlånsstatus</th><th>Titel</th><th>Forfatter</th><th>ISBN</th><th>FAUST</th><th>Gem</th><th>Slet</th></tr>
     </thead><tbody></tbody>`
   const tbody=table.querySelector('tbody')
   state.copies.forEach(c=>{
     const tr=document.createElement('tr'); tr.innerHTML=`
       <td><input type="text" value="${escapeHtml(c[COPY_BARCODE_COL]||'')}" data-f="${COPY_BARCODE_COL}" disabled /></td>
       <td>
-        <select data-f="${COPY_STATUS_COL}">
-          <option value="Ledig" ${c[COPY_STATUS_COL]==='Ledig'?'selected':''}>Ledig</option>
-          <option value="Reserveret" ${c[COPY_STATUS_COL]==='Reserveret'?'selected':''}>Reserveret</option>
-          <option value="Udlånt" ${c[COPY_STATUS_COL]==='Udlånt'?'selected':''}>Udlånt</option>
-          <option value="Hjemkommet" ${c[COPY_STATUS_COL]==='Hjemkommet'?'selected':''}>Hjemkommet</option>
-          <option value="Mangler" ${c[COPY_STATUS_COL]==='Mangler'?'selected':''}>Mangler</option>
+        <select data-f="${COPY_BOOKING_COL}">
+          <option value="Ledig" ${c[COPY_BOOKING_COL]==='Ledig'?'selected':''}>Ledig</option>
+          <option value="Reserveret" ${c[COPY_BOOKING_COL]==='Reserveret'?'selected':''}>Reserveret</option>
+          <option value="Udlånt" ${c[COPY_BOOKING_COL]==='Udlånt'?'selected':''}>Udlånt</option>
+          <option value="Hjemkommet" ${c[COPY_BOOKING_COL]==='Hjemkommet'?'selected':''}>Hjemkommet</option>
+          <option value="Mangler" ${c[COPY_BOOKING_COL]==='Mangler'?'selected':''}>Mangler</option>
         </select>
       </td>
+      <td><input type="text" value="${escapeHtml(c[COPY_LOAN_COL]||'Ukendt')}" data-f="${COPY_LOAN_COL}" disabled /></td>
       <td><input type="text" value="${escapeHtml(c[COPY_TITLE_COL]||'')}" data-f="${COPY_TITLE_COL}" /></td>
       <td><input type="text" value="${escapeHtml(c[COPY_AUTHOR_COL]||'')}" data-f="${COPY_AUTHOR_COL}" /></td>
       <td><input type="text" value="${escapeHtml(c[COPY_ISBN_COL]||'')}" data-f="${COPY_ISBN_COL}" /></td>
@@ -632,13 +620,13 @@ function renderCopiesTable(){
       <td><button class="ghost" type="button">Slet</button></td>`
     tbody.appendChild(tr)
 
-    tr.children[6].querySelector('button').addEventListener('click', async ()=>{
-      const payload = collectRowPayload(tr, [COPY_STATUS_COL,COPY_TITLE_COL,COPY_AUTHOR_COL,COPY_ISBN_COL,COPY_FAUST_COL])
+    tr.children[7].querySelector('button').addEventListener('click', async ()=>{
+      const payload = collectRowPayload(tr, [COPY_BOOKING_COL,COPY_TITLE_COL,COPY_AUTHOR_COL,COPY_ISBN_COL,COPY_FAUST_COL])
       const { error } = await supabase.from(COPY_TABLE).update(payload).eq(COPY_BARCODE_COL, c[COPY_BARCODE_COL]).eq(COPY_OWNER_COL, c[COPY_OWNER_COL])
       if(error){ showStatus('Gem eksemplar: '+error.message,'err'); return }
       showStatus('Eksemplar opdateret','ok'); setTimeout(hideStatus,1200)
     })
-    tr.children[7].querySelector('button').addEventListener('click', async ()=>{
+    tr.children[8].querySelector('button').addEventListener('click', async ()=>{
       const { error } = await supabase.from(COPY_TABLE).delete().eq(COPY_BARCODE_COL, c[COPY_BARCODE_COL]).eq(COPY_OWNER_COL, c[COPY_OWNER_COL])
       if(error){ showStatus('Slet eksemplar: '+error.message,'err'); return }
       await loadCopiesForSelectedSet()
@@ -656,7 +644,8 @@ async function addNewCopy(){
 
   const payload={}
   payload[COPY_BARCODE_COL]=bc
-  payload[COPY_STATUS_COL]='Ledig'
+  payload[COPY_BOOKING_COL]='Ledig'
+  payload[COPY_LOAN_COL]='Ukendt'
   payload[COPY_TITLE_COL]=s.title || null
   payload[COPY_AUTHOR_COL]=s.author || null
   if(s.isbn)  payload[COPY_ISBN_COL]=s.isbn
@@ -670,7 +659,40 @@ async function addNewCopy(){
   showStatus('Eksemplar tilføjet','ok'); setTimeout(hideStatus,1200)
 }
 
-// === Utils ===
+// Rykkerrapport (næste 30 dage)
+reportBookedButLoaned.addEventListener('click', async ()=>{
+  const owner = adminOwner.value
+  const { data, error } = await supabase
+    .from('vw_booked_but_loaned_next30_summary')
+    .select('*')
+    .eq('owner_bibliotek_id', owner)
+    .order('start_date', { ascending: true })
+  if(error){ showStatus('Rapport-fejl: '+error.message,'err'); return }
+
+  if (!data?.length) {
+    reportArea.innerHTML = '<div class="muted">Ingen bookede men stadig udlånte eksemplarer de næste 30 dage.</div>'
+    return
+  }
+  const rows = data.map(r => `
+    <tr>
+      <td>${r.booking_id}</td>
+      <td><strong>${escapeHtml(r.title||'')}</strong><br><span class="muted">${escapeHtml(r.isbn||r.faust||'')}</span></td>
+      <td>${r.start_date} → ${r.end_date}</td>
+      <td style="text-align:right">${r.loaned_copies}</td>
+      <td>${(r.barcodes||[]).join(', ')}</td>
+    </tr>
+  `).join('')
+  reportArea.innerHTML = `
+    <table>
+      <thead>
+        <tr><th>Booking</th><th>Sæt</th><th>Periode</th><th>Udlånte eksemplarer</th><th>Stregkoder</th></tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
+  `
+})
+
+// ===== Utils =====
 const getVal = sel => { const el=document.querySelector(sel); return (el && 'value' in el)? el.value.trim():null }
 const escapeHtml = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 const fmtDate = d => d.toISOString().slice(0,10)

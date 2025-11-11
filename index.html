@@ -2,190 +2,192 @@
 <html lang="da">
 <head>
   <meta charset="utf-8" />
+  <title>Læsekredssæt – v3.0 POC</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Læsekredssæt – v3.0 (POC Final)</title>
   <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 24px; }
-    header { display:flex; gap:12px; align-items:center; margin-bottom: 16px; }
-    .role-toggle { display:inline-flex; border:1px solid #ccc; border-radius:999px; overflow:hidden; }
-    .role-toggle button { border:none; padding:8px 14px; background:#f5f5f5; cursor:pointer; }
-    .role-toggle button.active { background:#111; color:#fff; }
-    .card { border:1px solid #e5e5e5; border-radius:14px; padding:16px; margin:12px 0; box-shadow: 0 1px 4px rgba(0,0,0,.04); }
-    .row { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
-    label { display:block; font-size:.9rem; margin-bottom:6px; }
-    input[type="text"], select, input[type="date"], input[type="number"], input[type="tel"], input[type="email"], textarea {
-      padding:8px; border:1px solid #ccc; border-radius:8px; min-width: 180px;
+    :root { --bg:#0f1115; --card:#171923; --muted:#a0aec0; --fg:#e2e8f0; --pri:#3b82f6; --ok:#10b981; --err:#ef4444; --bord:#2d3748 }
+    html,body { background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial; margin:0; }
+    header { padding:16px 20px; border-bottom:1px solid var(--bord); display:flex; gap:12px; align-items:center; flex-wrap:wrap }
+    h1 { font-size:18px; margin:0 16px 0 0 }
+    .tabs { display:flex; gap:8px; }
+    .btn-tab { background:#11131a; color:var(--fg); border:1px solid var(--bord); padding:8px 12px; border-radius:8px; cursor:pointer }
+    .btn-tab.active { background:var(--pri); border-color:var(--pri) }
+    main { padding:16px 20px; display:grid; gap:16px }
+    .grid { display:grid; gap:12px }
+    .card { background:var(--card); border:1px solid var(--bord); border-radius:12px; padding:14px }
+    .muted { color:var(--muted) }
+    label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px }
+    input, select, textarea, button { font:inherit }
+    input[type="text"], input[type="date"], input[type="email"], input[type="tel"], input[type="number"], select, textarea {
+      width:100%; background:#11131a; color:var(--fg); border:1px solid var(--bord); border-radius:8px; padding:8px
     }
-    textarea { min-width: 360px; min-height: 68px; }
-    button.primary { background:#111; color:#fff; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; }
-    button.ghost { background:transparent; border:1px solid #ccc; padding:8px 12px; border-radius:8px; cursor:pointer; }
-    .muted { color:#666; }
-    .small { font-size:.85rem; }
-    table { width:100%; border-collapse: collapse; }
-    th, td { border-bottom:1px solid #eee; padding:8px; text-align:left;}
-    th { background:#fafafa; position: sticky; top: 0; }
-    .ok { background:#e8fbf0; border:1px solid #bfe8cf; }
-    .err { background:#ffe9e9; border:1px solid #ffc3c3; }
-
-    /* Tabs */
-    .tabs { display:flex; gap:6px; border-bottom:1px solid #e5e5e5; margin-top:12px; }
-    .tabs button { border:none; background:#f5f5f5; padding:8px 12px; border-top-left-radius:10px; border-top-right-radius:10px; cursor:pointer; }
-    .tabs button.active { background:#fff; border:1px solid #e5e5e5; border-bottom-color:#fff; }
-    .tab-panel { display:none; padding-top:12px; }
-    .tab-panel.active { display:block; }
-
-    .split { display:grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    @media (max-width: 1100px) { .split { grid-template-columns: 1fr; } }
+    textarea { min-height:84px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap }
+    .row > * { flex:1 1 220px }
+    .actions { display:flex; gap:8px; flex-wrap:wrap }
+    .primary { background:var(--pri); color:#fff; border:none; border-radius:8px; padding:8px 12px; cursor:pointer }
+    .ghost { background:transparent; color:var(--fg); border:1px solid var(--bord); border-radius:8px; padding:8px 12px; cursor:pointer }
+    .ok { background:#0b2; color:#fff }
+    .err { background:#310; color:#fff }
+    .hidden { display:none }
+    table { width:100%; border-collapse:collapse; }
+    th, td { border-bottom:1px solid var(--bord); padding:8px 6px; text-align:left; vertical-align:top }
+    th { color:#cbd5e1; font-weight:600; }
+    .two-col { display:grid; grid-template-columns:1fr 1fr; gap:12px }
+    @media (max-width:900px){ .two-col { grid-template-columns:1fr } }
+    .tabsline { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap }
+    .status { display:none; padding:10px 12px; border-radius:10px }
   </style>
 </head>
 <body>
-  <div id="statusBox" class="card err" style="display:none;"></div>
 
-  <header>
-    <h1>Læsekredssæt – v3.0</h1>
-    <div class="role-toggle" id="roleToggle">
-      <button id="toggleBooker" class="active" type="button">Booker</button>
-      <button id="toggleAdmin" type="button">Admin</button>
-    </div>
-  </header>
+<header>
+  <h1>Læsekredssæt – v3.0</h1>
+  <div class="tabs">
+    <button id="toggleBooker" class="btn-tab active" type="button">Booker</button>
+    <button id="toggleAdmin" class="btn-tab" type="button">Admin</button>
+  </div>
+</header>
 
-  <!-- Booker View -->
-  <section id="bookerSection" class="card">
-    <h2>Booker – Søg & book</h2>
-    <div class="row">
-      <div>
-        <label for="loginAsSelect">Login som bibliotek (simuleret)</label>
-        <select id="loginAsSelect" size="6" style="min-width:260px;"></select>
-        <div class="muted small">Vælg et regionalt bibliotek at simulere – sæt hentes automatisk.</div>
+<main>
+  <div id="statusBox" class="status card"></div>
+
+  <!-- BOOKER -->
+  <section id="bookerSection" class="grid">
+    <div class="card">
+      <h2 style="margin-top:0">Søg & Book</h2>
+      <div class="row">
+        <div>
+          <label>Login som bibliotek (simuleret)</label>
+          <select id="loginAsSelect"></select>
+        </div>
+        <div>
+          <label>Centralbibliotek (vælg 0–6; tom = alle)</label>
+          <select id="centralSelect" multiple size="6"></select>
+        </div>
+        <div>
+          <label>Titel/Forfatter/ISBN/FAUST</label>
+          <input id="q" type="text" placeholder="fx 'Hemingway' eller 978…">
+        </div>
+        <div>
+          <label>Startdato</label>
+          <input id="startDate" type="date">
+        </div>
+        <div>
+          <label>Slutdato</label>
+          <input id="endDate" type="date">
+        </div>
       </div>
-      <div>
-        <label for="centralSelect">Centralbibliotek</label>
-        <select id="centralSelect" multiple size="6" style="min-width:260px;"></select>
-        <div class="muted small">Vælg ét/flere – tom = alle centralbiblioteker</div>
-      </div>
-      <div>
-        <label for="q">Titel / Forfatter / ISBN / FAUST</label>
-        <input id="q" type="text" placeholder="fx 'Holberg' eller '978...'" />
-      </div>
-      <div>
-        <label for="startDate">Startdato</label>
-        <input id="startDate" type="date" />
-      </div>
-      <div>
-        <label for="endDate">Slutdato</label>
-        <input id="endDate" type="date" />
-      </div>
-      <div>
+      <div class="actions" style="margin-top:10px">
         <button id="searchBtn" class="primary" type="button">Søg</button>
         <button id="clearBtn" class="ghost" type="button">Ryd</button>
+        <span class="muted">Tip: Ingen tekst og ingen datoer ⇒ vis alle sæt for valgte centraler (eller alle).</span>
       </div>
     </div>
-    <div class="muted small">Uden datoer/tekst → alle sæt for valgte centraler (eller alle centraler, hvis ingen valgt).</div>
-    <div id="bookerResults"></div>
 
-    <div class="card" style="margin-top:20px;">
-      <h3>Min profil (forsendelse & kontakt)</h3>
-      <div id="profileForm" class="row"></div>
-      <div>
+    <div class="card">
+      <h3 style="margin-top:0">Resultater</h3>
+      <div id="bookerResults" class="grid"></div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0">Min profil (for valgt login-bibliotek)</h3>
+      <form id="profileForm" class="two-col"></form>
+      <div class="actions" style="margin-top:10px">
         <button id="saveProfile" class="primary" type="button">Gem profil</button>
       </div>
-      <div class="muted small">Du kan opdatere adresse, kontakt og forsendelsesnoter. Tilknytning til central ændres ikke her.</div>
     </div>
   </section>
 
-  <!-- Admin View -->
-  <section id="adminSection" class="card" style="display:none;">
-    <h2>Admin – Region, Sæt & Eksemplarer</h2>
-
-    <div class="row">
-      <div>
-        <label for="adminOwner">Mit centralbibliotek</label>
-        <select id="adminOwner" style="min-width:260px;"></select>
-      </div>
-      <div>
-        <button id="loadAdminData" class="primary" type="button">Hent data</button>
+  <!-- ADMIN -->
+  <section id="adminSection" class="grid hidden">
+    <div class="card">
+      <div class="row">
+        <div>
+          <label>Jeg administrerer for centralbibliotek</label>
+          <select id="adminOwner"></select>
+        </div>
+        <div class="actions" style="align-items:flex-end">
+          <button id="loadAdminData" class="primary" type="button">Hent data</button>
+        </div>
       </div>
     </div>
 
-    <div class="tabs">
-      <button id="tabBtnRegion" class="active" type="button">Region – tilknyttede biblioteker</button>
-      <button id="tabBtnSets" type="button">Sæt – vedligehold</button>
-      <button id="tabBtnCopies" type="button">Eksemplarer (beholdning)</button>
-    </div>
+    <div class="card">
+      <div class="tabsline">
+        <button id="tabBtnRegion" class="btn-tab active" type="button">Region – tilknyttede biblioteker</button>
+        <button id="tabBtnSets" class="btn-tab" type="button">Sæt – vedligehold</button>
+        <button id="tabBtnCopies" class="btn-tab" type="button">Eksemplarer (beholdning)</button>
+      </div>
 
-    <div id="tabRegion" class="tab-panel active">
-      <div class="card">
+      <!-- REGION -->
+      <div id="tabRegion" class="grid">
         <div class="row">
           <div>
-            <label for="newRegionalId">Tilføj bibliotek_id</label>
-            <input id="newRegionalId" type="text" placeholder="fx LBL42" />
+            <label>Tilføj bibliotek til region (bibliotek_id)</label>
+            <input id="newRegionalId" type="text" placeholder="fx GENT-L12">
           </div>
-          <div>
-            <button id="addRegional" class="primary" type="button">Tilføj</button>
+          <div class="actions" style="align-items:flex-end">
+            <button id="addRegional" class="primary" type="button">Tilføj relation</button>
           </div>
         </div>
         <div id="regionalsTable"></div>
-        <div class="muted small">Redigerer relationer i <code>tbl_bibliotek_relation</code> og profilfelter i <code>tbl_bibliotek</code>.</div>
       </div>
-    </div>
 
-    <div id="tabSets" class="tab-panel">
-      <div class="card">
+      <!-- SÆT -->
+      <div id="tabSets" class="grid hidden">
         <div class="row">
-          <div><button id="refreshSets" class="ghost" type="button">Opdater</button></div>
-          <div class="muted small">Redigér felter og klik “Gem”.</div>
-        </div>
-        <div id="setsTable"></div>
-
-        <h4>Opret nyt sæt</h4>
-        <div class="row">
-          <div><input id="newTitle" type="text" placeholder="Titel" /></div>
-          <div><input id="newAuthor" type="text" placeholder="Forfatter" /></div>
-          <div><input id="newISBN" type="text" placeholder="ISBN" /></div>
-          <div><input id="newFAUST" type="text" placeholder="FAUST" /></div>
+          <div><label>Titel</label><input id="newTitle" type="text"></div>
+          <div><label>Forfatter</label><input id="newAuthor" type="text"></div>
+          <div><label>ISBN</label><input id="newISBN" type="text"></div>
+          <div><label>FAUST</label><input id="newFAUST" type="text"></div>
           <div>
+            <label>Synlighed</label>
             <select id="newVisibility">
               <option value="national">national</option>
               <option value="regional">regional</option>
             </select>
           </div>
-          <div><input id="newLoanWeeks" type="number" min="1" value="8" /></div>
-          <div><input id="newBufferDays" type="number" min="0" value="0" /></div>
-          <div><button id="createSet" class="primary" type="button">Opret</button></div>
+          <div><label>Låneuger</label><input id="newLoanWeeks" type="number" min="1" value="8"></div>
+          <div><label>Bufferdage</label><input id="newBufferDays" type="number" min="0" value="0"></div>
         </div>
+        <div class="actions">
+          <button id="createSet" class="primary" type="button">Opret sæt</button>
+          <button id="refreshSets" class="ghost" type="button">Opdater liste</button>
+        </div>
+        <div id="setsTable"></div>
       </div>
-    </div>
 
-    <div id="tabCopies" class="tab-panel">
-      <div class="card">
+      <!-- EKSEMPLARER -->
+      <div id="tabCopies" class="grid hidden">
         <div class="row">
-          <div style="min-width:320px;">
-            <label for="copiesSetSelect">Vælg sæt</label>
-            <select id="copiesSetSelect" style="min-width:320px;"></select>
-          </div>
           <div>
-            <button id="loadCopies" class="ghost" type="button">Hent eksemplarer</button>
+            <label>Vælg sæt</label>
+            <select id="copiesSetSelect"></select>
+          </div>
+          <div class="actions" style="align-items:flex-end">
+            <button id="loadCopies" class="primary" type="button">Hent eksemplarer</button>
           </div>
         </div>
 
         <div class="row">
-          <div>
-            <label for="newCopyBarcode">Ny stregkode</label>
-            <input id="newCopyBarcode" type="text" placeholder="scannes/indtastes…" />
-          </div>
-          <div>
-            <button id="addCopy" class="primary" type="button">Tilføj eksemplar</button>
+          <div><label>Ny stregkode</label><input id="newCopyBarcode" type="text" placeholder="Scan/indtast"></div>
+          <div class="actions" style="align-items:flex-end">
+            <button id="addCopy" class="ghost" type="button">Tilføj eksemplar</button>
           </div>
         </div>
 
         <div id="copiesTable"></div>
-        <div class="muted small">Filtrerer på <code>owner_bibliotek_id = dit central</code> og samme <code>ISBN/FAUST</code> som det valgte sæt.</div>
+
+        <div class="actions" style="margin-top:10px">
+          <button id="reportBookedButLoaned" class="ghost" type="button">Bookede men stadig udlånte (næste 30 dage)</button>
+        </div>
+        <div id="reportArea"></div>
       </div>
     </div>
-
-    <div id="adminResults" class="group"></div>
   </section>
+</main>
 
-  <script type="module" src="./script.js"></script>
+<script type="module" src="./script.js"></script>
 </body>
 </html>
