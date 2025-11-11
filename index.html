@@ -1,193 +1,143 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="da">
 <head>
   <meta charset="utf-8" />
-  <title>Læsekredssæt – v3.0 POC</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Læsekredssæt – Admin v3.1.3</title>
   <style>
-    :root { --bg:#0f1115; --card:#171923; --muted:#a0aec0; --fg:#e2e8f0; --pri:#3b82f6; --ok:#10b981; --err:#ef4444; --bord:#2d3748 }
-    html,body { background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial; margin:0; }
-    header { padding:16px 20px; border-bottom:1px solid var(--bord); display:flex; gap:12px; align-items:center; flex-wrap:wrap }
-    h1 { font-size:18px; margin:0 16px 0 0 }
-    .tabs { display:flex; gap:8px; }
-    .btn-tab { background:#11131a; color:var(--fg); border:1px solid var(--bord); padding:8px 12px; border-radius:8px; cursor:pointer }
-    .btn-tab.active { background:var(--pri); border-color:var(--pri) }
-    main { padding:16px 20px; display:grid; gap:16px }
-    .grid { display:grid; gap:12px }
-    .card { background:var(--card); border:1px solid var(--bord); border-radius:12px; padding:14px }
-    .muted { color:var(--muted) }
-    label { display:block; font-size:12px; color:var(--muted); margin-bottom:6px }
-    input, select, textarea, button { font:inherit }
-    input[type="text"], input[type="date"], input[type="email"], input[type="tel"], input[type="number"], select, textarea {
-      width:100%; background:#11131a; color:var(--fg); border:1px solid var(--bord); border-radius:8px; padding:8px
-    }
-    textarea { min-height:84px; }
-    .row { display:flex; gap:12px; flex-wrap:wrap }
-    .row > * { flex:1 1 220px }
-    .actions { display:flex; gap:8px; flex-wrap:wrap }
-    .primary { background:var(--pri); color:#fff; border:none; border-radius:8px; padding:8px 12px; cursor:pointer }
-    .ghost { background:transparent; color:var(--fg); border:1px solid var(--bord); border-radius:8px; padding:8px 12px; cursor:pointer }
-    .ok { background:#0b2; color:#fff }
-    .err { background:#310; color:#fff }
-    .hidden { display:none }
-    table { width:100%; border-collapse:collapse; }
-    th, td { border-bottom:1px solid var(--bord); padding:8px 6px; text-align:left; vertical-align:top }
-    th { color:#cbd5e1; font-weight:600; }
-    .two-col { display:grid; grid-template-columns:1fr 1fr; gap:12px }
-    @media (max-width:900px){ .two-col { grid-template-columns:1fr } }
-    .tabsline { display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap }
-    .status { display:none; padding:10px 12px; border-radius:10px }
+    :root { --gap: 12px; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif; margin: 0; background:#0b0e11; color:#e7edf3; }
+    header { padding: 14px 18px; background:#12171d; border-bottom:1px solid #1e2630; display:flex; justify-content:space-between; align-items:center; }
+    header h1 { font-size: 18px; margin:0; }
+
+    nav.tabs { display:flex; gap:6px; padding:8px; border-bottom:1px solid #1e2630; background:#0d1319; }
+    nav.tabs button { background:#0b0e11; color:#cdd7e1; border:1px solid #1e2630; border-radius:10px; padding:8px 12px; cursor:pointer; }
+    nav.tabs button.active { background:#1f6feb; color:white; border-color:#1f6feb; }
+
+    main { padding: 16px; }
+    .panel { display:none; }
+    .panel.active { display:block; }
+
+    .card { background:#0d1319; border:1px solid #1e2630; border-radius:14px; padding:14px; }
+    .row { display:flex; gap:var(--gap); flex-wrap:wrap; align-items: end; }
+    .row > * { flex: 0 0 auto; }
+    label { display:block; font-size:12px; color:#a9b3bf; margin-bottom:4px; }
+    input, select { background:#0b0e11; color:#e7edf3; border:1px solid #2b3643; border-radius:8px; padding:8px 10px; }
+    input[type="date"] { color-scheme: dark; }
+
+    table { width:100%; border-collapse: collapse; margin-top:12px; font-size:14px; }
+    th, td { border-bottom:1px solid #1e2630; padding:8px; vertical-align: middle; }
+    th { text-align:left; color:#a9b3bf; font-weight:600; }
+    tr:hover { background:#0b1116; }
+
+    .btn { background:#18202a; color:#e7edf3; border:1px solid #2b3643; border-radius:10px; padding:8px 10px; cursor:pointer; }
+    .btn.primary { background:#1f6feb; border-color:#1f6feb; color:white; }
+    .btn.ghost { background:transparent; }
+    .btn.danger { background:#9d2222; border-color:#9d2222; color:white; }
+
+    .hint { font-size:12px; color:#9fb2c6; }
+    .msg { margin-top:10px; padding:10px; border-radius:10px; }
+    .msg.ok { background:#0f2a17; border:1px solid #1a4b2a; color:#9ae6b4; }
+    .msg.err { background:#2a0f12; border:1px solid #4b1a1f; color:#feb2b2; }
+
+    .k { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size:12px; color:#8fb3ff; }
+    .toolbar { display:flex; gap:8px; flex-wrap:wrap; }
+    .spacer { flex: 1 1 auto; }
+    .edit { background:#0a1117; border:1px dashed #324052; padding:6px; border-radius:8px; }
   </style>
 </head>
 <body>
+  <header>
+    <h1>Læsekredssæt · Admin (v3.1.3)</h1>
+  </header>
 
-<header>
-  <h1>Læsekredssæt – v3.0</h1>
-  <div class="tabs">
-    <button id="toggleBooker" class="btn-tab active" type="button">Booker</button>
-    <button id="toggleAdmin" class="btn-tab" type="button">Admin</button>
-  </div>
-</header>
+  <nav class="tabs">
+    <button data-tab="tab-region">Region – tilknyttede biblioteker</button>
+    <button data-tab="tab-saet">Sæt – vedligehold</button>
+    <button class="active" data-tab="tab-eks">Eksemplarer (beholdning)</button>
+    <span class="spacer"></span>
+    <button id="toggleRole" class="btn ghost" title="Skift til Booker-visning">Skift: Admin ↔ Booker</button>
+  </nav>
 
-<main>
-  <div id="statusBox" class="status card"></div>
+  <main>
+    <!-- Placeholders -->
+    <section id="tab-region" class="panel card">
+      <p class="hint">Dette panel er placeholder i denne version. Fokus er på <strong>Eksemplarer</strong>.</p>
+    </section>
 
-  <!-- BOOKER -->
-  <section id="bookerSection" class="grid">
-    <div class="card">
-      <h2 style="margin-top:0">Søg & Book</h2>
-      <div class="row">
-        <div>
-          <label>Login som bibliotek (simuleret)</label>
-          <select id="loginAsSelect"></select>
-        </div>
-        <div>
-          <label>Centralbibliotek (vælg 0–6; tom = alle)</label>
-          <select id="centralSelect" multiple size="6"></select>
-        </div>
-        <div>
-          <label>Titel/Forfatter/ISBN/FAUST</label>
-          <input id="q" type="text" placeholder="fx 'Hemingway' eller 978…">
-        </div>
-        <div>
-          <label>Startdato</label>
-          <input id="startDate" type="date">
-        </div>
-        <div>
-          <label>Slutdato</label>
-          <input id="endDate" type="date">
-        </div>
-      </div>
-      <div class="actions" style="margin-top:10px">
-        <button id="searchBtn" class="primary" type="button">Søg</button>
-        <button id="clearBtn" class="ghost" type="button">Ryd</button>
-        <span class="muted">Tip: Ingen tekst og ingen datoer ⇒ vis alle sæt for valgte centraler (eller alle).</span>
-      </div>
-    </div>
+    <section id="tab-saet" class="panel card">
+      <p class="hint">Dette panel er placeholder i denne version. Fokus er på <strong>Eksemplarer</strong>.</p>
+    </section>
 
-    <div class="card">
-      <h3 style="margin-top:0">Resultater</h3>
-      <div id="bookerResults" class="grid"></div>
-    </div>
-
-    <div class="card">
-      <h3 style="margin-top:0">Min profil (for valgt login-bibliotek)</h3>
-      <form id="profileForm" class="two-col"></form>
-      <div class="actions" style="margin-top:10px">
-        <button id="saveProfile" class="primary" type="button">Gem profil</button>
-      </div>
-    </div>
-  </section>
-
-  <!-- ADMIN -->
-  <section id="adminSection" class="grid hidden">
-    <div class="card">
-      <div class="row">
-        <div>
-          <label>Jeg administrerer for centralbibliotek</label>
-          <select id="adminOwner"></select>
-        </div>
-        <div class="actions" style="align-items:flex-end">
-          <button id="loadAdminData" class="primary" type="button">Hent data</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="tabsline">
-        <button id="tabBtnRegion" class="btn-tab active" type="button">Region – tilknyttede biblioteker</button>
-        <button id="tabBtnSets" class="btn-tab" type="button">Sæt – vedligehold</button>
-        <button id="tabBtnCopies" class="btn-tab" type="button">Eksemplarer (beholdning)</button>
-      </div>
-
-      <!-- REGION -->
-      <div id="tabRegion" class="grid">
+    <!-- Eksemplarer -->
+    <section id="tab-eks" class="panel active">
+      <div class="card" style="margin-bottom:12px;">
         <div class="row">
           <div>
-            <label>Tilføj bibliotek til region (bibliotek_id)</label>
-            <input id="newRegionalId" type="text" placeholder="fx GENT-L12">
+            <label for="ownerFilter">Ejer-bibliotek (owner_bibliotek_id)</label>
+            <input id="ownerFilter" placeholder="fx GENT" />
           </div>
-          <div class="actions" style="align-items:flex-end">
-            <button id="addRegional" class="primary" type="button">Tilføj relation</button>
-          </div>
-        </div>
-        <div id="regionalsTable"></div>
-      </div>
-
-      <!-- SÆT -->
-      <div id="tabSets" class="grid hidden">
-        <div class="row">
-          <div><label>Titel</label><input id="newTitle" type="text"></div>
-          <div><label>Forfatter</label><input id="newAuthor" type="text"></div>
-          <div><label>ISBN</label><input id="newISBN" type="text"></div>
-          <div><label>FAUST</label><input id="newFAUST" type="text"></div>
           <div>
-            <label>Synlighed</label>
-            <select id="newVisibility">
-              <option value="national">national</option>
-              <option value="regional">regional</option>
+            <label for="statusFilter">Status</label>
+            <select id="statusFilter">
+              <option value="">(alle)</option>
+              <option value="ledig">ledig</option>
+              <option value="reserveret">reserveret</option>
+              <option value="udlaant">udlaant</option>
+              <option value="hjemkommet">hjemkommet</option>
+              <option value="mangler">mangler</option>
             </select>
           </div>
-          <div><label>Låneuger</label><input id="newLoanWeeks" type="number" min="1" value="8"></div>
-          <div><label>Bufferdage</label><input id="newBufferDays" type="number" min="0" value="0"></div>
-        </div>
-        <div class="actions">
-          <button id="createSet" class="primary" type="button">Opret sæt</button>
-          <button id="refreshSets" class="ghost" type="button">Opdater liste</button>
-        </div>
-        <div id="setsTable"></div>
-      </div>
-
-      <!-- EKSEMPLARER -->
-      <div id="tabCopies" class="grid hidden">
-        <div class="row">
           <div>
-            <label>Vælg sæt</label>
-            <select id="copiesSetSelect"></select>
+            <label for="q">Søg (titel/forfatter/ISBN/FAUST/stregkode)</label>
+            <input id="q" placeholder="Søg…" />
           </div>
-          <div class="actions" style="align-items:flex-end">
-            <button id="loadCopies" class="primary" type="button">Hent eksemplarer</button>
+          <div>
+            <button id="btnSearch" class="btn">Søg</button>
           </div>
-        </div>
-
-        <div class="row">
-          <div><label>Ny stregkode</label><input id="newCopyBarcode" type="text" placeholder="Scan/indtast"></div>
-          <div class="actions" style="align-items:flex-end">
-            <button id="addCopy" class="ghost" type="button">Tilføj eksemplar</button>
+          <div class="spacer"></div>
+          <div>
+            <button id="btnNew" class="btn">+ Nyt eksemplar</button>
           </div>
         </div>
-
-        <div id="copiesTable"></div>
-
-        <div class="actions" style="margin-top:10px">
-          <button id="reportBookedButLoaned" class="ghost" type="button">Bookede men stadig udlånte (næste 30 dage)</button>
-        </div>
-        <div id="reportArea"></div>
+        <p class="hint" style="margin-top:8px;">Feltnavne (DB): <span class="k">barcode, isbn, faust, title, author, status, owner_bibliotek_id</span></p>
       </div>
-    </div>
-  </section>
-</main>
 
-<script type="module" src="./script.js"></script>
+      <div id="msg" class="msg" style="display:none;"></div>
+
+      <div class="card">
+        <div class="toolbar">
+          <span class="hint">Redigér direkte i rækkerne. Klik <strong>Gem</strong> på rækken for at opdatere.</span>
+          <span class="spacer"></span>
+          <button id="btnReload" class="btn">Genindlæs</button>
+        </div>
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th>Stregkode</th>
+              <th>Titel</th>
+              <th>Forfatter</th>
+              <th>ISBN</th>
+              <th>FAUST</th>
+              <th>Status</th>
+              <th>Ejer</th>
+              <th style="width:180px;">Handling</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+
+        <div class="row" style="margin-top:12px;">
+          <button id="prev" class="btn">◀︎ Forrige</button>
+          <button id="next" class="btn">Næste ▶︎</button>
+          <span class="spacer"></span>
+          <span id="pinfo" class="hint"></span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="./script.js"></script>
 </body>
 </html>
