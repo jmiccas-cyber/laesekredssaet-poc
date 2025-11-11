@@ -1,4 +1,4 @@
-// Læsekredssæt – Admin Eksemplarer UI (v3.1.3)
+//  -  Læsekredssæt – Admin Eksemplarer UI (v3.1.3)
 // Auto-connect version (POC demo)
 
 const SUPABASE_URL = "https://qlkrzinyqirnigcwadki.supabase.co";
