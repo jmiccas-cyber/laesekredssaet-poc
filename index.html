@@ -3,12 +3,21 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Læsekredssæt – Admin v3.1.6</title>
+  <title>Læsekredssæt – Admin v3.1.7</title>
   <style>
     :root { --gap: 12px; }
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif; margin: 0; background:#0b0e11; color:#e7edf3; }
-    header { padding: 14px 18px; background:#12171d; border-bottom:1px solid #1e2630; display:flex; justify-content:space-between; align-items:center; }
-    header h1 { font-size: 18px; margin:0; }
+    header { padding: 14px 18px; background:#12171d; border-bottom:1px solid #1e2630; display:flex; gap:10px; align-items:center; }
+    header h1 { font-size: 18px; margin:0; flex:0 0 auto; }
+    .badge { font-size:12px; background:#0d1319; border:1px solid #273141; border-radius:999px; padding:4px 10px; display:inline-flex; align-items:center; gap:6px; }
+    .badge .dot { width:8px; height:8px; border-radius:50%; background:#1f6feb; display:inline-block; }
+    .badge .role-admin .dot { background:#1f6feb; }
+    .badge .role-booker .dot { background:#17a34a; }
+    .spacer { flex: 1 1 auto; }
+    .btn { background:#18202a; color:#e7edf3; border:1px solid #2b3643; border-radius:10px; padding:8px 10px; cursor:pointer; }
+    .btn.ghost { background:transparent; }
+    .btn.primary { background:#1f6feb; border-color:#1f6feb; color:white; }
+
     nav.tabs { display:flex; gap:6px; padding:8px; border-bottom:1px solid #1e2630; background:#0d1319; }
     nav.tabs button { background:#0b0e11; color:#cdd7e1; border:1px solid #1e2630; border-radius:10px; padding:8px 12px; cursor:pointer; }
     nav.tabs button.active { background:#1f6feb; color:white; border-color:#1f6feb; }
@@ -27,27 +36,27 @@
     th { text-align:left; color:#a9b3bf; font-weight:600; }
     tr:hover { background:#0b1116; }
 
-    .btn { background:#18202a; color:#e7edf3; border:1px solid #2b3643; border-radius:10px; padding:8px 10px; cursor:pointer; }
-    .btn.primary { background:#1f6feb; border-color:#1f6feb; color:white; }
-    .btn.ghost { background:transparent; }
-    .btn.danger { background:#9d2222; border-color:#9d2222; color:white; }
-
     .hint { font-size:12px; color:#9fb2c6; }
     .msg { margin-top:10px; padding:10px; border-radius:10px; }
     .msg.ok { background:#0f2a17; border:1px solid #1a4b2a; color:#9ae6b4; }
     .msg.err { background:#2a0f12; border:1px solid #4b1a1f; color:#feb2b2; }
-
-    .k { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; color:#8fb3ff; }
     .toolbar { display:flex; gap:8px; flex-wrap:wrap; }
-    .spacer { flex: 1 1 auto; }
     .edit { background:#0a1117; border:1px dashed #324052; padding:6px; border-radius:8px; }
     .w180 { width:180px; }
+
+    /* Simple modal */
+    .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; z-index:1000; }
+    .modal { background:#0d1319; border:1px solid #1e2630; border-radius:14px; padding:16px; width:min(520px, 96vw); }
+    .modal h3 { margin:0 0 8px 0; font-size:16px; }
+    .modal .row { align-items:center; }
   </style>
 </head>
 <body>
   <header>
-    <h1>Læsekredssæt · Admin (v3.1.6)</h1>
-    <button id="toggleRole" class="btn ghost" title="Skift til Booker-visning">Skift: Admin ↔ Booker</button>
+    <h1>Læsekredssæt · Admin (v3.1.7)</h1>
+    <span id="roleBadge" class="badge role-admin"><span class="dot"></span><span id="roleText">Admin</span><span id="profileText"></span></span>
+    <div class="spacer"></div>
+    <button id="toggleRole" class="btn ghost" title="Skift mellem Admin og Booker">Skift: Admin ↔ Booker</button>
   </header>
 
   <nav class="tabs">
@@ -199,6 +208,36 @@
       </div>
     </section>
   </main>
+
+  <!-- Role/Profile modal -->
+  <div id="roleModal" class="modal-backdrop">
+    <div class="modal">
+      <h3>Skift profil</h3>
+      <p class="hint">Vælg hvilken profil du vil simulere for den valgte rolle.</p>
+      <div class="row" style="margin-top:8px;">
+        <div>
+          <label for="roleSelect">Rolle</label>
+          <select id="roleSelect">
+            <option value="admin">Admin (centralbibliotek)</option>
+            <option value="booker">Booker (lånerbibliotek)</option>
+          </select>
+        </div>
+        <div id="adminProfileWrap">
+          <label for="adminProfileSel">Centralbibliotek</label>
+          <select id="adminProfileSel"></select>
+        </div>
+        <div id="bookerProfileWrap" style="display:none;">
+          <label for="bookerProfileSel">Lånerbibliotek</label>
+          <select id="bookerProfileSel"></select>
+        </div>
+        <div style="margin-left:auto;">
+          <label>&nbsp;</label>
+          <button id="roleSave" class="btn primary">Gem profil</button>
+          <button id="roleCancel" class="btn ghost">Annullér</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="./script.js"></script>
