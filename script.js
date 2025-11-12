@@ -182,6 +182,7 @@ function openRoleModal(target){
   }
 };
 $('#roleCancel').onclick = ()=> modal.style.display='none';
+}
 
 function bindRoleToggle(){
   $('#toggleRole')?.addEventListener('click', ()=>{
