@@ -166,39 +166,76 @@
       </div>
     </section>
 
-    <!-- ADMIN: Region -->
-    <section id="tab-region" class="panel">
-      <div class="card" style="margin-bottom:12px;">
-        <div class="row">
-          <div>
-            <label>Centralbibliotek (låst til admin-profil)</label>
-            <input id="relCentralReadonly" readonly />
-          </div>
-          <div>
-            <label for="relLocal">Lånerbibliotek</label>
-            <select id="relLocal"></select>
-          </div>
-          <div>
-            <label>&nbsp;</label>
-            <button id="btnRelAdd" class="btn">+ Tilføj relation</button>
-          </div>
-        </div>
-        <p class="hint" style="margin-top:8px;">Listen nedenfor er **filtreret til din admin-profil**. Du kan markere <em>Aktiv: Ja/Nej</em>, <strong>Gem</strong> eller <strong>Slet</strong> (blokkeres hvis der findes aktive bookinger).</p>
+  <!-- ADMIN: Region -->
+<section id="tab-region" class="panel">
+  <div class="card" style="margin-bottom:12px;">
+    <div class="row">
+      <div>
+        <label>Centralbibliotek (låst til admin-profil)</label>
+        <input id="relCentralReadonly" readonly />
       </div>
-
-      <div id="msgRel" class="msg" style="display:none;"></div>
-
-      <div class="card">
-        <table id="tblRel">
-          <thead>
-            <tr>
-              <th>relation_id</th><th>Lånerbibliotek</th><th>Centralbibliotek</th><th>Aktiv</th><th class="w180">Handling</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+      <div>
+        <label for="relLocal">Lånerbibliotek</label>
+        <select id="relLocal"></select>
       </div>
-    </section>
+      <div>
+        <label>&nbsp;</label>
+        <button id="btnRelAdd" class="btn">+ Tilføj relation</button>
+      </div>
+    </div>
+
+    <p class="hint" style="margin-top:8px;">
+      Listen nedenfor er <strong>filtreret til din admin-profil</strong>.
+      Du kan markere <em>Aktiv: Ja/Nej</em>, <strong>Gem</strong> eller <strong>Slet</strong>
+      (blokkeres hvis der findes aktive bookinger).
+    </p>
+
+    <!-- NYT: Opret nyt lånerbibliotek + auto-rel -->
+    <div class="row" style="margin-top:12px; border-top:1px solid #1e2630; padding-top:12px;">
+      <div>
+        <label for="newLocalId">Nyt lånerbibliotek – ID</label>
+        <input id="newLocalId" placeholder="fx GENT_R7" />
+      </div>
+      <div>
+        <label for="newLocalName">Navn</label>
+        <input id="newLocalName" placeholder="Gentofte Region 7 Bibliotek" />
+      </div>
+      <div>
+        <label for="newLocalActive">Aktiv</label>
+        <select id="newLocalActive">
+          <option value="true" selected>Ja</option>
+          <option value="false">Nej</option>
+        </select>
+      </div>
+      <div style="align-self:flex-end;">
+        <button id="btnCreateLocal" class="btn">+ Opret lånerbibliotek</button>
+      </div>
+    </div>
+
+    <p class="hint" style="margin-top:6px;">
+      Når du opretter et lånerbibliotek her, tilføjes relationen automatisk til det valgte centralbibliotek.
+    </p>
+  </div>
+
+  <div id="msgRel" class="msg" style="display:none;"></div>
+
+  <div class="card">
+    <table id="tblRel">
+      <thead>
+        <tr>
+          <th>relation_id</th>
+          <th>Lånerbibliotek</th>
+          <th>Centralbibliotek</th>
+          <th>Aktiv relation</th>
+          <th>Låner aktiv</th> <!-- NY -->
+          <th class="w180">Handling</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</section>
+
 
     <!-- BOOKER VIEW (uændret fra 3.1.8) -->
     <section id="bookerView" class="panel hidden">
@@ -266,6 +303,7 @@
           <label for="bookerProfileSel">Lånerbibliotek</label>
           <select id="bookerProfileSel"></select>
         </div>
+        <div id="bMsg" class="msg" style="display:none; margin-top:8px;"></div>
         <div style="margin-left:auto;">
           <label>&nbsp;</label>
           <button id="roleSave" class="btn primary">Gem profil</button>
