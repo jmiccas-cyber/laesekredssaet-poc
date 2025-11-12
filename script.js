@@ -313,10 +313,12 @@ function bindSaetControls(){
   $('#saetQ').oninput = e => st.saet.filters.q = e.target.value.trim();
 }
 function saetValidate(r){
-  if(!r.title) return 'title skal udfyldes';
-  if(!r.visibility || !['national','regional'].includes(r.visibility)) return 'visibility skal være national/regional';
-  if(!r.owner_bibliotek_id) return 'owner_bibliotek_id skal udfyldes';
-  if(r.requested_count < 0 || r.loan_weeks < 0 || r.buffer_days < 0 || r.min_delivery < 0) return 'talværdier må ikke være negative';
+  if (!r.title) return 'title skal udfyldes';
+  if (!['national','regional'].includes(r.visibility))
+    return 'visibility skal være national eller regional';
+  if (!r.owner_bibliotek_id) return 'owner_bibliotek_id skal udfyldes';
+  if (r.requested_count < 0 || r.loan_weeks < 0 || r.buffer_days < 0 || r.min_delivery < 0)
+    return 'talværdier må ikke være negative';
   return null;
 }
 async function saetCount(){
@@ -483,14 +485,38 @@ async function relList(){
       el('option',{value:'false', selected: !r.active}, 'Nej')
     );
 
-    const btnSave = el('button',{class:'btn primary', onclick: async ()=>{
-      const newActive = activeSel.value === 'true';
-      const { error } = await sb.from('tbl_bibliotek_relation')
-        .update({ active: newActive })
-        .eq('relation_id', r.relation_id)
-        .eq('central_id', centralId); // sikkerhed
-      if(error) msg(msgBox,'Fejl ved gem: '+error.message); else { msg(msgBox,'Relation opdateret',true); relList(); }
-    }}, 'Gem');
+   const btnSave = el('button',{class:'btn primary', onclick: async ()=>{
+  const row = {
+    title: ti.value.trim(),
+    author: au.value.trim(),
+    isbn: isb.value.trim(),
+    faust: fa.value.trim(),
+    requested_count: Number(rc.value || 0),
+    loan_weeks: Number(lw.value || 0),
+    buffer_days: Number(bd.value || 0),
+    visibility: (vis.value || '').trim().toLowerCase(),   // ← tving lowercase
+    owner_bibliotek_id: (ow.value || '').trim(),
+    active: act.value === 'true',
+    allow_substitution: sub.value === 'true',
+    allow_partial: par.value === 'true',
+    min_delivery: Number(md.value || 0)
+  };
+
+  const e = saetValidate(row);
+  if (e) { msg('#msgSaet', e); return; }
+
+  const { error } = await sb.from('tbl_saet')
+    .update(row)
+    .eq('set_id', r.set_id);
+
+  if (error) {
+    console.error('saet update failed', error);
+    msg('#msgSaet', 'Fejl ved gem: ' + error.message);
+  } else {
+    msg('#msgSaet', 'Sæt gemt', true);
+    saetPull();
+  }
+}}, 'Gem');
 
     const btnDel = el('button',{class:'btn danger', style:'margin-left:6px;', onclick: async ()=>{
       // Check aktive bookinger: requester = bibliotek_id, owner = current central, status in ('pending','approved')
