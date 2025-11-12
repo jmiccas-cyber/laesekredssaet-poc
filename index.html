@@ -3,16 +3,16 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Læsekredssæt – Admin v3.1.7</title>
+  <title>Læsekredssæt – v3.1.8</title>
   <style>
     :root { --gap: 12px; }
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif; margin: 0; background:#0b0e11; color:#e7edf3; }
     header { padding: 14px 18px; background:#12171d; border-bottom:1px solid #1e2630; display:flex; gap:10px; align-items:center; }
     header h1 { font-size: 18px; margin:0; flex:0 0 auto; }
     .badge { font-size:12px; background:#0d1319; border:1px solid #273141; border-radius:999px; padding:4px 10px; display:inline-flex; align-items:center; gap:6px; }
-    .badge .dot { width:8px; height:8px; border-radius:50%; background:#1f6feb; display:inline-block; }
-    .badge .role-admin .dot { background:#1f6feb; }
-    .badge .role-booker .dot { background:#17a34a; }
+    .badge .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+    .role-admin .dot { background:#1f6feb; }
+    .role-booker .dot { background:#17a34a; }
     .spacer { flex: 1 1 auto; }
     .btn { background:#18202a; color:#e7edf3; border:1px solid #2b3643; border-radius:10px; padding:8px 10px; cursor:pointer; }
     .btn.ghost { background:transparent; }
@@ -25,10 +25,10 @@
     main { padding: 16px; }
     .panel { display:none; }
     .panel.active { display:block; }
+    .hidden { display:none !important; }
 
     .card { background:#0d1319; border:1px solid #1e2630; border-radius:14px; padding:14px; }
     .row { display:flex; gap:var(--gap); flex-wrap:wrap; align-items:end; }
-    .row > * { flex: 0 0 auto; }
     label { display:block; font-size:12px; color:#a9b3bf; margin-bottom:4px; }
     input, select { background:#0b0e11; color:#e7edf3; border:1px solid #2b3643; border-radius:8px; padding:8px 10px; }
     table { width:100%; border-collapse: collapse; margin-top:12px; font-size:14px; }
@@ -41,10 +41,9 @@
     .msg.ok { background:#0f2a17; border:1px solid #1a4b2a; color:#9ae6b4; }
     .msg.err { background:#2a0f12; border:1px solid #4b1a1f; color:#feb2b2; }
     .toolbar { display:flex; gap:8px; flex-wrap:wrap; }
-    .edit { background:#0a1117; border:1px dashed #324052; padding:6px; border-radius:8px; }
     .w180 { width:180px; }
 
-    /* Simple modal */
+    /* Modal */
     .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; z-index:1000; }
     .modal { background:#0d1319; border:1px solid #1e2630; border-radius:14px; padding:16px; width:min(520px, 96vw); }
     .modal h3 { margin:0 0 8px 0; font-size:16px; }
@@ -53,28 +52,27 @@
 </head>
 <body>
   <header>
-    <h1>Læsekredssæt · Admin (v3.1.7)</h1>
+    <h1>Læsekredssæt (v3.1.8)</h1>
     <span id="roleBadge" class="badge role-admin"><span class="dot"></span><span id="roleText">Admin</span><span id="profileText"></span></span>
     <div class="spacer"></div>
     <button id="toggleRole" class="btn ghost" title="Skift mellem Admin og Booker">Skift: Admin ↔ Booker</button>
   </header>
 
-  <nav class="tabs">
+  <!-- Admin navigation -->
+  <nav id="adminTabs" class="tabs">
     <button class="active" data-tab="tab-eks">Eksemplarer (beholdning)</button>
     <button data-tab="tab-saet">Sæt – vedligehold</button>
     <button data-tab="tab-region">Region – tilknyttede biblioteker</button>
   </nav>
 
   <main>
-    <!-- Eksemplarer -->
+    <!-- ADMIN: Eksemplarer -->
     <section id="tab-eks" class="panel active">
       <div class="card" style="margin-bottom:12px;">
         <div class="row">
           <div>
             <label for="ownerFilterSel">Ejer-bibliotek (owner_bibliotek_id)</label>
-            <select id="ownerFilterSel">
-              <option value="">(alle)</option>
-            </select>
+            <select id="ownerFilterSel"><option value="">(alle)</option></select>
           </div>
           <div>
             <label for="statusFilter">Status</label>
@@ -97,12 +95,10 @@
         </div>
         <p class="hint" style="margin-top:8px;">Feltnavne (DB): <span class="k">barcode, isbn, faust, title, author, status, owner_bibliotek_id</span></p>
       </div>
-
       <div id="msg" class="msg" style="display:none;"></div>
-
       <div class="card">
         <div class="toolbar">
-          <span class="hint">Redigér direkte i rækkerne. Klik <strong>Gem</strong> på rækken for at opdatere.</span>
+          <span class="hint">Redigér direkte i rækkerne. Klik <strong>Gem</strong>.</span>
           <span class="spacer"></span>
           <button id="btnReload" class="btn">Genindlæs</button>
         </div>
@@ -122,15 +118,13 @@
       </div>
     </section>
 
-    <!-- Sæt – vedligehold -->
+    <!-- ADMIN: Sæt -->
     <section id="tab-saet" class="panel">
       <div class="card" style="margin-bottom:12px;">
         <div class="row">
           <div>
             <label for="saetOwnerFilterSel">Ejer (owner_bibliotek_id)</label>
-            <select id="saetOwnerFilterSel">
-              <option value="">(alle)</option>
-            </select>
+            <select id="saetOwnerFilterSel"><option value="">(alle)</option></select>
           </div>
           <div>
             <label for="saetVisFilter">Synlighed</label>
@@ -150,9 +144,7 @@
         </div>
         <p class="hint" style="margin-top:8px;">Felter: <span class="k">set_id, title, author, isbn, faust, requested_count, loan_weeks, buffer_days, visibility, owner_bibliotek_id, active, allow_substitution, allow_partial, min_delivery, notes</span></p>
       </div>
-
       <div id="msgSaet" class="msg" style="display:none;"></div>
-
       <div class="card">
         <table id="tblSaet">
           <thead>
@@ -174,7 +166,7 @@
       </div>
     </section>
 
-    <!-- Region – tilknyttede biblioteker -->
+    <!-- ADMIN: Region -->
     <section id="tab-region" class="panel">
       <div class="card" style="margin-bottom:12px;">
         <div class="row">
@@ -191,11 +183,9 @@
             <button id="btnRelAdd" class="btn">+ Tilføj relation</button>
           </div>
         </div>
-        <p class="hint" style="margin-top:8px;">Ved oprettelse bruges `tbl_bibliotek_relation (bibliotek_id, central_id, active=true)`.</p>
+        <p class="hint" style="margin-top:8px;">Opretter i `tbl_bibliotek_relation (bibliotek_id, central_id, active=true)`.</p>
       </div>
-
       <div id="msgRel" class="msg" style="display:none;"></div>
-
       <div class="card">
         <table id="tblRel">
           <thead>
@@ -205,6 +195,50 @@
           </thead>
           <tbody></tbody>
         </table>
+      </div>
+    </section>
+
+    <!-- BOOKER VIEW -->
+    <section id="bookerView" class="panel hidden">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="row">
+          <div>
+            <label>Booker-profil</label>
+            <span id="bookerProfileBadge" class="badge role-booker"><span class="dot"></span><span id="bookerProfileText">—</span></span>
+          </div>
+          <div>
+            <label for="bQ">Søg (titel/forfatter/ISBN/FAUST)</label>
+            <input id="bQ" placeholder="Søg…" />
+          </div>
+          <div>
+            <label for="bStart">Startdato</label>
+            <input id="bStart" type="date" />
+          </div>
+          <div>
+            <label for="bWeeks">Uger</label>
+            <input id="bWeeks" type="number" min="1" value="8" />
+          </div>
+          <div><button id="bSearch" class="btn">Søg</button></div>
+        </div>
+        <p class="hint" style="margin-top:8px;">Viser <strong>national</strong> + <strong>regional</strong> sæt fra dit centralbibliotek.</p>
+      </div>
+
+      <div id="bMsg" class="msg" style="display:none;"></div>
+
+      <div class="card">
+        <table id="bTbl">
+          <thead>
+            <tr>
+              <th>Titel</th><th>Forfatter</th><th>ISBN</th><th>FAUST</th><th>Synlighed</th><th>Ejer (central)</th><th class="w180">Handling</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div class="row" style="margin-top:12px;">
+          <button id="bPrev" class="btn">◀︎ Forrige</button>
+          <button id="bNext" class="btn">Næste ▶︎</button>
+          <span class="spacer"></span><span id="bInfo" class="hint"></span>
+        </div>
       </div>
     </section>
   </main>

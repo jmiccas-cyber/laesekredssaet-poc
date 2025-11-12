@@ -1,20 +1,20 @@
-// Læsekredssæt – Admin (v3.1.7) – Admin↔Booker toggle med profilvalg
-// Schema: Version 3.0 (POC Final). RLS/policies skal være sat.
-
+// Læsekredssæt – v3.1.8 – Admin↔Booker med rigtig Booker-visning
 const SUPABASE_URL = "https://qlkrzinyqirnigcwadki.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsa3J6aW55cWlybmlnY3dhZGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NjY2NjgsImV4cCI6MjA3ODM0MjY2OH0.-SV3dn7reKHeYis40I-aF3av0_XmCP-ZqB9KR6JT2so";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ---------- Global state ----------
+// ---------- State ----------
 const st = {
-  role: 'admin', // 'admin' | 'booker'
+  role: 'admin',                        // 'admin' | 'booker'
   profile: { adminCentralId: null, bookerLocalId: null },
-  // Eksemplarer
+  libs: { list: [], byId: {} },
+
+  // Admin: Eksemplarer
   eks: { pageSize: 20, page: 0, total: 0, filters: { owner: '', status: '', q: '' }, statuses: ['ledig','reserveret','udlaant','hjemkommet','mangler'] },
-  // Sæt
+  // Admin: Sæt
   saet: { pageSize: 15, page: 0, total: 0, filters: { owner: '', vis: '', q: '' }},
-  // Biblioteker
-  libs: { list: [], byId: {} }
+  // Booker
+  b:   { pageSize: 15, page: 0, total: 0, q: '', start: null, weeks: 8, centralIds: [] }
 };
 
 // ---------- Utils ----------
@@ -37,6 +37,67 @@ function msg(id, text, ok=false){
   box.style.display = 'block';
   setTimeout(()=> box.style.display='none', 4000);
 }
+function formatLibLabel(x){
+  const tag = x.is_central ? 'central' : 'lokal';
+  return `${x.bibliotek_navn} (${x.bibliotek_id}) · ${tag}`;
+}
+
+// ---------- Local storage for role/profile ----------
+function saveProfile(){
+  localStorage.setItem('lk_role', st.role);
+  localStorage.setItem('lk_adminCentralId', st.profile.adminCentralId || '');
+  localStorage.setItem('lk_bookerLocalId', st.profile.bookerLocalId || '');
+}
+function loadProfile(){
+  st.role = localStorage.getItem('lk_role') || 'admin';
+  const a = localStorage.getItem('lk_adminCentralId'); if (a) st.profile.adminCentralId = a;
+  const b = localStorage.getItem('lk_bookerLocalId'); if (b) st.profile.bookerLocalId = b;
+}
+
+// ---------- Role badge & layout ----------
+function renderRoleBadge(){
+  const rb = $('#roleBadge'), rt = $('#roleText'), pt = $('#profileText');
+  rb.classList.toggle('role-admin', st.role==='admin');
+  rb.classList.toggle('role-booker', st.role==='booker');
+  rt.textContent = st.role==='admin' ? 'Admin' : 'Booker';
+
+  if (st.role==='admin') {
+    const id = st.profile.adminCentralId || '—';
+    const lib = st.libs.byId[id];
+    pt.textContent = lib ? ` · ${lib.bibliotek_navn} (${id})` : (id!=='—' ? ` · ${id}` : '');
+  } else {
+    const id = st.profile.bookerLocalId || '—';
+    const lib = st.libs.byId[id];
+    pt.textContent = lib ? ` · ${lib.bibliotek_navn} (${id})` : (id!=='—' ? ` · ${id}` : '');
+  }
+}
+function renderLayout(){
+  const adminTabs = $('#adminTabs');
+  const adminPanels = ['tab-eks','tab-saet','tab-region'].map(id=>$('#'+id));
+  const bookerPanel = $('#bookerView');
+
+  if (st.role==='admin'){
+    adminTabs.classList.remove('hidden');
+    adminPanels.forEach(p=>p.classList.remove('hidden'));
+    bookerPanel.classList.add('hidden');
+    // ensure first admin tab active if none
+    if (!$('#tab-eks').classList.contains('active') &&
+        !$('#tab-saet').classList.contains('active') &&
+        !$('#tab-region').classList.contains('active')) {
+      document.querySelector('nav.tabs button[data-tab="tab-eks"]').click();
+    }
+  } else {
+    adminTabs.classList.add('hidden');
+    adminPanels.forEach(p=>p.classList.add('hidden'));
+    bookerPanel.classList.remove('hidden');
+    // Make booker panel visible
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    bookerPanel.classList.add('active');
+    // set booker badge
+    const bl = st.libs.byId[st.profile.bookerLocalId];
+    $('#bookerProfileText').textContent = bl ? `${bl.bibliotek_navn} (${bl.bibliotek_id})` : '—';
+  }
+}
 
 // ---------- Tabs ----------
 function bindTabs(){
@@ -50,42 +111,9 @@ function bindTabs(){
   });
 }
 
-// ---------- Role/Profile UI ----------
-function formatLibLabel(x){
-  const tag = x.is_central ? 'central' : 'lokal';
-  return `${x.bibliotek_navn} (${x.bibliotek_id}) · ${tag}`;
-}
-function saveProfileToLocal(){
-  localStorage.setItem('lk_role', st.role);
-  localStorage.setItem('lk_adminCentralId', st.profile.adminCentralId || '');
-  localStorage.setItem('lk_bookerLocalId', st.profile.bookerLocalId || '');
-}
-function loadProfileFromLocal(){
-  st.role = localStorage.getItem('lk_role') || 'admin';
-  const a = localStorage.getItem('lk_adminCentralId'); if (a) st.profile.adminCentralId = a;
-  const b = localStorage.getItem('lk_bookerLocalId'); if (b) st.profile.bookerLocalId = b;
-}
-function renderRoleBadge(){
-  const roleBadge = $('#roleBadge');
-  const roleText = $('#roleText');
-  const profileText = $('#profileText');
-  roleBadge.classList.toggle('role-admin', st.role==='admin');
-  roleBadge.classList.toggle('role-booker', st.role==='booker');
-  roleText.textContent = st.role==='admin' ? 'Admin' : 'Booker';
-
-  if (st.role==='admin') {
-    const id = st.profile.adminCentralId ? st.profile.adminCentralId : '—';
-    const lib = st.libs.byId[id];
-    profileText.textContent = lib ? ` · ${lib.bibliotek_navn} (${id})` : (id !== '—' ? ` · ${id}` : '');
-  } else {
-    const id = st.profile.bookerLocalId ? st.profile.bookerLocalId : '—';
-    const lib = st.libs.byId[id];
-    profileText.textContent = lib ? ` · ${lib.bibliotek_navn} (${id})` : (id !== '—' ? ` · ${id}` : '');
-  }
-}
+// ---------- Role/Profile modal ----------
 function openRoleModal(target){
   const modal = $('#roleModal'); modal.style.display='flex';
-
   const roleSel = $('#roleSelect');
   const adminWrap = $('#adminProfileWrap');
   const bookerWrap = $('#bookerProfileWrap');
@@ -94,62 +122,82 @@ function openRoleModal(target){
 
   roleSel.value = target || st.role;
 
-  // Fill dropdowns
+  // fill dropdowns
   adminSel.innerHTML = '';
-  st.libs.list.filter(x=>x.active && x.is_central).forEach(x=>{
-    adminSel.append(el('option',{value:x.bibliotek_id}, formatLibLabel(x)));
-  });
-
+  st.libs.list.filter(x=>x.active && x.is_central).forEach(x=> adminSel.append(el('option',{value:x.bibliotek_id}, formatLibLabel(x))));
   bookerSel.innerHTML = '';
-  st.libs.list.filter(x=>x.active && !x.is_central).forEach(x=>{
-    bookerSel.append(el('option',{value:x.bibliotek_id}, formatLibLabel(x)));
-  });
+  st.libs.list.filter(x=>x.active && !x.is_central).forEach(x=> bookerSel.append(el('option',{value:x.bibliotek_id}, formatLibLabel(x))));
 
-  // Preselect current
   if (st.profile.adminCentralId) adminSel.value = st.profile.adminCentralId;
   if (st.profile.bookerLocalId) bookerSel.value = st.profile.bookerLocalId;
 
-  // Toggle wraps
-  const updateWraps=()=>{
-    const val = roleSel.value;
-    if (val==='admin'){ adminWrap.style.display='block'; bookerWrap.style.display='none'; }
+  const upd = ()=>{
+    if (roleSel.value==='admin'){ adminWrap.style.display='block'; bookerWrap.style.display='none'; }
     else { adminWrap.style.display='none'; bookerWrap.style.display='block'; }
   };
-  updateWraps();
-  roleSel.onchange = updateWraps;
+  upd();
+  roleSel.onchange = upd;
 
-  $('#roleSave').onclick = ()=>{
+  $('#roleSave').onclick = async ()=>{
     const newRole = roleSel.value;
     if (newRole==='admin'){
       st.role = 'admin';
       st.profile.adminCentralId = adminSel.value || null;
-      // (POC) Optionelt kunne vi auto-filtrere owner = adminCentralId
     } else {
       st.role = 'booker';
       st.profile.bookerLocalId = bookerSel.value || null;
+      await resolveBookerCentrals(); // figure out allowed central(s)
+      st.b.page = 0;
+      await bookerPull();           // load initial booker list
     }
-    saveProfileToLocal();
+    saveProfile();
     renderRoleBadge();
+    renderLayout();
     modal.style.display='none';
   };
   $('#roleCancel').onclick = ()=> modal.style.display='none';
 }
 function bindRoleToggle(){
   $('#toggleRole')?.addEventListener('click', ()=>{
-    // Skift forvalg (den modsatte rolle) og åbn modal
     const target = st.role==='admin' ? 'booker' : 'admin';
     openRoleModal(target);
   });
 }
 
-// ---------- Eksemplarer (CRUD) ----------
+// ---------- Load libraries ----------
+async function loadLibraries(){
+  const { data, error } = await sb.from('tbl_bibliotek')
+    .select('bibliotek_id,bibliotek_navn,is_central,active')
+    .order('is_central',{ascending:false})
+    .order('bibliotek_navn',{ascending:true});
+  if(error){ console.error(error); return; }
+
+  st.libs.list = (data||[]).filter(x=>x.active);
+  st.libs.byId = Object.fromEntries(st.libs.list.map(x=>[x.bibliotek_id,x]));
+
+  // Fill admin filters
+  const saetOwner = $('#saetOwnerFilterSel'); saetOwner.innerHTML='';
+  saetOwner.append(el('option',{value:''},'(alle)'));
+  st.libs.list.forEach(x=> saetOwner.append(el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)));
+
+  const eksOwner = $('#ownerFilterSel'); eksOwner.innerHTML='';
+  eksOwner.append(el('option',{value:''},'(alle)'));
+  st.libs.list.forEach(x=> eksOwner.append(el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)));
+
+  // Region dropdowns
+  const centralSel = $('#relCentral'); centralSel.innerHTML='';
+  st.libs.list.filter(x=>x.is_central).forEach(x=> centralSel.append(el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)));
+  const localSel = $('#relLocal'); localSel.innerHTML='';
+  st.libs.list.filter(x=>!x.is_central).forEach(x=> localSel.append(el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)));
+}
+
+// ---------- Admin: Eksemplarer ----------
 function bindEksControls(){
   $('#btnSearch').onclick = ()=>{ st.eks.page=0; eksPull(); };
   $('#btnReload').onclick = ()=> eksPull();
   $('#prev').onclick = ()=>{ if(st.eks.page>0){ st.eks.page--; eksPull(); } };
   $('#next').onclick = ()=>{ const max = Math.ceil(st.eks.total/st.eks.pageSize)-1; if(st.eks.page<max){ st.eks.page++; eksPull(); } };
   $('#btnNew').onclick = eksAddRow;
-
   $('#ownerFilterSel').onchange = e => { st.eks.filters.owner = e.target.value; };
   $('#statusFilter').onchange = e => st.eks.filters.status = e.target.value;
   $('#q').oninput = e => st.eks.filters.q = e.target.value.trim();
@@ -202,16 +250,8 @@ async function eksPull(){
     const act = el('td');
 
     const save = el('button',{class:'btn primary', onclick: async ()=>{
-      const row = {
-        title: ti.value.trim(),
-        author: au.value.trim(),
-        isbn: isb.value.trim(),
-        faust: fa.value.trim(),
-        status: stsel.value,
-        owner_bibliotek_id: ow.value.trim()
-      };
-      const e = eksValidate({ ...row, barcode:r.barcode });
-      if(e){ msg('#msg', e); return; }
+      const row = { title: ti.value.trim(), author: au.value.trim(), isbn: isb.value.trim(), faust: fa.value.trim(), status: stsel.value, owner_bibliotek_id: ow.value.trim() };
+      const e = eksValidate({ ...row, barcode:r.barcode }); if(e){ msg('#msg', e); return; }
       const { error } = await sb.from('tbl_beholdning').update(row).eq('barcode', r.barcode);
       if(error) msg('#msg','Fejl ved gem: '+error.message); else { msg('#msg','Række gemt',true); eksPull(); }
     }},'Gem');
@@ -261,13 +301,12 @@ function eksAddRow(){
   tb.prepend(tr);
 }
 
-// ---------- Sæt – vedligehold ----------
+// ---------- Admin: Sæt ----------
 function bindSaetControls(){
   $('#btnSaetSearch').onclick = ()=>{ st.saet.page=0; saetPull(); };
   $('#saetPrev').onclick = ()=>{ if(st.saet.page>0){ st.saet.page--; saetPull(); } };
   $('#saetNext').onclick = ()=>{ const m = Math.ceil(st.saet.total/st.saet.pageSize)-1; if(st.saet.page<m){ st.saet.page++; saetPull(); } };
   $('#btnSaetNew').onclick = saetAddRow;
-
   $('#saetOwnerFilterSel').onchange = e => { st.saet.filters.owner = e.target.value; };
   $('#saetVisFilter').onchange = e => st.saet.filters.vis = e.target.value;
   $('#saetQ').oninput = e => st.saet.filters.q = e.target.value.trim();
@@ -374,21 +413,11 @@ function saetAddRow(){
     el('td',{}, el('input',{class:'edit s_rc', type:'number', value:'10'})),
     el('td',{}, el('input',{class:'edit s_lw', type:'number', value:'8'})),
     el('td',{}, el('input',{class:'edit s_bd', type:'number', value:'0'})),
-    el('td',{}, (()=>{
-      const s=el('select',{class:'edit s_vis'});
-      s.append(el('option',{value:'national'},'national'), el('option',{value:'regional'},'regional'));
-      return s;
-    })()),
+    el('td',{}, (()=>{ const s=el('select',{class:'edit s_vis'}); s.append(el('option',{value:'national'},'national'), el('option',{value:'regional'},'regional')); return s; })()),
     el('td',{}, el('input',{class:'edit s_ow', placeholder:'Ejer (fx GENT)'})),
-    el('td',{}, (()=>{
-      const s=el('select',{class:'edit s_act'}); s.append(el('option',{value:'true',selected:true},'Ja'), el('option',{value:'false'},'Nej')); return s;
-    })()),
-    el('td',{}, (()=>{
-      const s=el('select',{class:'edit s_sub'}); s.append(el('option',{value:'false',selected:true},'Nej'), el('option',{value:'true'},'Ja')); return s;
-    })()),
-    el('td',{}, (()=>{
-      const s=el('select',{class:'edit s_par'}); s.append(el('option',{value:'false',selected:true},'Nej'), el('option',{value:'true'},'Ja')); return s;
-    })()),
+    el('td',{}, (()=>{ const s=el('select',{class:'edit s_act'}); s.append(el('option',{value:'true',selected:true},'Ja'), el('option',{value:'false'},'Nej')); return s; })()),
+    el('td',{}, (()=>{ const s=el('select',{class:'edit s_sub'}); s.append(el('option',{value:'false',selected:true},'Nej'), el('option',{value:'true'},'Ja')); return s; })()),
+    el('td',{}, (()=>{ const s=el('select',{class:'edit s_par'}); s.append(el('option',{value:'false',selected:true},'Nej'), el('option',{value:'true'},'Ja')); return s; })()),
     el('td',{}, el('input',{class:'edit s_md', type:'number', value:'0'})),
     el('td',{},
       el('button',{class:'btn primary', onclick: async ()=>{
@@ -402,10 +431,7 @@ function saetAddRow(){
           buffer_days: Number(tr.querySelector('.s_bd').value||0),
           visibility: tr.querySelector('.s_vis').value,
           owner_bibliotek_id: tr.querySelector('.s_ow').value.trim(),
-          active: true,
-          allow_substitution: false,
-          allow_partial: false,
-          min_delivery: 0
+          active: true, allow_substitution: false, allow_partial: false, min_delivery: 0
         };
         const e = saetValidate(row); if(e){ msg('#msgSaet', e); return; }
         const { error } = await sb.from('tbl_saet').insert(row);
@@ -417,40 +443,7 @@ function saetAddRow(){
   tb.prepend(tr);
 }
 
-// ---------- Biblioteker / relationer ----------
-async function loadLibraries(){
-  const { data, error } = await sb.from('tbl_bibliotek')
-    .select('bibliotek_id,bibliotek_navn,is_central,active')
-    .order('is_central',{ascending:false})
-    .order('bibliotek_navn',{ascending:true});
-  if(error){ msg('#msgRel','Fejl ved hentning af biblioteker: '+error.message); return; }
-
-  st.libs.list = (data||[]).filter(x=>x.active);
-  st.libs.byId = Object.fromEntries(st.libs.list.map(x=>[x.bibliotek_id,x]));
-
-  // Udfyld filters
-  const fill = (sel, items)=>{ sel.innerHTML=''; items.forEach(x=> sel.append(el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`))); };
-
-  // Region: central/local dropdowns
-  const centralSel = $('#relCentral');
-  const localSel = $('#relLocal');
-  centralSel.innerHTML=''; localSel.innerHTML='';
-  st.libs.list.filter(x=>x.is_central).forEach(x=> centralSel.append(el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)));
-  st.libs.list.filter(x=>!x.is_central).forEach(x=> localSel.append(el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)));
-
-  // Sæt-filter: owner dropdown
-  const saetOwner = $('#saetOwnerFilterSel'); saetOwner.innerHTML='';
-  saetOwner.append(el('option',{value:''},'(alle)'));
-  st.libs.list.forEach(x=> saetOwner.append(el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)));
-
-  // Eksemplar-filter: owner dropdown
-  const eksOwner = $('#ownerFilterSel'); eksOwner.innerHTML='';
-  eksOwner.append(el('option',{value:''},'(alle)'));
-  st.libs.list.forEach(x=> eksOwner.append(el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)));
-
-  // Render badge nu hvor vi har labels
-  renderRoleBadge();
-}
+// ---------- Admin: Relationer ----------
 async function relList(){
   const { data, error } = await sb.from('tbl_bibliotek_relation').select('relation_id,bibliotek_id,central_id,active').order('relation_id');
   if(error){ msg('#msgRel','Fejl ved hentning af relationer: '+error.message); return; }
@@ -474,6 +467,7 @@ async function relList(){
     tb.append(tr);
   });
 }
+function bindRelControls(){ $('#btnRelAdd').onclick = relAdd; }
 async function relAdd(){
   const central = $('#relCentral').value;
   const local = $('#relLocal').value;
@@ -482,45 +476,154 @@ async function relAdd(){
   const { error } = await sb.from('tbl_bibliotek_relation').insert({ bibliotek_id: local, central_id: central, active: true });
   if(error) msg('#msgRel','Fejl ved oprettelse: '+error.message); else { msg('#msgRel','Relation oprettet',true); relList(); }
 }
-function bindRelControls(){ $('#btnRelAdd').onclick = relAdd; }
 
-// ---------- Layout-sikkerhedssele ----------
-function validateLayout(){
-  const requiredIds = [
-    // Eksemplarer
-    'tab-eks','tblEks','btnSearch','btnReload','btnNew','prev','next','ownerFilterSel','statusFilter','q',
-    // Sæt
-    'tab-saet','tblSaet','btnSaetSearch','btnSaetNew','saetPrev','saetNext','saetOwnerFilterSel','saetVisFilter','saetQ',
-    // Region
-    'tab-region','tblRel','btnRelAdd','relCentral','relLocal',
-    // Header
-    'toggleRole','roleBadge','roleText','profileText',
-    // Modal
-    'roleModal','roleSelect','adminProfileSel','bookerProfileSel','roleSave','roleCancel'
-  ];
-  const missing = requiredIds.filter(id => !document.getElementById(id));
-  if (missing.length) {
-    alert('Layout-kontrakt brudt. Mangler: ' + missing.join(', '));
-    console.error('Layout-kontrakt brudt:', missing);
+// ---------- BOOKER logic ----------
+async function resolveBookerCentrals(){
+  st.b.centralIds = [];
+  const bookerId = st.profile.bookerLocalId;
+  if(!bookerId) return;
+  const { data, error } = await sb.from('tbl_bibliotek_relation')
+    .select('central_id, active')
+    .eq('bibliotek_id', bookerId)
+    .eq('active', true);
+  if (error){ console.error(error); return; }
+  st.b.centralIds = (data||[]).map(x=> x.central_id);
+}
+function bindBookerControls(){
+  $('#bQ').oninput = e => st.b.q = e.target.value.trim();
+  $('#bStart').onchange = e => st.b.start = e.target.value || null;
+  $('#bWeeks').onchange = e => st.b.weeks = Number(e.target.value||8);
+  $('#bSearch').onclick = ()=>{ st.b.page = 0; bookerPull(); };
+  $('#bPrev').onclick = ()=>{ if(st.b.page>0){ st.b.page--; bookerPull(); } };
+  $('#bNext').onclick = ()=>{ const m = Math.ceil(st.b.total/st.b.pageSize)-1; if(st.b.page<m){ st.b.page++; bookerPull(); } };
+}
+async function bookerFetchAllowedSets(){
+  // Fetch national
+  const filters = [];
+  if (st.b.q){
+    filters.push('title.ilike.%'+st.b.q+'%');
+    filters.push('author.ilike.%'+st.b.q+'%');
+    filters.push('isbn.ilike.%'+st.b.q+'%');
+    filters.push('faust.ilike.%'+st.b.q+'%');
   }
+  const searchOr = filters.length ? filters.join(',') : null;
+
+  let qNat = sb.from('tbl_saet')
+    .select('set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,active')
+    .eq('visibility','national')
+    .eq('active', true);
+  if (searchOr) qNat = qNat.or(searchOr);
+
+  // Fetch regional (owner in centralIds)
+  let regionRows = [];
+  if (st.b.centralIds.length){
+    // IN filter
+    let qReg = sb.from('tbl_saet')
+      .select('set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,active')
+      .eq('visibility','regional')
+      .in('owner_bibliotek_id', st.b.centralIds)
+      .eq('active', true);
+    if (searchOr) qReg = qReg.or(searchOr);
+    const { data:regData, error:regErr } = await qReg;
+    if (regErr){ msg('#bMsg','Fejl ved regional søgning: '+regErr.message); }
+    regionRows = regData||[];
+  }
+
+  const { data:natData, error:natErr } = await qNat;
+  if (natErr){ msg('#bMsg','Fejl ved national søgning: '+natErr.message); return []; }
+
+  // Merge & sort (by title)
+  const all = [...(natData||[]), ...regionRows];
+  all.sort((a,b)=> (a.title||'').localeCompare(b.title||''));
+  return all;
+}
+async function bookerCount(){
+  const rows = await bookerFetchAllowedSets();
+  st.b._cacheRows = rows; // cache for paging
+  return rows.length;
+}
+async function bookerPull(){
+  const total = await bookerCount();
+  st.b.total = total;
+  const from = st.b.page*st.b.pageSize;
+  const to = from + st.b.pageSize;
+  const pageRows = (st.b._cacheRows||[]).slice(from, to);
+
+  const tb = $('#bTbl tbody'); tb.innerHTML='';
+  pageRows.forEach(r=>{
+    const owner = st.libs.byId[r.owner_bibliotek_id];
+    const tr = el('tr');
+    const btn = el('button',{class:'btn primary', onclick:()=>{
+      // Stub – i POC viser vi blot en alert. Her kan vi senere lave booking flow.
+      alert(`Anmod om booking\n\nSæt: ${r.title}\nEjer (central): ${owner ? owner.bibliotek_navn+' ('+owner.bibliotek_id+')' : r.owner_bibliotek_id}\nPeriode: ${$('#bStart').value || '(ikke valgt)'} • ${$('#bWeeks').value || 8} uger`);
+    }}, 'Anmod om booking');
+    tr.append(
+      el('td',{}, r.title||''),
+      el('td',{}, r.author||''),
+      el('td',{}, r.isbn||''),
+      el('td',{}, r.faust||''),
+      el('td',{}, r.visibility||''),
+      el('td',{}, owner ? `${owner.bibliotek_navn} (${owner.bibliotek_id})` : r.owner_bibliotek_id),
+      el('td',{}, btn)
+    );
+    tb.append(tr);
+  });
+
+  $('#bInfo').textContent = `Side ${st.b.page+1} af ${Math.max(1,Math.ceil(total/st.b.pageSize))} • ${total} sæt`;
 }
 
-// ---------- Init ----------
-function bindNav(){
-  bindTabs();
+// ---------- Layout validator ----------
+function validateLayout(){
+  const required = [
+    'toggleRole','roleBadge','roleText','profileText',
+    'adminTabs','tab-eks','tab-saet','tab-region',
+    'bookerView','bQ','bStart','bWeeks','bSearch','bTbl','bPrev','bNext','bInfo',
+    'roleModal','roleSelect','adminProfileSel','bookerProfileSel','roleSave','roleCancel'
+  ];
+  const missing = required.filter(id => !document.getElementById(id));
+  if (missing.length){ console.error('Layout-kontrakt brudt:', missing); alert('Layout-kontrakt brudt: '+missing.join(', ')); }
+}
+
+// ---------- Bindings ----------
+function bindAdmin(){
+  // tabs
+  document.querySelectorAll('nav.tabs button[data-tab]').forEach(b=>{
+    b.onclick = ()=>{
+      document.querySelectorAll('nav.tabs button').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+      $('#'+b.dataset.tab).classList.add('active');
+    };
+  });
+  // eksemplarer, sæt, relationer
   bindEksControls();
   bindSaetControls();
   bindRelControls();
-  bindRoleToggle();
 }
+function bindGlobal(){
+  bindRoleToggle();
+  bindBookerControls();
+}
+
+// ---------- Boot ----------
 async function boot(){
-  loadProfileFromLocal();
-  bindNav();
-  await loadLibraries(); // fylder dropdowns og labels
+  loadProfile();
+  bindGlobal();
+  bindAdmin();
+  await loadLibraries();
+  renderRoleBadge();
+  renderLayout();
+
+  // Admin initial loads
   eksPull();
   saetPull();
   relList();
-  renderRoleBadge();
+
+  // If already in booker mode, prep booker centrals and first load
+  if (st.role==='booker'){
+    await resolveBookerCentrals();
+    await bookerPull();
+  }
   validateLayout();
 }
 boot();
