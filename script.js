@@ -1,14 +1,14 @@
-// Læsekredssæt – v3.1.8 – Admin↔Booker med rigtig Booker-visning
+// Læsekredssæt – v3.1.9
+// Ny logik i REGION-fanen: filtrer pr. admin-profil, redigér Aktiv, slet med booking-blokering.
 const SUPABASE_URL = "https://qlkrzinyqirnigcwadki.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsa3J6aW55cWlybmlnY3dhZGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NjY2NjgsImV4cCI6MjA3ODM0MjY2OH0.-SV3dn7reKHeYis40I-aF3av0_XmCP-ZqB9KR6JT2so";
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ---------- State ----------
 const st = {
-  role: 'admin',                        // 'admin' | 'booker'
+  role: 'admin',
   profile: { adminCentralId: null, bookerLocalId: null },
   libs: { list: [], byId: {} },
-
   // Admin: Eksemplarer
   eks: { pageSize: 20, page: 0, total: 0, filters: { owner: '', status: '', q: '' }, statuses: ['ledig','reserveret','udlaant','hjemkommet','mangler'] },
   // Admin: Sæt
@@ -65,6 +65,9 @@ function renderRoleBadge(){
     const id = st.profile.adminCentralId || '—';
     const lib = st.libs.byId[id];
     pt.textContent = lib ? ` · ${lib.bibliotek_navn} (${id})` : (id!=='—' ? ` · ${id}` : '');
+    // Opdater låst felt i region-fanen
+    const ro = $('#relCentralReadonly');
+    if (ro) ro.value = lib ? `${lib.bibliotek_navn} (${lib.bibliotek_id})` : '';
   } else {
     const id = st.profile.bookerLocalId || '—';
     const lib = st.libs.byId[id];
@@ -80,20 +83,15 @@ function renderLayout(){
     adminTabs.classList.remove('hidden');
     adminPanels.forEach(p=>p.classList.remove('hidden'));
     bookerPanel.classList.add('hidden');
-    // ensure first admin tab active if none
-    if (!$('#tab-eks').classList.contains('active') &&
-        !$('#tab-saet').classList.contains('active') &&
-        !$('#tab-region').classList.contains('active')) {
-      document.querySelector('nav.tabs button[data-tab="tab-eks"]').click();
+    if (![...document.querySelectorAll('.panel')].some(p=>p.classList.contains('active'))){
+      document.querySelector('nav.tabs button[data-tab="tab-eks"]')?.click();
     }
   } else {
     adminTabs.classList.add('hidden');
     adminPanels.forEach(p=>p.classList.add('hidden'));
     bookerPanel.classList.remove('hidden');
-    // Make booker panel visible
     document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
     bookerPanel.classList.add('active');
-    // set booker badge
     const bl = st.libs.byId[st.profile.bookerLocalId];
     $('#bookerProfileText').textContent = bl ? `${bl.bibliotek_navn} (${bl.bibliotek_id})` : '—';
   }
@@ -107,6 +105,7 @@ function bindTabs(){
       b.classList.add('active');
       document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
       $('#'+b.dataset.tab).classList.add('active');
+      if (b.dataset.tab === 'tab-region') relList(); // refresh on enter
     };
   });
 }
@@ -146,13 +145,15 @@ function openRoleModal(target){
     } else {
       st.role = 'booker';
       st.profile.bookerLocalId = bookerSel.value || null;
-      await resolveBookerCentrals(); // figure out allowed central(s)
+      await resolveBookerCentrals();
       st.b.page = 0;
-      await bookerPull();           // load initial booker list
+      await bookerPull();
     }
     saveProfile();
     renderRoleBadge();
     renderLayout();
+    // Opdatér Region-fanen hvis vi er i admin
+    if (st.role==='admin') relList();
     modal.style.display='none';
   };
   $('#roleCancel').onclick = ()=> modal.style.display='none';
@@ -175,7 +176,7 @@ async function loadLibraries(){
   st.libs.list = (data||[]).filter(x=>x.active);
   st.libs.byId = Object.fromEntries(st.libs.list.map(x=>[x.bibliotek_id,x]));
 
-  // Fill admin filters
+  // Admin filters
   const saetOwner = $('#saetOwnerFilterSel'); saetOwner.innerHTML='';
   saetOwner.append(el('option',{value:''},'(alle)'));
   st.libs.list.forEach(x=> saetOwner.append(el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)));
@@ -184,14 +185,14 @@ async function loadLibraries(){
   eksOwner.append(el('option',{value:''},'(alle)'));
   st.libs.list.forEach(x=> eksOwner.append(el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)));
 
-  // Region dropdowns
-  const centralSel = $('#relCentral'); centralSel.innerHTML='';
-  st.libs.list.filter(x=>x.is_central).forEach(x=> centralSel.append(el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)));
+  // Region (kun lånerbiblioteker i dropdown – central er låst til profil)
   const localSel = $('#relLocal'); localSel.innerHTML='';
   st.libs.list.filter(x=>!x.is_central).forEach(x=> localSel.append(el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)));
+
+  renderRoleBadge();
 }
 
-// ---------- Admin: Eksemplarer ----------
+// ---------- Admin: Eksemplarer (uændret) ----------
 function bindEksControls(){
   $('#btnSearch').onclick = ()=>{ st.eks.page=0; eksPull(); };
   $('#btnReload').onclick = ()=> eksPull();
@@ -301,7 +302,7 @@ function eksAddRow(){
   tb.prepend(tr);
 }
 
-// ---------- Admin: Sæt ----------
+// ---------- Admin: Sæt (uændret fra 3.1.8) ----------
 function bindSaetControls(){
   $('#btnSaetSearch').onclick = ()=>{ st.saet.page=0; saetPull(); };
   $('#saetPrev').onclick = ()=>{ if(st.saet.page>0){ st.saet.page--; saetPull(); } };
@@ -443,41 +444,108 @@ function saetAddRow(){
   tb.prepend(tr);
 }
 
-// ---------- Admin: Relationer ----------
+// ---------- Admin: Region – filtreret pr. admin-profil ----------
+function bindRelControls(){ $('#btnRelAdd').onclick = relAdd; }
+
+// hent kun relationer for aktuell admin-central
 async function relList(){
-  const { data, error } = await sb.from('tbl_bibliotek_relation').select('relation_id,bibliotek_id,central_id,active').order('relation_id');
-  if(error){ msg('#msgRel','Fejl ved hentning af relationer: '+error.message); return; }
+  const centralId = st.profile.adminCentralId;
+  const msgBox = '#msgRel';
+  if (!centralId){
+    msg(msgBox, 'Vælg først en admin-profil (centralbibliotek) via “Skift: Admin ↔ Booker”.');
+    const tb = $('#tblRel tbody'); if (tb) tb.innerHTML='';
+    // opdatér readonly felt
+    $('#relCentralReadonly').value = '';
+    return;
+  }
+
+  // opdatér readonly felt
+  const lib = st.libs.byId[centralId];
+  $('#relCentralReadonly').value = lib ? `${lib.bibliotek_navn} (${lib.bibliotek_id})` : centralId;
+
+  const { data, error } = await sb
+    .from('tbl_bibliotek_relation')
+    .select('relation_id,bibliotek_id,central_id,active')
+    .eq('central_id', centralId)
+    .order('relation_id');
+  if(error){ msg(msgBox,'Fejl ved hentning af relationer: '+error.message); return; }
+
   const tb = $('#tblRel tbody'); tb.innerHTML='';
   (data||[]).forEach(r=>{
-    const lib = st.libs.byId[r.bibliotek_id]; const cen = st.libs.byId[r.central_id];
+    const local = st.libs.byId[r.bibliotek_id];
+    const central = st.libs.byId[r.central_id];
+
     const tr = el('tr');
+
+    // Aktiv toggle
+    const activeSel = el('select',{},
+      el('option',{value:'true', selected: !!r.active}, 'Ja'),
+      el('option',{value:'false', selected: !r.active}, 'Nej')
+    );
+
+    const btnSave = el('button',{class:'btn primary', onclick: async ()=>{
+      const newActive = activeSel.value === 'true';
+      const { error } = await sb.from('tbl_bibliotek_relation')
+        .update({ active: newActive })
+        .eq('relation_id', r.relation_id)
+        .eq('central_id', centralId); // sikkerhed
+      if(error) msg(msgBox,'Fejl ved gem: '+error.message); else { msg(msgBox,'Relation opdateret',true); relList(); }
+    }}, 'Gem');
+
+    const btnDel = el('button',{class:'btn danger', style:'margin-left:6px;', onclick: async ()=>{
+      // Check aktive bookinger: requester = bibliotek_id, owner = current central, status in ('pending','approved')
+      const hasActive = await bibliotekHasActiveBookings(r.bibliotek_id, centralId);
+      if (hasActive){
+        msg(msgBox, 'Biblioteket har en eller flere aktive bookinger og kan derfor ikke slettes');
+        return;
+      }
+      if(!confirm(`Slet relation #${r.relation_id} (${r.bibliotek_id} → ${centralId})?`)) return;
+      const { error } = await sb.from('tbl_bibliotek_relation')
+        .delete()
+        .eq('relation_id', r.relation_id)
+        .eq('central_id', centralId);
+      if(error) msg(msgBox,'Fejl ved sletning: '+error.message); else { msg(msgBox,'Relation slettet',true); relList(); }
+    }}, 'Slet');
+
     tr.append(
       el('td',{}, String(r.relation_id)),
-      el('td',{}, lib ? `${lib.bibliotek_navn} (${lib.bibliotek_id})` : r.bibliotek_id),
-      el('td',{}, cen ? `${cen.bibliotek_navn} (${cen.bibliotek_id})` : r.central_id),
-      el('td',{}, r.active ? 'Ja' : 'Nej'),
-      el('td',{},
-        el('button',{class:'btn danger', onclick: async ()=>{
-          if(!confirm('Slet relation '+r.relation_id+'?')) return;
-          const { error } = await sb.from('tbl_bibliotek_relation').delete().eq('relation_id', r.relation_id);
-          if(error) msg('#msgRel','Fejl ved sletning: '+error.message); else { msg('#msgRel','Relation slettet',true); relList(); }
-        }}, 'Slet')
-      )
+      el('td',{}, local ? `${local.bibliotek_navn} (${local.bibliotek_id})` : r.bibliotek_id),
+      el('td',{}, central ? `${central.bibliotek_navn} (${central.bibliotek_id})` : r.central_id),
+      el('td',{}, activeSel),
+      el('td',{}, btnSave, btnDel)
     );
     tb.append(tr);
   });
 }
-function bindRelControls(){ $('#btnRelAdd').onclick = relAdd; }
+
+// Tilføj relation (låst til admin-central)
 async function relAdd(){
-  const central = $('#relCentral').value;
+  const centralId = st.profile.adminCentralId;
+  if (!centralId){ msg('#msgRel','Vælg først en admin-profil (centralbibliotek).'); return; }
   const local = $('#relLocal').value;
-  if(!central || !local){ msg('#msgRel','Vælg både central og lånerbibliotek'); return; }
-  if(central === local){ msg('#msgRel','Central og låner må ikke være samme ID'); return; }
-  const { error } = await sb.from('tbl_bibliotek_relation').insert({ bibliotek_id: local, central_id: central, active: true });
-  if(error) msg('#msgRel','Fejl ved oprettelse: '+error.message); else { msg('#msgRel','Relation oprettet',true); relList(); }
+  if(!local){ msg('#msgRel','Vælg lånerbibliotek.'); return; }
+  if(local === centralId){ msg('#msgRel','Central og låner må ikke være samme ID'); return; }
+
+  // Undgå dubletter (unique på (bibliotek_id, central_id) findes i schema)
+  const { error } = await sb.from('tbl_bibliotek_relation')
+    .insert({ bibliotek_id: local, central_id: centralId, active: true });
+  if(error){ msg('#msgRel','Fejl ved oprettelse: '+error.message); }
+  else { msg('#msgRel','Relation oprettet',true); relList(); }
 }
 
-// ---------- BOOKER logic ----------
+// Guard: har lånerbibliotek aktive bookinger med denne central?
+async function bibliotekHasActiveBookings(bibliotekId, centralId){
+  // status 'pending' eller 'approved' regnes som aktive
+  const { count, error } = await sb.from('tbl_booking')
+    .select('booking_id', { count:'exact', head:true })
+    .eq('requester_bibliotek_id', bibliotekId)
+    .eq('owner_bibliotek_id', centralId)
+    .in('status', ['pending','approved']);
+  if (error){ console.error('booking check error', error); return false; }
+  return (count||0) > 0;
+}
+
+// ---------- BOOKER (uændret fra 3.1.8) ----------
 async function resolveBookerCentrals(){
   st.b.centralIds = [];
   const bookerId = st.profile.bookerLocalId;
@@ -498,7 +566,6 @@ function bindBookerControls(){
   $('#bNext').onclick = ()=>{ const m = Math.ceil(st.b.total/st.b.pageSize)-1; if(st.b.page<m){ st.b.page++; bookerPull(); } };
 }
 async function bookerFetchAllowedSets(){
-  // Fetch national
   const filters = [];
   if (st.b.q){
     filters.push('title.ilike.%'+st.b.q+'%');
@@ -514,10 +581,8 @@ async function bookerFetchAllowedSets(){
     .eq('active', true);
   if (searchOr) qNat = qNat.or(searchOr);
 
-  // Fetch regional (owner in centralIds)
   let regionRows = [];
   if (st.b.centralIds.length){
-    // IN filter
     let qReg = sb.from('tbl_saet')
       .select('set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,active')
       .eq('visibility','regional')
@@ -532,14 +597,13 @@ async function bookerFetchAllowedSets(){
   const { data:natData, error:natErr } = await qNat;
   if (natErr){ msg('#bMsg','Fejl ved national søgning: '+natErr.message); return []; }
 
-  // Merge & sort (by title)
   const all = [...(natData||[]), ...regionRows];
   all.sort((a,b)=> (a.title||'').localeCompare(b.title||''));
   return all;
 }
 async function bookerCount(){
   const rows = await bookerFetchAllowedSets();
-  st.b._cacheRows = rows; // cache for paging
+  st.b._cacheRows = rows;
   return rows.length;
 }
 async function bookerPull(){
@@ -554,48 +618,22 @@ async function bookerPull(){
     const owner = st.libs.byId[r.owner_bibliotek_id];
     const tr = el('tr');
     const btn = el('button',{class:'btn primary', onclick:()=>{
-      // Stub – i POC viser vi blot en alert. Her kan vi senere lave booking flow.
       alert(`Anmod om booking\n\nSæt: ${r.title}\nEjer (central): ${owner ? owner.bibliotek_navn+' ('+owner.bibliotek_id+')' : r.owner_bibliotek_id}\nPeriode: ${$('#bStart').value || '(ikke valgt)'} • ${$('#bWeeks').value || 8} uger`);
     }}, 'Anmod om booking');
     tr.append(
-      el('td',{}, r.title||''),
-      el('td',{}, r.author||''),
-      el('td',{}, r.isbn||''),
-      el('td',{}, r.faust||''),
-      el('td',{}, r.visibility||''),
+      el('td',{}, r.title||''), el('td',{}, r.author||''), el('td',{}, r.isbn||''),
+      el('td',{}, r.faust||''), el('td',{}, r.visibility||''),
       el('td',{}, owner ? `${owner.bibliotek_navn} (${owner.bibliotek_id})` : r.owner_bibliotek_id),
       el('td',{}, btn)
     );
     tb.append(tr);
   });
-
   $('#bInfo').textContent = `Side ${st.b.page+1} af ${Math.max(1,Math.ceil(total/st.b.pageSize))} • ${total} sæt`;
 }
 
-// ---------- Layout validator ----------
-function validateLayout(){
-  const required = [
-    'toggleRole','roleBadge','roleText','profileText',
-    'adminTabs','tab-eks','tab-saet','tab-region',
-    'bookerView','bQ','bStart','bWeeks','bSearch','bTbl','bPrev','bNext','bInfo',
-    'roleModal','roleSelect','adminProfileSel','bookerProfileSel','roleSave','roleCancel'
-  ];
-  const missing = required.filter(id => !document.getElementById(id));
-  if (missing.length){ console.error('Layout-kontrakt brudt:', missing); alert('Layout-kontrakt brudt: '+missing.join(', ')); }
-}
-
-// ---------- Bindings ----------
+// ---------- Bindings & boot ----------
 function bindAdmin(){
-  // tabs
-  document.querySelectorAll('nav.tabs button[data-tab]').forEach(b=>{
-    b.onclick = ()=>{
-      document.querySelectorAll('nav.tabs button').forEach(x=>x.classList.remove('active'));
-      b.classList.add('active');
-      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-      $('#'+b.dataset.tab).classList.add('active');
-    };
-  });
-  // eksemplarer, sæt, relationer
+  bindTabs();
   bindEksControls();
   bindSaetControls();
   bindRelControls();
@@ -604,8 +642,6 @@ function bindGlobal(){
   bindRoleToggle();
   bindBookerControls();
 }
-
-// ---------- Boot ----------
 async function boot(){
   loadProfile();
   bindGlobal();
@@ -619,11 +655,9 @@ async function boot(){
   saetPull();
   relList();
 
-  // If already in booker mode, prep booker centrals and first load
   if (st.role==='booker'){
     await resolveBookerCentrals();
     await bookerPull();
   }
-  validateLayout();
 }
 boot();

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Læsekredssæt – v3.1.8</title>
+  <title>Læsekredssæt – v3.1.9</title>
   <style>
     :root { --gap: 12px; }
     body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif; margin: 0; background:#0b0e11; color:#e7edf3; }
@@ -52,7 +52,7 @@
 </head>
 <body>
   <header>
-    <h1>Læsekredssæt (v3.1.8)</h1>
+    <h1>Læsekredssæt (v3.1.9)</h1>
     <span id="roleBadge" class="badge role-admin"><span class="dot"></span><span id="roleText">Admin</span><span id="profileText"></span></span>
     <div class="spacer"></div>
     <button id="toggleRole" class="btn ghost" title="Skift mellem Admin og Booker">Skift: Admin ↔ Booker</button>
@@ -171,8 +171,8 @@
       <div class="card" style="margin-bottom:12px;">
         <div class="row">
           <div>
-            <label for="relCentral">Centralbibliotek</label>
-            <select id="relCentral"></select>
+            <label>Centralbibliotek (låst til admin-profil)</label>
+            <input id="relCentralReadonly" readonly />
           </div>
           <div>
             <label for="relLocal">Lånerbibliotek</label>
@@ -183,9 +183,11 @@
             <button id="btnRelAdd" class="btn">+ Tilføj relation</button>
           </div>
         </div>
-        <p class="hint" style="margin-top:8px;">Opretter i `tbl_bibliotek_relation (bibliotek_id, central_id, active=true)`.</p>
+        <p class="hint" style="margin-top:8px;">Listen nedenfor er **filtreret til din admin-profil**. Du kan markere <em>Aktiv: Ja/Nej</em>, <strong>Gem</strong> eller <strong>Slet</strong> (blokkeres hvis der findes aktive bookinger).</p>
       </div>
+
       <div id="msgRel" class="msg" style="display:none;"></div>
+
       <div class="card">
         <table id="tblRel">
           <thead>
@@ -198,7 +200,7 @@
       </div>
     </section>
 
-    <!-- BOOKER VIEW -->
+    <!-- BOOKER VIEW (uændret fra 3.1.8) -->
     <section id="bookerView" class="panel hidden">
       <div class="card" style="margin-bottom:12px;">
         <div class="row">
@@ -234,7 +236,7 @@
           </thead>
           <tbody></tbody>
         </table>
-        <div class="row" style="margin-top:12px;">
+        <div class="row" style="margin-top:12px%;">
           <button id="bPrev" class="btn">◀︎ Forrige</button>
           <button id="bNext" class="btn">Næste ▶︎</button>
           <span class="spacer"></span><span id="bInfo" class="hint"></span>
