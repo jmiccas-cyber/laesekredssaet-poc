@@ -1,5 +1,5 @@
-// Læsekredssæt – Admin (v3.1.4) – Auto-connect
-// Schema: matches your Version 3.0 (POC Final)
+// Læsekredssæt – Admin (v3.1.6) – Auto-connect
+// Schema: Version 3.0 (POC Final). RLS/policies skal være sat.
 
 const SUPABASE_URL = "https://qlkrzinyqirnigcwadki.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsa3J6aW55cWlybmlnY3dhZGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NjY2NjgsImV4cCI6MjA3ODM0MjY2OH0.-SV3dn7reKHeYis40I-aF3av0_XmCP-ZqB9KR6JT2so";
@@ -10,7 +10,7 @@ const st = {
   eks: { pageSize: 20, page: 0, total: 0, filters: { owner: '', status: '', q: '' }, statuses: ['ledig','reserveret','udlaant','hjemkommet','mangler'] },
   // Sæt
   saet: { pageSize: 15, page: 0, total: 0, filters: { owner: '', vis: '', q: '' }},
-  // Region
+  // Biblioteker cache
   libs: { list: [], byId: {} }
 };
 
@@ -19,7 +19,7 @@ const $ = s => document.querySelector(s);
 function el(tag, attrs={}, ...kids){
   const E = document.createElement(tag);
   for (const [k,v] of Object.entries(attrs)){
-    if(k==='class') E.className = v;
+    if (k === 'class') E.className = v;
     else if (k.startsWith('on')) E.addEventListener(k.substring(2), v);
     else E.setAttribute(k, v);
   }
@@ -28,7 +28,7 @@ function el(tag, attrs={}, ...kids){
 }
 function msg(id, text, ok=false){
   const box = $(id);
-  if(!box) return;
+  if (!box) return;
   box.textContent = text;
   box.className = 'msg ' + (ok ? 'ok' : 'err');
   box.style.display = 'block';
@@ -56,7 +56,7 @@ function bindEksControls(){
   $('#next').onclick = ()=>{ const max = Math.ceil(st.eks.total/st.eks.pageSize)-1; if(st.eks.page<max){ st.eks.page++; eksPull(); } };
   $('#btnNew').onclick = eksAddRow;
 
-  $('#ownerFilter').oninput = e => st.eks.filters.owner = e.target.value.trim();
+  $('#ownerFilterSel').onchange = e => { st.eks.filters.owner = e.target.value; };
   $('#statusFilter').onchange = e => st.eks.filters.status = e.target.value;
   $('#q').oninput = e => st.eks.filters.q = e.target.value.trim();
 }
@@ -82,7 +82,10 @@ async function eksCount(){
 }
 async function eksFetch(){
   const f = st.eks.filters, from = st.eks.page*st.eks.pageSize, to = from+st.eks.pageSize-1;
-  let q = sb.from('tbl_beholdning').select('barcode,isbn,faust,title,author,status,owner_bibliotek_id').order('barcode',{ascending:true}).range(from,to);
+  let q = sb.from('tbl_beholdning')
+    .select('barcode,isbn,faust,title,author,status,owner_bibliotek_id')
+    .order('barcode',{ascending:true})
+    .range(from,to);
   if (f.owner) q = q.eq('owner_bibliotek_id', f.owner);
   if (f.status) q = q.eq('status', f.status);
   if (f.q) q = q.or(['title.ilike.%'+f.q+'%','author.ilike.%'+f.q+'%','isbn.ilike.%'+f.q+'%','faust.ilike.%'+f.q+'%','barcode.ilike.%'+f.q+'%'].join(','));
@@ -103,17 +106,28 @@ async function eksPull(){
     const stsel = eksStatusSelect(r.status||'ledig');
     const ow = el('input',{class:'edit owner', value:r.owner_bibliotek_id||''});
     const act = el('td');
+
     const save = el('button',{class:'btn primary', onclick: async ()=>{
-      const row = { barcode:r.barcode, title:ti.value.trim(), author:au.value.trim(), isbn:isb.value.trim(), faust:fa.value.trim(), status:stsel.value, owner_bibliotek_id:ow.value.trim() };
-      const e = eksValidate(row); if(e){ msg('#msg', e); return; }
+      const row = {
+        title: ti.value.trim(),
+        author: au.value.trim(),
+        isbn: isb.value.trim(),
+        faust: fa.value.trim(),
+        status: stsel.value,
+        owner_bibliotek_id: ow.value.trim()
+      };
+      const e = eksValidate({ ...row, barcode:r.barcode });
+      if(e){ msg('#msg', e); return; }
       const { error } = await sb.from('tbl_beholdning').update(row).eq('barcode', r.barcode);
       if(error) msg('#msg','Fejl ved gem: '+error.message); else { msg('#msg','Række gemt',true); eksPull(); }
     }},'Gem');
+
     const del = el('button',{class:'btn danger', style:'margin-left:6px;', onclick: async ()=>{
       if(!confirm('Slet '+r.barcode+'?')) return;
       const { error } = await sb.from('tbl_beholdning').delete().eq('barcode', r.barcode);
       if(error) msg('#msg','Fejl ved sletning: '+error.message); else { msg('#msg','Slettet',true); eksPull(); }
     }},'Slet');
+
     act.append(save, del);
     tr.append(bc, el('td',{},ti), el('td',{},au), el('td',{},isb), el('td',{},fa), el('td',{},stsel), el('td',{},ow), act);
     tb.append(tr);
@@ -132,8 +146,8 @@ function eksAddRow(){
     el('td',{}, el('input',{class:'edit faust', placeholder:'FAUST'})),
     el('td',{}, eksStatusSelect('ledig')),
     el('td',{}, el('input',{class:'edit owner', placeholder:'Ejer (fx GENT)'})),
-    el('td',{}, 
-      el('button',{class:'btn primary', onclick: async (e)=>{
+    el('td',{},
+      el('button',{class:'btn primary', onclick: async ()=>{
         const row = {
           barcode: tmp,
           title: tr.querySelector('.title').value.trim(),
@@ -159,10 +173,10 @@ function eksAddRow(){
 function bindSaetControls(){
   $('#btnSaetSearch').onclick = ()=>{ st.saet.page=0; saetPull(); };
   $('#saetPrev').onclick = ()=>{ if(st.saet.page>0){ st.saet.page--; saetPull(); } };
-  $('#saetNext').onclick = ()=>{ const max = Math.ceil(st.saet.total/st.saet.pageSize)-1; if(st.saet.page<max){ st.saet.page++; saetPull(); } };
+  $('#saetNext').onclick = ()=>{ const m = Math.ceil(st.saet.total/st.saet.pageSize)-1; if(st.saet.page<m){ st.saet.page++; saetPull(); } };
   $('#btnSaetNew').onclick = saetAddRow;
 
-  $('#saetOwnerFilter').oninput = e => st.saet.filters.owner = e.target.value.trim();
+  $('#saetOwnerFilterSel').onchange = e => { st.saet.filters.owner = e.target.value; };
   $('#saetVisFilter').onchange = e => st.saet.filters.vis = e.target.value;
   $('#saetQ').oninput = e => st.saet.filters.q = e.target.value.trim();
 }
@@ -186,7 +200,8 @@ async function saetFetch(){
   const f = st.saet.filters, from = st.saet.page*st.saet.pageSize, to = from+st.saet.pageSize-1;
   let q = sb.from('tbl_saet')
     .select('set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes')
-    .order('set_id',{ascending:true}).range(from,to);
+    .order('set_id',{ascending:true})
+    .range(from,to);
   if(f.owner) q = q.eq('owner_bibliotek_id', f.owner);
   if(f.vis) q = q.eq('visibility', f.vis);
   if(f.q) q = q.or(['title.ilike.%'+f.q+'%','author.ilike.%'+f.q+'%','isbn.ilike.%'+f.q+'%','faust.ilike.%'+f.q+'%'].join(','));
@@ -207,11 +222,23 @@ async function saetPull(){
     const rc = el('input',{class:'edit s_rc', type:'number', value:r.requested_count??0});
     const lw = el('input',{class:'edit s_lw', type:'number', value:r.loan_weeks??8});
     const bd = el('input',{class:'edit s_bd', type:'number', value:r.buffer_days??0});
-    const vis= el('select',{class:'edit s_vis'}, el('option',{value:'national',selected:r.visibility==='national'},'national'), el('option',{value:'regional',selected:r.visibility==='regional'},'regional'));
+    const vis= el('select',{class:'edit s_vis'},
+      el('option',{value:'national',selected:r.visibility==='national'},'national'),
+      el('option',{value:'regional',selected:r.visibility==='regional'},'regional')
+    );
     const ow = el('input',{class:'edit s_ow', value:r.owner_bibliotek_id||''});
-    const act= el('select',{class:'edit s_act'}, el('option',{value:'true',selected:r.active===true},'Ja'), el('option',{value:'false',selected:r.active===false},'Nej'));
-    const sub= el('select',{class:'edit s_sub'}, el('option',{value:'true',selected:r.allow_substitution===true},'Ja'), el('option',{value:'false',selected:r.allow_substitution===false},'Nej'));
-    const par= el('select',{class:'edit s_par'}, el('option',{value:'true',selected:r.allow_partial===true},'Ja'), el('option',{value:'false',selected:r.allow_partial===false},'Nej'));
+    const act= el('select',{class:'edit s_act'},
+      el('option',{value:'true',selected:r.active===true},'Ja'),
+      el('option',{value:'false',selected:r.active===false},'Nej')
+    );
+    const sub= el('select',{class:'edit s_sub'},
+      el('option',{value:'true',selected:r.allow_substitution===true},'Ja'),
+      el('option',{value:'false',selected:r.allow_substitution===false},'Nej')
+    );
+    const par= el('select',{class:'edit s_par'},
+      el('option',{value:'true',selected:r.allow_partial===true},'Ja'),
+      el('option',{value:'false',selected:r.allow_partial===false},'Nej')
+    );
     const md = el('input',{class:'edit s_md', type:'number', value:r.min_delivery??0});
 
     const btnSave = el('button',{class:'btn primary', onclick: async ()=>{
@@ -299,35 +326,57 @@ function saetAddRow(){
 }
 
 // ==========================================
-// ======= Region – tilknyttede biblioteker ==
+// ======= Biblioteker / Region-fanen =======
 // ==========================================
+function formatLibLabel(x){
+  const tag = x.is_central ? 'central' : 'lokal';
+  return `${x.bibliotek_navn} (${x.bibliotek_id}) · ${tag}`;
+}
 async function loadLibraries(){
-  const { data, error } = await sb.from('tbl_bibliotek').select('bibliotek_id,bibliotek_navn,is_central,active').order('bibliotek_navn');
+  const { data, error } = await sb.from('tbl_bibliotek')
+    .select('bibliotek_id,bibliotek_navn,is_central,active')
+    .order('is_central',{ascending:false})  // centrals først
+    .order('bibliotek_navn',{ascending:true});
   if(error){ msg('#msgRel','Fejl ved hentning af biblioteker: '+error.message); return; }
-  st.libs.list = data||[];
+
+  st.libs.list = (data||[]).filter(x=>x.active);
   st.libs.byId = Object.fromEntries(st.libs.list.map(x=>[x.bibliotek_id,x]));
 
-  // central = is_central=true, local = is_central=false
+  // Region: central/local dropdowns
   const centralSel = $('#relCentral'); centralSel.innerHTML='';
-  st.libs.list.filter(x=>x.is_central && x.active).forEach(x=>{
-    centralSel.append(el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`));
+  st.libs.list.filter(x=>x.is_central).forEach(x=>{
+    centralSel.append(el('option',{value:x.bibliotek_id}, formatLibLabel(x)));
   });
   const localSel = $('#relLocal'); localSel.innerHTML='';
-  st.libs.list.filter(x=>!x.is_central && x.active).forEach(x=>{
-    localSel.append(el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`));
+  st.libs.list.filter(x=>!x.is_central).forEach(x=>{
+    localSel.append(el('option',{value:x.bibliotek_id}, formatLibLabel(x)));
+  });
+
+  // Sæt-filter: owner dropdown
+  const saetOwner = $('#saetOwnerFilterSel'); saetOwner.innerHTML='';
+  saetOwner.append(el('option',{value:''},'(alle)'));
+  st.libs.list.forEach(x=>{
+    saetOwner.append(el('option',{value:x.bibliotek_id}, formatLibLabel(x)));
+  });
+
+  // Eksemplar-filter: owner dropdown
+  const eksOwner = $('#ownerFilterSel'); eksOwner.innerHTML='';
+  eksOwner.append(el('option',{value:''},'(alle)'));
+  st.libs.list.forEach(x=>{
+    eksOwner.append(el('option',{value:x.bibliotek_id}, formatLibLabel(x)));
   });
 }
 async function relList(){
   const { data, error } = await sb.from('tbl_bibliotek_relation').select('relation_id,bibliotek_id,central_id,active').order('relation_id');
-  if(error){ msg('#msgRel','Fejl ved hentning af relationer: '+error.message); return; }
+  iferror: if(error){ msg('#msgRel','Fejl ved hentning af relationer: '+error.message); return; }
   const tb = $('#tblRel tbody'); tb.innerHTML='';
   (data||[]).forEach(r=>{
     const lib = st.libs.byId[r.bibliotek_id]; const cen = st.libs.byId[r.central_id];
     const tr = el('tr');
     tr.append(
       el('td',{}, String(r.relation_id)),
-      el('td',{}, lib ? `${lib.bibliotek_navn} (${lib.bibliotek_id})` : r.bibliotek_id),
-      el('td',{}, cen ? `${cen.bibliotek_navn} (${cen.bibliotek_id})` : r.central_id),
+      el('td',{}, lib ? formatLibLabel(lib) : r.bibliotek_id),
+      el('td',{}, cen ? formatLibLabel(cen) : r.central_id),
       el('td',{}, r.active ? 'Ja' : 'Nej'),
       el('td',{},
         el('button',{class:'btn danger', onclick: async ()=>{
@@ -348,8 +397,25 @@ async function relAdd(){
   const { error } = await sb.from('tbl_bibliotek_relation').insert({ bibliotek_id: local, central_id: central, active: true });
   if(error) msg('#msgRel','Fejl ved oprettelse: '+error.message); else { msg('#msgRel','Relation oprettet',true); relList(); }
 }
-function bindRelControls(){
-  $('#btnRelAdd').onclick = relAdd;
+function bindRelControls(){ $('#btnRelAdd').onclick = relAdd; }
+
+// ===== Layout-sikkerhedssele =====
+function validateLayout(){
+  const requiredIds = [
+    // Eksemplarer
+    'tab-eks','tblEks','btnSearch','btnReload','btnNew','prev','next','ownerFilterSel','statusFilter','q',
+    // Sæt
+    'tab-saet','tblSaet','btnSaetSearch','btnSaetNew','saetPrev','saetNext','saetOwnerFilterSel','saetVisFilter','saetQ',
+    // Region
+    'tab-region','tblRel','btnRelAdd','relCentral','relLocal',
+    // Header toggle
+    'toggleRole'
+  ];
+  const missing = requiredIds.filter(id => !document.getElementById(id));
+  if (missing.length) {
+    alert('Layout-kontrakt brudt. Mangler: ' + missing.join(', '));
+    console.error('Layout-kontrakt brudt:', missing);
+  }
 }
 
 // ===== Init =====
@@ -365,5 +431,6 @@ async function boot(){
   eksPull();
   saetPull();
   relList();
+  validateLayout();
 }
 boot();
