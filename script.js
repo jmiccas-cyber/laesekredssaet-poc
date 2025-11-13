@@ -429,7 +429,7 @@ const payload = {
   isbn,
   faust,
   booking_status: statusVal,  // POC-bogstatus i systemet
-  loan_status: 'Ledig',     // midlertidig placeholder, indtil FBI-API tager over
+  loan_status: 'ledig',     // midlertidig placeholder, indtil FBI-API tager over
   owner_bibliotek_id: centralId
 };
 
