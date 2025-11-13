@@ -243,7 +243,7 @@ function eksStatusSelect(v){
 function eksValidate(r){
   if (!r.barcode) return 'Stregkode skal udfyldes';
   if (!r.title) return 'Titel skal udfyldes';
-  if (r.status && !st.eks.statuses.includes(r.status)) return 'Ugyldig status';
+  if (r.status && !st.eks.statuses.includes(r.booking_status)) return 'Ugyldig status';
   return null;
 }
 
