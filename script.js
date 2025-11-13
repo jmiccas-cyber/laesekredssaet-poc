@@ -429,7 +429,7 @@ const payload = {
   isbn,
   faust,
   booking_status: statusVal,  // POC-bogstatus i systemet
-  loan_status: 'ledig',     // midlertidig placeholder, indtil FBI-API tager over
+  loan_status: 'Ukendt',     // midlertidig placeholder, indtil FBI-API tager over
   owner_bibliotek_id: centralId
 };
 
@@ -447,7 +447,7 @@ const payload = {
 
     // Updates én for én (simpelt og tilstrækkeligt i POC)
     for (const row of toUpdate){
-      const { barcode, load_status, ...rest } = row;
+      const { barcode, loan_status, ...rest } = row;
       const { error: updErr } = await sb.from('tbl_beholdning')
         .update(rest)
         .eq('barcode', barcode);
