@@ -9,6 +9,7 @@ const st = {
   role: 'admin',
   profile: { adminCentralId: null, bookerLocalId: null },
   libs: { list: [], byId: {} },
+
   // Admin: Eksemplarer
   eks: { pageSize: 20, page: 0, total: 0, filters: { owner: '', status: '', q: '' }, statuses: ['Ledig','Reserveret','Booket'] },
 
@@ -256,6 +257,9 @@ function eksValidate(r){
   if (!r.barcode) return 'Stregkode skal udfyldes';
   if (!r.title) return 'Titel skal udfyldes';
   if (r.status && !st.eks.statuses.includes(r.status)) return 'Ugyldig status';
+  if (r.booking_status && !st.eks.statuses.includes(r.booking_status)){
+    return 'Ugyldig status (booking_status)';
+}
   return null;
 }
 
@@ -426,12 +430,16 @@ async function eksSaveAll(){
     const faust    = tr.querySelector('.faust')?.value.trim() || '';
     
 
-   const statusVal = tr.querySelector('.status')?.value || 'Ledig';
+const statusVal = tr.querySelector('.status')?.value || 'Ledig';
 
-// Vi validerer stadig på et logisk 'status'-felt, men det er kun i JS-objektet
-const err = eksValidate({ barcode, title, status: statusVal });
+// Valider som booking_status
+const err = eksValidate({
+  barcode,
+  title,
+  booking_status: statusVal
+});
 if (err){
-  msg('#msg', `Fejl i række (${barcode || 'ny'}): `+err);
+  msg('#msg', `Fejl i række (${barcode || 'ny'}): ` + err);
   return;
 }
 
@@ -441,10 +449,11 @@ const payload = {
   author,
   isbn,
   faust,
-  booking_status: statusVal,  // POC-bogstatus i systemet
-  loan_status: 'Ukendt',     // midlertidig placeholder, indtil FBI-API tager over
+  booking_status: statusVal,  // POC-bookingstatus
+  loan_status: 'Ukendt',      // placeholder indtil FBI-API
   owner_bibliotek_id: centralId
 };
+
 
 
     if (isNew) toInsert.push(payload);
