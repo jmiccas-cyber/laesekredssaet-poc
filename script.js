@@ -426,6 +426,7 @@ async function eksSaveAll(){
       isbn,
       faust,
       status,
+      booking_status: status || 'ledig',
       owner_bibliotek_id: centralId
     };
 
