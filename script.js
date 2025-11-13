@@ -237,29 +237,42 @@ async function loadLibraries(){
 function bindEksControls(){
   $('#btnSearch').onclick = ()=>{ st.eks.page = 0; eksPull(); };
   $('#btnReload').onclick = ()=> eksPull();
-  $('#prev').onclick = ()=>{ if(st.eks.page>0){ st.eks.page--; eksPull(); } };
-  $('#next').onclick = ()=>{ const max = Math.ceil(st.eks.total/st.eks.pageSize)-1; if(st.eks.page<max){ st.eks.page++; eksPull(); } };
+  $('#prev').onclick = ()=>{ if (st.eks.page > 0){ st.eks.page--; eksPull(); } };
+  $('#next').onclick = ()=> {
+    const max = Math.ceil(st.eks.total / st.eks.pageSize) - 1;
+    if (st.eks.page < max){ st.eks.page++; eksPull(); }
+  };
 
   $('#btnNew').onclick = eksAddRow;
   $('#btnSaveAll').onclick = eksSaveAll;
 
-  $('#statusFilter').onchange = e => st.eks.filters.status = e.target.value;
-  $('#q').oninput = e => st.eks.filters.q = e.target.value.trim();
+  // Booking-status filter (kun Ledig / Reserveret / Booket)
+  $('#statusFilter').onchange = e => {
+    st.eks.filters.booking_status = e.target.value || '';
+  };
+
+  $('#q').oninput = e => {
+    st.eks.filters.q = e.target.value.trim();
+  };
 }
 
+// Dropdown til booking_status
 function eksStatusSelect(v){
   const s = el('select', { class:'edit status' });
-  st.eks.statuses.forEach(x=> s.append(el('option', { value:x, selected: x===v }, x)));
+  st.eks.statuses.forEach(x =>
+    s.append(
+      el('option', { value:x, selected: x === v }, x)
+    )
+  );
   return s;
 }
 
+// Valider ét eksemplar (JS-niveau)
 function eksValidate(r){
-  if (!r.barcode) return 'Stregkode skal udfyldes';
-  if (!r.title) return 'Titel skal udfyldes';
-  if (r.status && !st.eks.statuses.includes(r.status)) return 'Ugyldig status';
-  if (r.booking_status && !st.eks.statuses.includes(r.booking_status)){
-    return 'Ugyldig status (booking_status)';
-}
+  if (!r.barcode)        return 'Stregkode skal udfyldes';
+  if (!r.title)          return 'Titel skal udfyldes';
+  if (r.booking_status && !st.eks.statuses.includes(r.booking_status))
+    return 'Ugyldig booking-status';
   return null;
 }
 
@@ -271,7 +284,7 @@ async function eksCount(){
   if (centralId) q = q.eq('owner_bibliotek_id', centralId);
 
   const f = st.eks.filters;
-  if (f.status) q = q.eq('booking_status', f.status);
+  if (f.booking_status) q = q.eq('booking_status', f.booking_status);
   if (f.q) {
     q = q.or([
       'title.ilike.%'+f.q+'%',
@@ -283,7 +296,10 @@ async function eksCount(){
   }
 
   const { count, error } = await q;
-  if (error){ msg('#msg','Fejl ved optælling: '+error.message); return 0; }
+  if (error){
+    msg('#msg','Fejl ved optælling: '+error.message);
+    return 0;
+  }
   return count || 0;
 }
 
@@ -299,7 +315,7 @@ async function eksFetch(){
     .range(from,to);
 
   if (centralId) q = q.eq('owner_bibliotek_id', centralId);
-  if (f.status) q = q.eq('booking_status', f.status);
+  if (f.booking_status) q = q.eq('booking_status', f.booking_status);
   if (f.q){
     q = q.or([
       'title.ilike.%'+f.q+'%',
@@ -311,7 +327,10 @@ async function eksFetch(){
   }
 
   const { data, error } = await q;
-  if (error){ msg('#msg','Fejl ved hentning: '+error.message); return []; }
+  if (error){
+    msg('#msg','Fejl ved hentning: '+error.message);
+    return [];
+  }
   return data || [];
 }
 
@@ -331,17 +350,14 @@ async function eksPull(){
     const tr = el('tr');
     tr.dataset.barcode = r.barcode;  // eksisterende eksemplar
 
-    // Stregkode – vises som label, ikke redigerbar
-    const bc = el('td', {}, el('span',{class:'k bc-label'}, r.barcode||''));
+    const bc = el('td', {}, el('span',{class:'k bc-label'}, r.barcode || ''));
 
-    const ti = el('input',{class:'edit title', value:r.title||''});
-    const au = el('input',{class:'edit author', value:r.author||''});
-    const isb= el('input',{class:'edit isbn', value:r.isbn||''});
-    const fa = el('input',{class:'edit faust', value:r.faust||''});
-    const status = normalizeBookingStatus(r.booking_status) || 'Ledig';
-    const stsel  = eksStatusSelect(status);
+    const ti  = el('input',{class:'edit title',  value:r.title  || ''});
+    const au  = el('input',{class:'edit author', value:r.author || ''});
+    const isb = el('input',{class:'edit isbn',   value:r.isbn   || ''});
+    const fa  = el('input',{class:'edit faust',  value:r.faust  || ''});
+    const stsel = eksStatusSelect(r.booking_status || 'Ledig');
 
-    // Slet-knap
     const btnDel = el('button',{
       class:'btn danger',
       onclick: async ()=>{
@@ -364,7 +380,8 @@ async function eksPull(){
     tb.append(tr);
   });
 
-  $('#pinfo').textContent = `Side ${st.eks.page+1} af ${Math.max(1,Math.ceil(st.eks.total/st.eks.pageSize))} • ${st.eks.total} eksemplarer`;
+  $('#pinfo').textContent =
+    `Side ${st.eks.page+1} af ${Math.max(1,Math.ceil(st.eks.total/st.eks.pageSize))} • ${st.eks.total} eksemplarer`;
 }
 
 function eksAddRow(){
@@ -378,11 +395,11 @@ function eksAddRow(){
   tr.dataset.new = '1';
 
   const bcInput = el('input',{class:'edit bc', placeholder:'Stregkode (unik)'});
-  const ti = el('input',{class:'edit title', placeholder:'Titel'});
-  const au = el('input',{class:'edit author', placeholder:'Forfatter'});
-  const isb= el('input',{class:'edit isbn', placeholder:'ISBN'});
-  const fa = el('input',{class:'edit faust', placeholder:'FAUST'});
-  const stsel = eksStatusSelect('Ledig');
+  const ti      = el('input',{class:'edit title',  placeholder:'Titel'});
+  const au      = el('input',{class:'edit author', placeholder:'Forfatter'});
+  const isb     = el('input',{class:'edit isbn',   placeholder:'ISBN'});
+  const fa      = el('input',{class:'edit faust',  placeholder:'FAUST'});
+  const stsel   = eksStatusSelect('Ledig');
 
   const btnCancel = el('button',{
     class:'btn ghost',
@@ -418,58 +435,46 @@ async function eksSaveAll(){
   const toUpdate = [];
 
   for (const tr of rows){
-    const isNew = tr.dataset.new === '1';
+    const isNew   = tr.dataset.new === '1';
+    const bcInput = tr.querySelector('.bc');
+    const bcLabel = tr.querySelector('.bc-label');
 
-    const bcInput  = tr.querySelector('.bc');
-    const bcLabel  = tr.querySelector('.bc-label');
-    const barcode  = (bcInput ? bcInput.value : (bcLabel?.textContent || '')).trim();
+    const barcode = (bcInput ? bcInput.value : (bcLabel?.textContent || '')).trim();
+    const title   = tr.querySelector('.title') ?.value.trim() || '';
+    const author  = tr.querySelector('.author')?.value.trim() || '';
+    const isbn    = tr.querySelector('.isbn')  ?.value.trim() || '';
+    const faust   = tr.querySelector('.faust') ?.value.trim() || '';
+    const statusVal = tr.querySelector('.status')?.value || 'Ledig';
 
-    const title    = tr.querySelector('.title')?.value.trim() || '';
-    const author   = tr.querySelector('.author')?.value.trim() || '';
-    const isbn     = tr.querySelector('.isbn')?.value.trim() || '';
-    const faust    = tr.querySelector('.faust')?.value.trim() || '';
-    
+    const payload = {
+      barcode,
+      title,
+      author,
+      isbn,
+      faust,
+      booking_status: statusVal,  // kun Ledig / Reserveret / Booket
+      loan_status: 'Ukendt',      // placeholder indtil FBI-API
+      owner_bibliotek_id: centralId
+    };
 
-const statusVal = tr.querySelector('.status')?.value || 'Ledig';
-
-// Valider som booking_status
-const err = eksValidate({
-  barcode,
-  title,
-  booking_status: statusVal
-});
-if (err){
-  msg('#msg', `Fejl i række (${barcode || 'ny'}): ` + err);
-  return;
-}
-
-const payload = {
-  barcode,
-  title,
-  author,
-  isbn,
-  faust,
-  booking_status: statusVal,  // POC-bookingstatus
-  loan_status: 'Ukendt',      // placeholder indtil FBI-API
-  owner_bibliotek_id: centralId
-};
-
-
+    const err = eksValidate(payload);
+    if (err){
+      msg('#msg', `Fejl i række (${barcode || 'ny'}): `+err);
+      return;
+    }
 
     if (isNew) toInsert.push(payload);
     else       toUpdate.push(payload);
   }
 
   try {
-    // Inserts i én chunk
     if (toInsert.length){
       const { error: insErr } = await sb.from('tbl_beholdning').insert(toInsert);
       if (insErr) throw insErr;
     }
 
-    // Updates én for én (simpelt og tilstrækkeligt i POC)
     for (const row of toUpdate){
-      const { barcode, loan_status, ...rest } = row;
+      const { barcode, ...rest } = row;
       const { error: updErr } = await sb.from('tbl_beholdning')
         .update(rest)
         .eq('barcode', barcode);
