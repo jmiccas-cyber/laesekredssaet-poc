@@ -10,7 +10,8 @@ const st = {
   profile: { adminCentralId: null, bookerLocalId: null },
   libs: { list: [], byId: {} },
   // Admin: Eksemplarer
-  eks: { pageSize: 20, page: 0, total: 0, filters: { owner: '', status: '', q: '' }, statuses: ['ledig','reserveret','udlaant','hjemkommet','mangler'] },
+  eks: { pageSize: 20, page: 0, total: 0, filters: { owner: '', status: '', q: '' }, statuses: ['Ledig','Reserveret','Booket'] },
+
   // Admin: Sæt
   saet: { pageSize: 15, page: 0, total: 0, filters: { owner: '', vis: '', q: '' }},
   // Booker
@@ -37,10 +38,21 @@ function msg(id, text, ok=false){
   box.style.display = 'block';
   setTimeout(()=> box.style.display='none', 4000);
 }
+
 function formatLibLabel(x){
   const tag = x.is_central ? 'central' : 'lokal';
   return `${x.bibliotek_navn} (${x.bibliotek_id}) · ${tag}`;
 }
+
+function normalizeBookingStatus(s){
+  if (!s) return '';
+  const v = s.toLowerCase();
+  if (v === 'ledig')       return 'Ledig';
+  if (v === 'reserveret')  return 'Reserveret';
+  if (v === 'booket' || v === 'booked') return 'Booket';
+  return '';
+}
+
 
 // ---------- Local storage for role/profile ----------
 function saveProfile(){
@@ -322,7 +334,8 @@ async function eksPull(){
     const au = el('input',{class:'edit author', value:r.author||''});
     const isb= el('input',{class:'edit isbn', value:r.isbn||''});
     const fa = el('input',{class:'edit faust', value:r.faust||''});
-    const stsel = eksStatusSelect(r.booking_status || 'ledig');
+    const status = normalizeBookingStatus(r.booking_status) || 'Ledig';
+    const stsel  = eksStatusSelect(status);
 
     // Slet-knap
     const btnDel = el('button',{
@@ -365,7 +378,7 @@ function eksAddRow(){
   const au = el('input',{class:'edit author', placeholder:'Forfatter'});
   const isb= el('input',{class:'edit isbn', placeholder:'ISBN'});
   const fa = el('input',{class:'edit faust', placeholder:'FAUST'});
-  const stsel = eksStatusSelect('ledig');
+  const stsel = eksStatusSelect('Ledig');
 
   const btnCancel = el('button',{
     class:'btn ghost',
@@ -413,7 +426,7 @@ async function eksSaveAll(){
     const faust    = tr.querySelector('.faust')?.value.trim() || '';
     
 
-   const statusVal = tr.querySelector('.status')?.value || 'ledig';
+   const statusVal = tr.querySelector('.status')?.value || 'Ledig';
 
 // Vi validerer stadig på et logisk 'status'-felt, men det er kun i JS-objektet
 const err = eksValidate({ barcode, title, status: statusVal });
