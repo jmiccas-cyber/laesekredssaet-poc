@@ -11,7 +11,13 @@ const st = {
   libs: { list: [], byId: {} },
 
   // Admin: Eksemplarer
-  eks: { pageSize: 20, page: 0, total: 0, filters: { owner: '', status: '', q: '' }, statuses: ['Ledig','Reserveret','Booket'] },
+eks: {
+  pageSize: 20,
+  page: 0,
+  total: 0,
+  filters: { booking_status: '', q: '' },
+  statuses: ['Ledig','Reserveret','Booket']
+},
 
   // Admin: Sæt
   saet: { pageSize: 15, page: 0, total: 0, filters: { owner: '', vis: '', q: '' }},
@@ -258,23 +264,31 @@ function bindEksControls(){
 
 // Dropdown til booking_status
 function eksStatusSelect(v){
+  // Tilladte værdier
+  const allowed = ['Ledig', 'Reserveret', 'Booket'];
+  const val = allowed.includes(v) ? v : 'Ledig';
+
   const s = el('select', { class:'edit status' });
-  st.eks.statuses.forEach(x =>
-    s.append(
-      el('option', { value:x, selected: x === v }, x)
-    )
+  s.append(
+    el('option', { value:'Ledig',      selected: val === 'Ledig' },      'Ledig'),
+    el('option', { value:'Reserveret', selected: val === 'Reserveret' }, 'Reserveret'),
+    el('option', { value:'Booket',     selected: val === 'Booket' },     'Booket')
   );
   return s;
 }
 
+
 // Valider ét eksemplar (JS-niveau)
 function eksValidate(r){
-  if (!r.barcode)        return 'Stregkode skal udfyldes';
-  if (!r.title)          return 'Titel skal udfyldes';
-  if (r.booking_status && !st.eks.statuses.includes(r.booking_status))
+  if (!r.barcode) return 'Stregkode skal udfyldes';
+  if (!r.title)   return 'Titel skal udfyldes';
+
+  if (r.booking_status && !['Ledig','Reserveret','Booket'].includes(r.booking_status)){
     return 'Ugyldig booking-status';
+  }
   return null;
 }
+
 
 async function eksCount(){
   const centralId = st.profile.adminCentralId;
