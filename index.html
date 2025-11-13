@@ -66,57 +66,71 @@
   </nav>
 
   <main>
+
+
     <!-- ADMIN: Eksemplarer -->
-    <section id="tab-eks" class="panel active">
-      <div class="card" style="margin-bottom:12px;">
-        <div class="row">
-          <div>
-            <label for="ownerFilterSel">Ejer-bibliotek (owner_bibliotek_id)</label>
-            <select id="ownerFilterSel"><option value="">(alle)</option></select>
-          </div>
-          <div>
-            <label for="statusFilter">Status</label>
-            <select id="statusFilter">
-              <option value="">(alle)</option>
-              <option value="ledig">ledig</option>
-              <option value="reserveret">reserveret</option>
-              <option value="udlaant">udlaant</option>
-              <option value="hjemkommet">hjemkommet</option>
-              <option value="mangler">mangler</option>
-            </select>
-          </div>
-          <div>
-            <label for="q">Søg (titel/forfatter/ISBN/FAUST/stregkode)</label>
-            <input id="q" placeholder="Søg…" />
-          </div>
-          <div><button id="btnSearch" class="btn">Søg</button></div>
-          <div class="spacer"></div>
-          <div><button id="btnNew" class="btn">+ Nyt eksemplar</button></div>
-        </div>
-        <p class="hint" style="margin-top:8px;">Feltnavne (DB): <span class="k">barcode, isbn, faust, title, author, status, owner_bibliotek_id</span></p>
+<section id="tab-eks" class="panel active">
+  <div class="card">
+    <div class="row">
+      <div>
+        <label for="q">Søg</label>
+        <input id="q" placeholder="Titel, forfatter, ISBN, FAUST, stregkode">
       </div>
-      <div id="msg" class="msg" style="display:none;"></div>
-      <div class="card">
-        <div class="toolbar">
-          <span class="hint">Redigér direkte i rækkerne. Klik <strong>Gem</strong>.</span>
-          <span class="spacer"></span>
-          <button id="btnReload" class="btn">Genindlæs</button>
-        </div>
-        <table id="tblEks">
-          <thead>
-            <tr>
-              <th>Stregkode</th><th>Titel</th><th>Forfatter</th><th>ISBN</th><th>FAUST</th><th>Status</th><th>Ejer</th><th class="w180">Handling</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
-        <div class="row" style="margin-top:12px;">
-          <button id="prev" class="btn">◀︎ Forrige</button>
-          <button id="next" class="btn">Næste ▶︎</button>
-          <span class="spacer"></span><span id="pinfo" class="hint"></span>
-        </div>
+      <div>
+        <label for="statusFilter">Status</label>
+        <select id="statusFilter">
+          <option value="">(alle)</option>
+          <option value="ledig">ledig</option>
+          <option value="reserveret">reserveret</option>
+          <option value="udlaant">udlaant</option>
+          <option value="hjemkommet">hjemkommet</option>
+          <option value="mangler">mangler</option>
+        </select>
       </div>
-    </section>
+      <div style="margin-left:auto;">
+        <label>&nbsp;</label>
+        <button id="btnSearch" class="btn">Søg</button>
+        <button id="btnReload" class="btn ghost">Genindlæs</button>
+      </div>
+    </div>
+
+    <div class="row" style="margin-top:8px;">
+      <div>
+        <button id="btnNew" class="btn primary">+ Nyt eksemplar</button>
+      </div>
+      <div style="margin-left:auto;">
+        <button id="btnSaveAll" class="btn primary">Gem alle ændringer</button>
+      </div>
+    </div>
+
+    <div id="msg" class="msg" style="display:none;"></div>
+  </div>
+
+  <div class="card">
+    <table id="tblEks">
+      <thead>
+        <tr>
+          <th>Stregkode</th>
+          <th>Titel</th>
+          <th>Forfatter</th>
+          <th>ISBN</th>
+          <th>FAUST</th>
+          <th>Status</th>
+          <th>Handling</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div class="table-footer">
+      <span id="pinfo"></span>
+      <div class="pager">
+        <button id="prev" class="btn">&laquo; Forrige</button>
+        <button id="next" class="btn">Næste &raquo;</button>
+      </div>
+    </div>
+  </div>
+</section>
+
 
     <!-- ADMIN: Sæt -->
     <section id="tab-saet" class="panel">

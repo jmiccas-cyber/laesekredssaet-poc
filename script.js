@@ -218,117 +218,249 @@ async function loadLibraries(){
   renderRoleBadge();
 }
 
-// ---------- Admin: Eksemplarer (uændret) ----------
+
+// ---------- Admin: Eksemplarer (central-ejet + gem alle) ----------
+
 function bindEksControls(){
-  $('#btnSearch').onclick = ()=>{ st.eks.page=0; eksPull(); };
+  $('#btnSearch').onclick = ()=>{ st.eks.page = 0; eksPull(); };
   $('#btnReload').onclick = ()=> eksPull();
   $('#prev').onclick = ()=>{ if(st.eks.page>0){ st.eks.page--; eksPull(); } };
   $('#next').onclick = ()=>{ const max = Math.ceil(st.eks.total/st.eks.pageSize)-1; if(st.eks.page<max){ st.eks.page++; eksPull(); } };
+
   $('#btnNew').onclick = eksAddRow;
-  $('#ownerFilterSel').onchange = e => { st.eks.filters.owner = e.target.value; };
+  $('#btnSaveAll').onclick = eksSaveAll;
+
   $('#statusFilter').onchange = e => st.eks.filters.status = e.target.value;
   $('#q').oninput = e => st.eks.filters.q = e.target.value.trim();
 }
+
 function eksStatusSelect(v){
   const s = el('select', { class:'edit status' });
   st.eks.statuses.forEach(x=> s.append(el('option', { value:x, selected: x===v }, x)));
   return s;
 }
+
 function eksValidate(r){
-  if(!r.barcode) return 'stregkode mangler';
-  if(!r.title) return 'title skal udfyldes';
-  if(r.status && !st.eks.statuses.includes(r.status)) return 'Ugyldig status';
+  if (!r.barcode) return 'Stregkode skal udfyldes';
+  if (!r.title) return 'Titel skal udfyldes';
+  if (r.status && !st.eks.statuses.includes(r.status)) return 'Ugyldig status';
   return null;
 }
+
 async function eksCount(){
+  const centralId = st.profile.adminCentralId;
   let q = sb.from('tbl_beholdning').select('*', { count:'exact', head:true });
+
+  // vis kun eksemplarer for det aktuelle centralbibliotek, hvis valgt
+  if (centralId) q = q.eq('owner_bibliotek_id', centralId);
+
   const f = st.eks.filters;
-  if (f.owner) q = q.eq('owner_bibliotek_id', f.owner);
   if (f.status) q = q.eq('status', f.status);
-  if (f.q) q = q.or(['title.ilike.%'+f.q+'%','author.ilike.%'+f.q+'%','isbn.ilike.%'+f.q+'%','faust.ilike.%'+f.q+'%','barcode.ilike.%'+f.q+'%'].join(','));
-  const { count, error } = await q; if(error){ msg('#msg','Fejl ved optælling: '+error.message); return 0; }
-  return count||0;
+  if (f.q) {
+    q = q.or([
+      'title.ilike.%'+f.q+'%',
+      'author.ilike.%'+f.q+'%',
+      'isbn.ilike.%'+f.q+'%',
+      'faust.ilike.%'+f.q+'%',
+      'barcode.ilike.%'+f.q+'%'
+    ].join(','));
+  }
+
+  const { count, error } = await q;
+  if (error){ msg('#msg','Fejl ved optælling: '+error.message); return 0; }
+  return count || 0;
 }
+
 async function eksFetch(){
-  const f = st.eks.filters, from = st.eks.page*st.eks.pageSize, to = from+st.eks.pageSize-1;
+  const centralId = st.profile.adminCentralId;
+  const f = st.eks.filters;
+  const from = st.eks.page * st.eks.pageSize;
+  const to   = from + st.eks.pageSize - 1;
+
   let q = sb.from('tbl_beholdning')
     .select('barcode,isbn,faust,title,author,status,owner_bibliotek_id')
     .order('barcode',{ascending:true})
     .range(from,to);
-  if (f.owner) q = q.eq('owner_bibliotek_id', f.owner);
+
+  if (centralId) q = q.eq('owner_bibliotek_id', centralId);
   if (f.status) q = q.eq('status', f.status);
-  if (f.q) q = q.or(['title.ilike.%'+f.q+'%','author.ilike.%'+f.q+'%','isbn.ilike.%'+f.q+'%','faust.ilike.%'+f.q+'%','barcode.ilike.%'+f.q+'%'].join(','));
-  const { data, error } = await q; if(error){ msg('#msg','Fejl ved hentning: '+error.message); return []; }
-  return data||[];
+  if (f.q){
+    q = q.or([
+      'title.ilike.%'+f.q+'%',
+      'author.ilike.%'+f.q+'%',
+      'isbn.ilike.%'+f.q+'%',
+      'faust.ilike.%'+f.q+'%',
+      'barcode.ilike.%'+f.q+'%'
+    ].join(','));
+  }
+
+  const { data, error } = await q;
+  if (error){ msg('#msg','Fejl ved hentning: '+error.message); return []; }
+  return data || [];
 }
+
 async function eksPull(){
+  // kræv at admin har valgt centralprofil
+  if (st.role !== 'admin' || !st.profile.adminCentralId){
+    const tb = $('#tblEks tbody'); tb.innerHTML = '';
+    $('#pinfo').textContent = 'Vælg først en admin-profil (centralbibliotek) via Skift: Admin ↔ Booker.';
+    return;
+  }
+
   st.eks.total = await eksCount();
   const rows = await eksFetch();
   const tb = $('#tblEks tbody'); tb.innerHTML='';
+
   rows.forEach(r=>{
     const tr = el('tr');
-    const bc = el('td', {}, el('span',{class:'k'}, r.barcode||''));
+    tr.dataset.barcode = r.barcode;  // eksisterende eksemplar
+
+    // Stregkode – vises som label, ikke redigerbar
+    const bc = el('td', {}, el('span',{class:'k bc-label'}, r.barcode||''));
+
     const ti = el('input',{class:'edit title', value:r.title||''});
     const au = el('input',{class:'edit author', value:r.author||''});
     const isb= el('input',{class:'edit isbn', value:r.isbn||''});
     const fa = el('input',{class:'edit faust', value:r.faust||''});
-    const stsel = eksStatusSelect(r.status||'ledig');
-    const ow = el('input',{class:'edit owner', value:r.owner_bibliotek_id||''});
-    const act = el('td');
+    const stsel = eksStatusSelect(r.status || 'ledig');
 
-    const save = el('button',{class:'btn primary', onclick: async ()=>{
-      const row = { title: ti.value.trim(), author: au.value.trim(), isbn: isb.value.trim(), faust: fa.value.trim(), status: stsel.value, owner_bibliotek_id: ow.value.trim() };
-      const e = eksValidate({ ...row, barcode:r.barcode }); if(e){ msg('#msg', e); return; }
-      const { error } = await sb.from('tbl_beholdning').update(row).eq('barcode', r.barcode);
-      if(error) msg('#msg','Fejl ved gem: '+error.message); else { msg('#msg','Række gemt',true); eksPull(); }
-    }},'Gem');
+    // Slet-knap
+    const btnDel = el('button',{
+      class:'btn danger',
+      onclick: async ()=>{
+        if (!confirm('Slet eksemplar '+r.barcode+'?')) return;
+        const { error } = await sb.from('tbl_beholdning').delete().eq('barcode', r.barcode);
+        if (error) msg('#msg','Fejl ved sletning: '+error.message);
+        else { msg('#msg','Eksemplar slettet', true); eksPull(); }
+      }
+    }, 'Slet');
 
-    const del = el('button',{class:'btn danger', style:'margin-left:6px;', onclick: async ()=>{
-      if(!confirm('Slet '+r.barcode+'?')) return;
-      const { error } = await sb.from('tbl_beholdning').delete().eq('barcode', r.barcode);
-      if(error) msg('#msg','Fejl ved sletning: '+error.message); else { msg('#msg','Slettet',true); eksPull(); }
-    }},'Slet');
-
-    act.append(save, del);
-    tr.append(bc, el('td',{},ti), el('td',{},au), el('td',{},isb), el('td',{},fa), el('td',{},stsel), el('td',{},ow), act);
+    tr.append(
+      bc,
+      el('td',{},ti),
+      el('td',{},au),
+      el('td',{},isb),
+      el('td',{},fa),
+      el('td',{},stsel),
+      el('td',{},btnDel)
+    );
     tb.append(tr);
   });
-  $('#pinfo').textContent = `Side ${st.eks.page+1} af ${Math.max(1,Math.ceil(st.eks.total/st.eks.pageSize))} • ${st.eks.total} rækker`;
+
+  $('#pinfo').textContent = `Side ${st.eks.page+1} af ${Math.max(1,Math.ceil(st.eks.total/st.eks.pageSize))} • ${st.eks.total} eksemplarer`;
 }
+
 function eksAddRow(){
+  if (st.role !== 'admin' || !st.profile.adminCentralId){
+    msg('#msg','Nye eksemplarer kan kun oprettes af et indlogget centralbibliotek (Admin-profil).');
+    return;
+  }
+
   const tb = $('#tblEks tbody');
-  const tmp = 'TMP-'+Date.now();
   const tr = el('tr');
+  tr.dataset.new = '1';
+
+  const bcInput = el('input',{class:'edit bc', placeholder:'Stregkode (unik)'});
+  const ti = el('input',{class:'edit title', placeholder:'Titel'});
+  const au = el('input',{class:'edit author', placeholder:'Forfatter'});
+  const isb= el('input',{class:'edit isbn', placeholder:'ISBN'});
+  const fa = el('input',{class:'edit faust', placeholder:'FAUST'});
+  const stsel = eksStatusSelect('ledig');
+
+  const btnCancel = el('button',{
+    class:'btn ghost',
+    onclick: ()=> tr.remove()
+  }, 'Annullér');
+
   tr.append(
-    el('td',{}, el('span',{class:'k'}, tmp)),
-    el('td',{}, el('input',{class:'edit title', placeholder:'Titel'})),
-    el('td',{}, el('input',{class:'edit author', placeholder:'Forfatter'})),
-    el('td',{}, el('input',{class:'edit isbn', placeholder:'ISBN'})),
-    el('td',{}, el('input',{class:'edit faust', placeholder:'FAUST'})),
-    el('td',{}, eksStatusSelect('ledig')),
-    el('td',{}, el('input',{class:'edit owner', placeholder:'Ejer (fx GENT)'})),
-    el('td',{},
-      el('button',{class:'btn primary', onclick: async ()=>{
-        const row = {
-          barcode: tmp,
-          title: tr.querySelector('.title').value.trim(),
-          author: tr.querySelector('.author').value.trim(),
-          isbn: tr.querySelector('.isbn').value.trim(),
-          faust: tr.querySelector('.faust').value.trim(),
-          status: tr.querySelector('.status').value,
-          owner_bibliotek_id: tr.querySelector('.owner').value.trim()
-        };
-        const err = eksValidate(row); if(err){ msg('#msg', err); return; }
-        const { error } = await sb.from('tbl_beholdning').insert(row);
-        if(error) msg('#msg','Fejl ved oprettelse: '+error.message); else { msg('#msg','Eksemplar oprettet', true); eksPull(); }
-      }}, 'Opret'),
-      el('button',{class:'btn ghost', style:'margin-left:6px;', onclick:()=> tr.remove()}, 'Annullér')
-    )
+    el('td',{}, bcInput),
+    el('td',{}, ti),
+    el('td',{}, au),
+    el('td',{}, isb),
+    el('td',{}, fa),
+    el('td',{}, stsel),
+    el('td',{}, btnCancel)
   );
   tb.prepend(tr);
 }
 
+async function eksSaveAll(){
+  if (st.role !== 'admin' || !st.profile.adminCentralId){
+    msg('#msg','Gem kræver en aktiv Admin-profil med centralbibliotek.');
+    return;
+  }
+  const centralId = st.profile.adminCentralId;
+
+  const rows = Array.from(document.querySelectorAll('#tblEks tbody tr'));
+  if (!rows.length){
+    msg('#msg','Ingen rækker at gemme.');
+    return;
+  }
+
+  const toInsert = [];
+  const toUpdate = [];
+
+  for (const tr of rows){
+    const isNew = tr.dataset.new === '1';
+
+    const bcInput  = tr.querySelector('.bc');
+    const bcLabel  = tr.querySelector('.bc-label');
+    const barcode  = (bcInput ? bcInput.value : (bcLabel?.textContent || '')).trim();
+
+    const title    = tr.querySelector('.title')?.value.trim() || '';
+    const author   = tr.querySelector('.author')?.value.trim() || '';
+    const isbn     = tr.querySelector('.isbn')?.value.trim() || '';
+    const faust    = tr.querySelector('.faust')?.value.trim() || '';
+    const status   = tr.querySelector('.status')?.value || 'ledig';
+
+    const err = eksValidate({ barcode, title, status });
+    if (err){
+      msg('#msg', `Fejl i række (${barcode || 'ny'}): `+err);
+      return; // stopper hele gem, så brugeren kan rette
+    }
+
+    const payload = {
+      barcode,
+      title,
+      author,
+      isbn,
+      faust,
+      status,
+      owner_bibliotek_id: centralId
+    };
+
+    if (isNew) toInsert.push(payload);
+    else       toUpdate.push(payload);
+  }
+
+  try {
+    // Inserts i én chunk
+    if (toInsert.length){
+      const { error: insErr } = await sb.from('tbl_beholdning').insert(toInsert);
+      if (insErr) throw insErr;
+    }
+
+    // Updates én for én (simpelt og tilstrækkeligt i POC)
+    for (const row of toUpdate){
+      const { barcode, ...rest } = row;
+      const { error: updErr } = await sb.from('tbl_beholdning')
+        .update(rest)
+        .eq('barcode', barcode);
+      if (updErr) throw updErr;
+    }
+
+    msg('#msg','Alle ændringer gemt', true);
+    eksPull();
+  } catch (e){
+    console.error('eksSaveAll error', e);
+    msg('#msg','Fejl ved gem: '+e.message);
+  }
+}
+
+
+
 // ---------- Admin: Sæt (uændret fra 3.1.8) ----------
+
 function bindSaetControls(){
   $('#btnSaetSearch').onclick = ()=>{ st.saet.page=0; saetPull(); };
   $('#saetPrev').onclick = ()=>{ if(st.saet.page>0){ st.saet.page--; saetPull(); } };
