@@ -255,7 +255,7 @@ async function eksCount(){
   if (centralId) q = q.eq('owner_bibliotek_id', centralId);
 
   const f = st.eks.filters;
-  if (f.status) q = q.eq('status', f.status);
+  if (f.status) q = q.eq('booking_status', f.status);
   if (f.q) {
     q = q.or([
       'title.ilike.%'+f.q+'%',
@@ -278,12 +278,12 @@ async function eksFetch(){
   const to   = from + st.eks.pageSize - 1;
 
   let q = sb.from('tbl_beholdning')
-    .select('barcode,isbn,faust,title,author,status,owner_bibliotek_id')
+    .select('barcode,isbn,faust,title,author,booking_status,loan_status,owner_bibliotek_id')
     .order('barcode',{ascending:true})
     .range(from,to);
 
   if (centralId) q = q.eq('owner_bibliotek_id', centralId);
-  if (f.status) q = q.eq('status', f.status);
+  if (f.status) q = q.eq('booking_status', f.status);
   if (f.q){
     q = q.or([
       'title.ilike.%'+f.q+'%',
@@ -322,7 +322,7 @@ async function eksPull(){
     const au = el('input',{class:'edit author', value:r.author||''});
     const isb= el('input',{class:'edit isbn', value:r.isbn||''});
     const fa = el('input',{class:'edit faust', value:r.faust||''});
-    const stsel = eksStatusSelect(r.status || 'ledig');
+    const stsel = eksStatusSelect(r.booking_status || 'ledig');
 
     // Slet-knap
     const btnDel = el('button',{
@@ -411,24 +411,28 @@ async function eksSaveAll(){
     const author   = tr.querySelector('.author')?.value.trim() || '';
     const isbn     = tr.querySelector('.isbn')?.value.trim() || '';
     const faust    = tr.querySelector('.faust')?.value.trim() || '';
-    const status   = tr.querySelector('.status')?.value || 'ledig';
+    
 
-    const err = eksValidate({ barcode, title, status });
-    if (err){
-      msg('#msg', `Fejl i række (${barcode || 'ny'}): `+err);
-      return; // stopper hele gem, så brugeren kan rette
-    }
+   const statusVal = tr.querySelector('.status')?.value || 'ledig';
 
-    const payload = {
-      barcode,
-      title,
-      author,
-      isbn,
-      faust,
-      status,
-      booking_status: status || 'ledig',
-      owner_bibliotek_id: centralId
-    };
+// Vi validerer stadig på et logisk 'status'-felt, men det er kun i JS-objektet
+const err = eksValidate({ barcode, title, status: statusVal });
+if (err){
+  msg('#msg', `Fejl i række (${barcode || 'ny'}): `+err);
+  return;
+}
+
+const payload = {
+  barcode,
+  title,
+  author,
+  isbn,
+  faust,
+  booking_status: statusVal,  // POC-bogstatus i systemet
+  loan_status: statusVal,     // midlertidig placeholder, indtil FBI-API tager over
+  owner_bibliotek_id: centralId
+};
+
 
     if (isNew) toInsert.push(payload);
     else       toUpdate.push(payload);
