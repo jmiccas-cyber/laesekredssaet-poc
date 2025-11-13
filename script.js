@@ -283,7 +283,9 @@ function eksValidate(r){
   if (!r.barcode) return 'Stregkode skal udfyldes';
   if (!r.title)   return 'Titel skal udfyldes';
 
- if (r.status && !st.eks.statuses.includes(r.status)) return 'Ugyldig status';
+  if (r.booking_status && !['Ledig','Reserveret','Booket'].includes(r.booking_status)){
+    return 'Ugyldig booking-status';
+  }
   return null;
 }
 
