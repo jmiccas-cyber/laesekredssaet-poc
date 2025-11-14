@@ -1,293 +1,510 @@
+<!-- Version 4.0 -->
+
 <!DOCTYPE html>
 <html lang="da">
 <head>
   <meta charset="UTF-8" />
-  <title>Læsekredssæt – v3.1.9B</title>
+  <title>Læsekredssæt – v4.0</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: Calibri, sans-serif; margin:20px; background:#f8f8f8; }
-    h1 { margin-bottom:4px; }
-    .hidden { display:none !important; }
-    nav.tabs { margin-top:20px; margin-bottom:10px; }
-    nav.tabs button { padding:6px 12px; margin-right:4px; background:#eee; border:1px solid #ccc; cursor:pointer; }
-    nav.tabs button.active { background:white; border-bottom:2px solid #0070f3; }
-    .panel { display:none; }
-    .panel.active { display:block; }
-    table { border-collapse:collapse; width:100%; background:white; }
-    th, td { border:1px solid #ddd; padding:6px; }
-    th { background:#fafafa; text-align:left; }
-    input.edit, select.edit { width:100%; box-sizing:border-box; }
-    .row { display:flex; gap:20px; }
-    .msg { padding:8px; margin-top:10px; border-radius:4px; }
-    .msg.ok { background:#d0ffd0; border:1px solid #6b6; }
-    .msg.err { background:#ffd0d0; border:1px solid #c66; }
-    .btn { padding:6px 12px; cursor:pointer; border-radius:4px; }
-    .btn.primary { background:#0070f3; color:white; border:none; }
-    .btn.ghost { background:#eee; border:1px solid #ccc; }
-    .btn.danger { background:#d9534f; color:white; border:none; }
-
-    /* Role badge */
-    #roleBadge { display:inline-block; padding:4px 8px; border-radius:4px; font-weight:bold; }
-    .role-admin { background:#0070f3; color:white; }
-    .role-booker { background:#28a745; color:white; }
-
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+      color: #222;
+    }
+    header {
+      background: #2f4858;
+      color: #fff;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 18px;
+    }
+    .role-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #fff;
+      color: #333;
+      font-size: 13px;
+    }
+    .role-badge span.label {
+      font-weight: 600;
+    }
+    .role-badge.role-admin span.label {
+      color: #1a7f37;
+    }
+    .role-badge.role-booker span.label {
+      color: #1d4ed8;
+    }
+    .btn {
+      border: 1px solid #ccc;
+      background: #fff;
+      padding: 4px 10px;
+      font-size: 13px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .btn.primary {
+      background: #2563eb;
+      border-color: #1d4ed8;
+      color: #fff;
+    }
+    .btn.ghost {
+      background: transparent;
+    }
+    .btn.danger {
+      background: #dc2626;
+      border-color: #b91c1c;
+      color: #fff;
+    }
+    main {
+      padding: 12px 16px 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    nav.tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 12px;
+    }
+    nav.tabs button {
+      padding: 6px 10px;
+      border-radius: 4px 4px 0 0;
+      border: 1px solid #ccc;
+      border-bottom: none;
+      background: #e5e7eb;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    nav.tabs button.active {
+      background: #fff;
+      font-weight: 600;
+    }
+    .panel {
+      display: none;
+      border: 1px solid #ccc;
+      border-radius: 0 4px 4px 4px;
+      background: #fff;
+      padding: 12px;
+    }
+    .panel.active {
+      display: block;
+    }
+    .hidden {
+      display: none !important;
+    }
+    .row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+    .row > div {
+      min-width: 180px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      margin-bottom: 2px;
+    }
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 4px 6px;
+      font-size: 13px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 4px 6px;
+      text-align: left;
+    }
+    th {
+      background: #f3f4f6;
+    }
+    .msg {
+      margin-top: 8px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+    .msg.err {
+      background: #fee2e2;
+      border: 1px solid #fecaca;
+      color: #b91c1c;
+    }
+    .msg.ok {
+      background: #dcfce7;
+      border: 1px solid #bbf7d0;
+      color: #166534;
+    }
+    .k {
+      font-family: "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+    .bc-label {
+      font-weight: 600;
+    }
+    .card {
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      padding: 8px;
+      background: #f9fafb;
+      margin-bottom: 10px;
+    }
+    .hint {
+      font-size: 12px;
+      color: #4b5563;
+    }
+    .w180 { min-width: 180px; }
     /* Modal */
     .modal-backdrop {
-      position:fixed; left:0; top:0; right:0; bottom:0;
-      background:rgba(0,0,0,0.4);
-      display:none;
-      justify-content:center; align-items:center;
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,0.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
     }
     .modal {
-      background:white; padding:20px; border-radius:6px; min-width:360px;
-      box-shadow:0 4px 12px rgba(0,0,0,0.25);
+      background: #fff;
+      border-radius: 8px;
+      padding: 16px;
+      min-width: 420px;
+      max-width: 480px;
+      box-shadow: 0 10px 25px rgba(15,23,42,0.3);
+    }
+    .modal h3 {
+      margin-top: 0;
+      margin-bottom: 6px;
+      font-size: 16px;
     }
   </style>
-
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script defer src="script.js"></script>
+  <script src="https://unpkg.com/@supabase/supabase-js@2.48.0/dist/umd/supabase.min.js"></script>
 </head>
-
 <body>
-
-<h1>Læsekredssæt – Admin / Booker</h1>
-
-<div>
-  <span id="roleBadge" class="role-admin"><span id="roleText">Admin</span></span>
-  <span id="profileText"></span>
-  &nbsp;•&nbsp;
-  <button id="toggleRole" class="btn ghost">Skift: Admin ↔ Booker</button>
-</div>
-
-<!-- Admin tabs -->
-<nav id="adminTabs" class="tabs">
-  <button data-tab="tab-eks" class="active">Eksemplarer</button>
-  <button data-tab="tab-saet">Sæt</button>
-  <button data-tab="tab-region">Region</button>
-</nav>
-
-<!-- ========== ADMIN: EKSEMPLARER ========== -->
-<section id="tab-eks" class="panel active">
-  <h2>Eksemplarer</h2>
-
-  <div class="row">
-    <div>
-      <label>Booking Status</label>
-      <select id="statusFilter">
-        <option value="">(alle)</option>
-        <option value="Ledig">Ledig</option>
-        <option value="Reserveret">Reserveret</option>
-        <option value="Booket">Booket</option>
-      </select>
+<header>
+  <h1>Læsekredssæt – v4.0 (POC)</h1>
+  <div style="display:flex; align-items:center; gap:8px;">
+    <div id="roleBadge" class="role-badge role-admin">
+      <span class="label" id="roleText">Admin</span>
+      <span id="profileText"></span>
     </div>
-    <div>
-      <label>Søg</label>
-      <input id="q" placeholder="titel, forfatter, ISBN…" />
-    </div>
-    <div style="align-self:flex-end;">
-      <button id="btnSearch" class="btn">Søg</button>
-      <button id="btnReload" class="btn">↻</button>
-    </div>
-    <div style="margin-left:auto; align-self:flex-end;">
-      <button id="btnNew" class="btn primary">+ Ny</button>
-      <button id="btnSaveAll" class="btn primary" style="margin-left:8px;">Gem alle</button>
-    </div>
+    <button id="toggleRole" class="btn">Skift: Admin ↔ Booker</button>
+  </div>
+</header>
+
+<main>
+  <!-- ADMIN TABS -->
+  <div id="adminTabs">
+    <nav class="tabs">
+      <button data-tab="tab-eks" class="active">Eksemplarer</button>
+      <button data-tab="tab-saet">Sæt</button>
+      <button data-tab="tab-region">Region / relationer</button>
+    </nav>
+
+    <!-- ADMIN: Eksemplarer -->
+    <section id="tab-eks" class="panel active">
+      <div class="card">
+        <p class="hint">
+          Som <strong>Admin (centralbibliotek)</strong> kan du oprette og redigere eksemplarer
+          i din egen beholdning. Alle nye eksemplarer tilhører automatisk det centralbibliotek,
+          du har valgt som profil.
+        </p>
+        <div class="row" style="margin-top:6px;">
+          <div>
+            <label for="statusFilter">Booking status</label>
+            <select id="statusFilter">
+              <option value="">(alle)</option>
+              <option value="Ledig">Ledig</option>
+              <option value="Reserveret">Reserveret</option>
+              <option value="Booket">Booket</option>
+            </select>
+          </div>
+          <div style="flex:1; min-width:220px;">
+            <label for="q">Søg (titel/forfatter/ISBN/FAUST/stregkode)</label>
+            <input id="q" type="text" placeholder="Søg i beholdningen…" />
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="btnSearch" class="btn primary">Søg</button>
+            <button id="btnReload" class="btn">Genindlæs</button>
+          </div>
+          <div style="margin-left:auto;">
+            <label>&nbsp;</label>
+            <button id="btnNew" class="btn">+ Nyt eksemplar</button>
+            <button id="btnSaveAll" class="btn primary">Gem alle ændringer</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="msg" class="msg" style="display:none;"></div>
+
+      <div class="card">
+        <table id="tblEks">
+          <thead>
+          <tr>
+            <th>Stregkode</th>
+            <th>Titel</th>
+            <th>Forfatter</th>
+            <th>ISBN</th>
+            <th>FAUST</th>
+            <th>Booking-status</th>
+            <th class="w180">Handling</th>
+          </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div style="margin-top:6px; display:flex; justify-content:space-between; align-items:center;">
+          <span id="pinfo" class="hint"></span>
+          <div>
+            <button id="prev" class="btn">◀</button>
+            <button id="next" class="btn">▶</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADMIN: Sæt -->
+    <section id="tab-saet" class="panel">
+      <div class="card">
+        <p class="hint">
+          Vedligeholdelse af læsekredssæt (metadata). Synlighed (national/regional) og ejer-sted
+          (centralbibliotek) styrer, hvilke bookere der kan se sættet.
+        </p>
+        <div class="row" style="margin-top:6px;">
+          <div>
+            <label for="saetOwnerFilterSel">Ejer (centralbibliotek)</label>
+            <select id="saetOwnerFilterSel">
+              <option value="">(alle)</option>
+            </select>
+          </div>
+          <div>
+            <label for="saetVisFilter">Synlighed</label>
+            <select id="saetVisFilter">
+              <option value="">(alle)</option>
+              <option value="national">national</option>
+              <option value="regional">regional</option>
+            </select>
+          </div>
+          <div style="flex:1; min-width:220px;">
+            <label for="saetQ">Søg (titel/forfatter/ISBN/FAUST)</label>
+            <input id="saetQ" type="text" placeholder="Søg i sæt…" />
+          </div>
+          <div style="margin-left:auto;">
+            <label>&nbsp;</label>
+            <button id="btnSaetSearch" class="btn primary">Søg</button>
+            <button id="btnSaetNew" class="btn">+ Nyt sæt</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="msgSaet" class="msg" style="display:none;"></div>
+
+      <div class="card">
+        <table id="tblSaet">
+          <thead>
+          <tr>
+            <th>ID</th>
+            <th>Titel</th>
+            <th>Forfatter</th>
+            <th>ISBN</th>
+            <th>FAUST</th>
+            <th>Antal ønsket</th>
+            <th>Låneuger</th>
+            <th>Bufferdage</th>
+            <th>Synlighed</th>
+            <th>Ejer</th>
+            <th>Aktiv</th>
+            <th>Substitution</th>
+            <th>Delvis levering</th>
+            <th>Min. levering</th>
+            <th>Handling</th>
+          </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div style="margin-top:6px; display:flex; justify-content:space-between; align-items:center;">
+          <span id="saetPinfo" class="hint"></span>
+          <div>
+            <button id="saetPrev" class="btn">◀</button>
+            <button id="saetNext" class="btn">▶</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ADMIN: Region / relationer -->
+    <section id="tab-region" class="panel">
+      <div class="card" style="margin-bottom:12px;">
+        <div class="row">
+          <div>
+            <label>Centralbibliotek (låst til admin-profil)</label>
+            <input id="relCentralReadonly" readonly />
+          </div>
+          <div>
+            <label for="relLocal">Tilføj eksisterende lånerbibliotek</label>
+            <select id="relLocal"></select>
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="btnRelAdd" class="btn">+ Tilføj relation</button>
+          </div>
+        </div>
+        <p class="hint" style="margin-top:8px;">
+          Listen nedenfor er filtreret til <strong>din admin-profil</strong>. Du kan oprette nye lånerbiblioteker,
+          aktivere/deaktivere dem og slette relationer (blokkeres hvis der findes aktive bookinger).
+        </p>
+      </div>
+
+      <div class="card" style="margin-bottom:12px;">
+        <h3 style="margin-top:0; font-size:14px;">Opret nyt lånerbibliotek</h3>
+        <div class="row">
+          <div>
+            <label for="newLocalId">ID (1–20 ASCII-tegn)</label>
+            <input id="newLocalId" type="text" />
+          </div>
+          <div style="flex:1; min-width:220px;">
+            <label for="newLocalName">Navn</label>
+            <input id="newLocalName" type="text" />
+          </div>
+          <div>
+            <label for="newLocalActive">Aktiv</label>
+            <select id="newLocalActive">
+              <option value="true">Ja</option>
+              <option value="false">Nej</option>
+            </select>
+          </div>
+          <div style="margin-left:auto;">
+            <label>&nbsp;</label>
+            <button id="btnCreateLocal" class="btn primary">Opret lånerbibliotek</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="msgRel" class="msg" style="display:none;"></div>
+
+      <div class="card">
+        <table id="tblRel">
+          <thead>
+          <tr>
+            <th>relation_id</th>
+            <th>Lånerbibliotek</th>
+            <th>Centralbibliotek</th>
+            <th>Relation aktiv</th>
+            <th>Låner aktiv</th>
+            <th>Handling</th>
+          </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
   </div>
 
-  <div id="msg" class="msg" style="display:none;"></div>
-
-  <table id="tblEks">
-    <thead>
-      <tr>
-        <th>Stregkode</th>
-        <th>Titel</th>
-        <th>Forfatter</th>
-        <th>ISBN</th>
-        <th>FAUST</th>
-        <th>Booking Status</th>
-        <th>Loan Status</th>
-        <th>Handling</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <div style="margin-top:8px;">
-    <button id="prev" class="btn">◀</button>
-    <button id="next" class="btn">▶</button>
-    <span id="pinfo"></span>
-  </div>
-</section>
-
-<!-- ========== ADMIN: SÆT ========== -->
-<section id="tab-saet" class="panel">
-  <h2>Sæt</h2>
-
-  <div class="row">
-    <div>
-      <label>Ejer</label>
-      <select id="saetOwnerFilterSel"></select>
+  <!-- BOOKER VIEW -->
+  <section id="bookerView" class="panel hidden">
+    <div class="card">
+      <p class="hint">
+        Booker-visning for <span id="bookerProfileText">—</span>. Du ser nationalt synlige sæt samt regionale sæt
+        for de centralbiblioteker, som dit bibliotek har aktiv relation til.
+      </p>
+      <div class="row" style="margin-top:6px;">
+        <div style="flex:1; min-width:220px;">
+          <label for="bQ">Søg (titel/forfatter/ISBN/FAUST)</label>
+          <input id="bQ" type="text" placeholder="Søg i tilgængelige sæt…" />
+        </div>
+        <div>
+          <label for="bStart">Startdato (ønsket)</label>
+          <input id="bStart" type="date" />
+        </div>
+        <div>
+          <label for="bWeeks">Låneuger</label>
+          <input id="bWeeks" type="number" value="8" min="1" />
+        </div>
+        <div style="margin-left:auto;">
+          <label>&nbsp;</label>
+          <button id="bSearch" class="btn primary">Søg</button>
+        </div>
+      </div>
     </div>
-    <div>
-      <label>Synlighed</label>
-      <select id="saetVisFilter">
-        <option value="">(alle)</option>
-        <option value="national">national</option>
-        <option value="regional">regional</option>
-      </select>
-    </div>
-    <div>
-      <label>Søg</label>
-      <input id="saetQ" />
-    </div>
-    <div style="align-self:flex-end;">
-      <button id="btnSaetSearch" class="btn">Søg</button>
-    </div>
-    <div style="margin-left:auto; align-self:flex-end;">
-      <button id="btnSaetNew" class="btn primary">+ Nyt sæt</button>
-    </div>
-  </div>
 
-  <div id="msgSaet" class="msg" style="display:none;"></div>
+    <div id="bMsg" class="msg" style="display:none;"></div>
 
-  <table id="tblSaet">
-    <thead>
-      <tr>
-        <th>ID</th><th>Titel</th><th>Forfatter</th><th>ISBN</th><th>FAUST</th>
-        <th>Antal</th><th>Uger</th><th>Buffer</th><th>Synlighed</th><th>Ejer</th>
-        <th>Aktiv</th><th>Sub</th><th>Delvis</th><th>Min</th><th>Handling</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <div style="margin-top:8px;">
-    <button id="saetPrev" class="btn">◀</button>
-    <button id="saetNext" class="btn">▶</button>
-    <span id="saetPinfo"></span>
-  </div>
-</section>
-
-<!-- ========== ADMIN: REGION ========== -->
-<section id="tab-region" class="panel">
-  <h2>Region – Tilknyttede biblioteker</h2>
-
-  <div class="row">
-    <div>
-      <label>Centralbibliotek</label>
-      <input id="relCentralReadonly" readonly />
+    <div class="card">
+      <table id="bTbl">
+        <thead>
+        <tr>
+          <th>Titel</th>
+          <th>Forfatter</th>
+          <th>ISBN</th>
+          <th>FAUST</th>
+          <th>Synlighed</th>
+          <th>Centralbibliotek</th>
+          <th>Handling</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div style="margin-top:6px; display:flex; justify-content:space-between; align-items:center;">
+        <span id="bInfo" class="hint"></span>
+        <div>
+          <button id="bPrev" class="btn">◀</button>
+          <button id="bNext" class="btn">▶</button>
+        </div>
+      </div>
     </div>
-    <div>
-      <label>Lånerbibliotek</label>
-      <select id="relLocal"></select>
-    </div>
-    <div style="align-self:flex-end;">
-      <button id="btnRelAdd" class="btn primary">Tilføj</button>
-    </div>
-  </div>
+  </section>
+</main>
 
-  <div class="row" style="margin-top:20px;">
-    <div>
-      <label>Nyt lånerbibliotek – ID</label>
-      <input id="newLocalId" />
-    </div>
-    <div>
-      <label>Navn</label>
-      <input id="newLocalName" />
-    </div>
-    <div>
-      <label>Aktiv</label>
-      <select id="newLocalActive">
-        <option value="true">Ja</option>
-        <option value="false">Nej</option>
-      </select>
-    </div>
-    <div style="align-self:flex-end;">
-      <button id="btnCreateLocal" class="btn primary">+ Opret bibliotek</button>
-    </div>
-  </div>
-
-  <div id="msgRel" class="msg" style="margin-top:12px; display:none;"></div>
-
-  <table id="tblRel" style="margin-top:20px;">
-    <thead>
-      <tr>
-        <th>ID</th><th>Lånerbibliotek</th><th>Central</th><th>Aktiv (Relation)</th><th>Bibliotek Aktiv</th><th>Handling</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-</section>
-
-<!-- ========== BOOKER VISNING ========== -->
-<section id="bookerView" class="panel hidden">
-  <h2>Booker – Søg sæt</h2>
-
-  <div class="row">
-    <div>
-      <label>Periode start</label>
-      <input type="date" id="bStart" />
-    </div>
-    <div>
-      <label>Låneuger</label>
-      <input type="number" id="bWeeks" value="8" />
-    </div>
-    <div>
-      <label>Søg</label>
-      <input id="bQ" placeholder="titel, forfatter…" />
-    </div>
-    <div style="align-self:flex-end;">
-      <button id="bSearch" class="btn">Søg</button>
-    </div>
-  </div>
-
-  <div id="bMsg" class="msg" style="display:none;"></div>
-
-  <table id="bTbl" style="margin-top:12px;">
-    <thead>
-      <tr>
-        <th>Titel</th><th>Forfatter</th><th>ISBN</th><th>FAUST</th><th>Synlighed</th><th>Ejer</th><th>Anmod</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-
-  <div style="margin-top:8px;">
-    <button id="bPrev" class="btn">◀</button>
-    <button id="bNext" class="btn">▶</button>
-    <span id="bInfo"></span>
-  </div>
-</section>
-
-<!-- Role-change modal -->
+<!-- Role/Profile modal -->
 <div id="roleModal" class="modal-backdrop">
   <div class="modal">
     <h3>Skift profil</h3>
-
-    <div>
-      <label for="roleSelect">Rolle</label>
-      <select id="roleSelect">
-        <option value="admin">Admin (central)</option>
-        <option value="booker">Booker (låner)</option>
-      </select>
-    </div>
-
-    <div id="adminProfileWrap" style="margin-top:12px;">
-      <label>Centralbibliotek</label>
-      <select id="adminProfileSel"></select>
-    </div>
-
-    <div id="bookerProfileWrap" style="display:none; margin-top:12px;">
-      <label>Lånerbibliotek</label>
-      <select id="bookerProfileSel"></select>
-    </div>
-
-    <div style="margin-top:20px; text-align:right;">
-      <button id="roleCancel" class="btn ghost">Annullér</button>
-      <button id="roleSave" class="btn primary">Gem profil</button>
+    <p class="hint">Vælg hvilken profil du vil simulere for den valgte rolle.</p>
+    <div class="row" style="margin-top:8px;">
+      <div>
+        <label for="roleSelect">Rolle</label>
+        <select id="roleSelect">
+          <option value="admin">Admin (centralbibliotek)</option>
+          <option value="booker">Booker (lånerbibliotek)</option>
+        </select>
+      </div>
+      <div id="adminProfileWrap">
+        <label for="adminProfileSel">Centralbibliotek</label>
+        <select id="adminProfileSel"></select>
+      </div>
+      <div id="bookerProfileWrap" style="display:none;">
+        <label for="bookerProfileSel">Lånerbibliotek</label>
+        <select id="bookerProfileSel"></select>
+      </div>
+      <div style="margin-left:auto;">
+        <label>&nbsp;</label>
+        <button id="roleSave" class="btn primary">Gem profil</button>
+        <button id="roleCancel" class="btn ghost">Annullér</button>
+      </div>
     </div>
   </div>
 </div>
 
+<script src="script.js"></script>
 </body>
 </html>
