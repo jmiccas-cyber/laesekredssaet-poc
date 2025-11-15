@@ -479,9 +479,8 @@ async function loadInventorySummary() {
 
   const { data, error } = await sb
     .from("tbl_beholdning")
-    .select("owner_bibliotek_id,isbn,title,author,faust,count:count(*)")
+    .select("owner_bibliotek_id,isbn,title,author,faust")
     .neq("isbn", "")
-    .group("owner_bibliotek_id,isbn,title,author,faust")
     .order("title", { ascending: true });
 
   if (error) {
@@ -492,13 +491,32 @@ async function loadInventorySummary() {
     return;
   }
 
-  st.stock.list = data || [];
+  const rows = data || [];
+  const aggregates = {};
+  rows.forEach(row => {
+    const owner = row.owner_bibliotek_id || "";
+    const isbn = row.isbn || "";
+    if (!owner || !isbn) return;
+    const key = `${owner}::${isbn}`;
+    if (!aggregates[key]) {
+      aggregates[key] = {
+        owner_bibliotek_id: owner,
+        isbn,
+        title: row.title,
+        author: row.author,
+        faust: row.faust,
+        count: 0
+      };
+    }
+    aggregates[key].count++;
+  });
+
+  st.stock.list = Object.values(aggregates);
   st.stock.byOwner = {};
   st.stock.byOwnerMap = {};
 
-  (st.stock.list || []).forEach(row => {
-    const owner = row.owner_bibliotek_id || "";
-    if (!owner) return;
+  st.stock.list.forEach(row => {
+    const owner = row.owner_bibliotek_id;
     if (!st.stock.byOwner[owner]) {
       st.stock.byOwner[owner] = [];
       st.stock.byOwnerMap[owner] = {};
@@ -808,8 +826,7 @@ async function fetchSaetUsage() {
   if (!sb) return {};
   const { data, error } = await sb
     .from("tbl_saet")
-    .select("owner_bibliotek_id,isbn,total:sum(requested_count)")
-    .group("owner_bibliotek_id,isbn");
+    .select("owner_bibliotek_id,isbn,requested_count");
 
   if (error) {
     console.error("Fejl ved fetchSaetUsage:", error);
@@ -821,7 +838,7 @@ async function fetchSaetUsage() {
     const owner = row.owner_bibliotek_id || "";
     if (!owner || !row.isbn) return;
     if (!usage[owner]) usage[owner] = {};
-    usage[owner][row.isbn] = Number(row.total) || 0;
+    usage[owner][row.isbn] = (usage[owner][row.isbn] || 0) + (Number(row.requested_count) || 0);
   });
   return usage;
 }
