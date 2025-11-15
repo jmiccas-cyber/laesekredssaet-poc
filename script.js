@@ -1150,7 +1150,6 @@ async function saetPull() {
     };
     isbnField.addEventListener("click", focusSelect);
     isbnField.addEventListener("focus", focusSelect);
-    });
     reqIn.addEventListener("input", () => updateSaetAvailability(tr));
     reqIn.addEventListener("change", () => updateSaetAvailability(tr));
     updateSaetAvailability(tr);
