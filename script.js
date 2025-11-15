@@ -1,4 +1,4 @@
-// Læsekredssæt – v4.1 (clean drop-in)
+// LÃ¦sekredssÃ¦t â€“ v4.1 (clean drop-in)
 // Bevarer funktionalitet fra v4.0, men med ryddet struktur.
 
 // ----------------------------------------------------------
@@ -132,7 +132,7 @@ function initSupabase() {
     return;
   }
   sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  console.log("✅ Supabase klient initialiseret");
+  console.log("âœ… Supabase klient initialiseret");
 }
 
 function loadProfile() {
@@ -203,10 +203,10 @@ async function loadLibraries() {
   if (newCentralSel && !newCentralSel.value) newCentralSel.value = defaultCentral;
   populateSaetOwnerSelect();
 
-  // Sæt-ejer filter
+  // SÃ¦t-ejer filter
   populateRegionSelects();
 
-// Hvis der ikke er valgt admin-central, sæt default = Gentofte eller første central
+// Hvis der ikke er valgt admin-central, sÃ¦t default = Gentofte eller fÃ¸rste central
   if (!st.profile.adminCentralId && st.libs.centrals.length) {
     const gent = st.libs.centrals.find(x =>
       (x.bibliotek_navn || "").toLowerCase().includes("gentofte")
@@ -246,7 +246,7 @@ function populateRegionSelects() {
   const detailSel = document.querySelector("#relDetailSel");
   if (detailSel) {
     const current = detailSel.value;
-    detailSel.innerHTML = '<option value="">(vælg regionsbibliotek)</option>';
+    detailSel.innerHTML = '<option value="">(vÃ¦lg regionsbibliotek)</option>';
     locals.forEach(lib => {
       detailSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
     });
@@ -262,12 +262,12 @@ function renderRegionDetails() {
   if (!info) return;
   const id = $("#relDetailSel")?.value || "";
   if (!id) {
-    info.textContent = "Vælg et regionsbibliotek for at se detaljer.";
+    info.textContent = "VÃ¦lg et regionsbibliotek for at se detaljer.";
     return;
   }
   const lib = st.libs.byId[id];
   if (!lib) {
-    info.textContent = "Biblioteket findes ikke længere.";
+    info.textContent = "Biblioteket findes ikke lÃ¦ngere.";
     return;
   }
   const addr = lib.address || "-";
@@ -342,14 +342,14 @@ function renderRoleBadge() {
   if (st.role === "admin") {
     const id = st.profile.adminCentralId;
     const lib = id ? st.libs.byId[id] : null;
-    profileText.textContent = lib ? ` · ${fmtLibLabel(lib)}` : " · (ingen central valgt)";
+    profileText.textContent = lib ? ` Â· ${fmtLibLabel(lib)}` : " Â· (ingen central valgt)";
     if (relCentralReadonly) {
       relCentralReadonly.value = lib ? fmtLibLabel(lib) : "";
     }
   } else {
     const id = st.profile.bookerLocalId;
     const lib = id ? st.libs.byId[id] : null;
-    profileText.textContent = lib ? ` · ${fmtLibLabel(lib)}` : " · (ingen regionsbibliotek valgt)";
+    profileText.textContent = lib ? ` Â· ${fmtLibLabel(lib)}` : " Â· (ingen regionsbibliotek valgt)";
   }
 }
 
@@ -370,7 +370,7 @@ function renderLayout() {
     adminTabs.classList.remove("hidden");
     bookerView.classList.add("hidden");
 
-    // Aktiver første admin-tab, hvis ingen valgt
+    // Aktiver fÃ¸rste admin-tab, hvis ingen valgt
     if (!panels.some(p => p.classList.contains("active"))) {
       const firstBtn = document.querySelector('nav.tabs button[data-tab="tab-eks"]');
       if (firstBtn) firstBtn.click();
@@ -404,7 +404,7 @@ async function openRoleModal(targetRole) {
   const adminSel   = document.querySelector("#adminProfileSel");
   const bookerSel  = document.querySelector("#bookerProfileSel");
 
-  // 1) Hent biblioteker frisk hver gang modal åbnes
+  // 1) Hent biblioteker frisk hver gang modal Ã¥bnes
   await loadLibraries();
 
   // 2) Hvis der stadig ikke er biblioteker, giv en klar fejl
@@ -421,7 +421,7 @@ async function openRoleModal(targetRole) {
   // 3+4) Fyld dropdowns via central helper
   await loadProfileDropdown();
 
-  // 5) Vis/hide blokke afhængigt af valgt rolle
+  // 5) Vis/hide blokke afhÃ¦ngigt af valgt rolle
   function updateRoleWrap() {
     if (roleSelect.value === "admin") {
       adminWrap.style.display = "block";
@@ -440,7 +440,7 @@ async function openRoleModal(targetRole) {
 
     if (newRole === "admin") {
       if (!adminSel.value) {
-        alert("Vælg et centralbibliotek.");
+        alert("VÃ¦lg et centralbibliotek.");
         return;
       }
       st.role = "admin";
@@ -453,7 +453,7 @@ async function openRoleModal(targetRole) {
 
     if (newRole === "booker") {
       if (!bookerSel.value) {
-        alert("Vælg et regionsbibliotek.");
+        alert("VÃ¦lg et regionsbibliotek.");
         return;
       }
       st.role = "booker";
@@ -482,7 +482,7 @@ function bindRoleControls() {
 }
 
 // ----------------------------------------------------------
-// 6. Admin – Eksemplarer (tbl_beholdning)
+// 6. Admin â€“ Eksemplarer (tbl_beholdning)
 // ----------------------------------------------------------
 
 async function eksCount() {
@@ -565,10 +565,10 @@ function updateEksSaveButton() {
   const dirtyCount = eksDirtyRows().length;
   btn.disabled = dirtyCount === 0;
   if (dirtyCount > 0) {
-    const suffix = dirtyCount > 1 ? "ændringer" : "ændring";
+    const suffix = dirtyCount > 1 ? "Ã¦ndringer" : "Ã¦ndring";
     btn.textContent = `Gem ${dirtyCount} ${suffix}`;
   } else {
-    btn.textContent = "Gem alle ændringer";
+    btn.textContent = "Gem alle Ã¦ndringer";
   }
 }
 
@@ -714,7 +714,7 @@ function eksRevertRow(tr) {
     if (stSel) stSel.value = original.booking_status || "Ledig";
     clearEksDirty(tr);
   } catch (e) {
-    console.warn("Kunne ikke fortryde række", e);
+    console.warn("Kunne ikke fortryde rÃ¦kke", e);
   }
 }
 
@@ -749,12 +749,12 @@ function updateEksSortIndicators() {
 async function eksSaveAll() {
   if (!sb) return;
   if (!st.profile.adminCentralId) {
-    showMsg("#msg", "Vælg først en admin-profil.");
+    showMsg("#msg", "VÃ¦lg fÃ¸rst en admin-profil.");
     return;
   }
   const dirtyRows = eksDirtyRows();
   if (!dirtyRows.length) {
-    showMsg("#msg", "Der er ingen ændringer at gemme.");
+    showMsg("#msg", "Der er ingen Ã¦ndringer at gemme.");
     return;
   }
 
@@ -763,21 +763,21 @@ async function eksSaveAll() {
     const rec = eksCollectRow(tr);
     const err = eksValidate(rec || {});
     if (err) {
-      showMsg("#msg", `Fejl i række (${rec?.barcode || "ny"}): ${err}`);
+      showMsg("#msg", `Fejl i rÃ¦kke (${rec?.barcode || "ny"}): ${err}`);
       tr.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     payload.push(rec);
   }
 
-  showMsg("#msg", "Gemmer ændringer...");
+  showMsg("#msg", "Gemmer Ã¦ndringer...");
   const { error } = await sb.from("tbl_beholdning").upsert(payload, { onConflict: "barcode" });
   if (error) {
     showMsg("#msg", "Fejl ved gem: " + error.message);
     return;
   }
 
-  showMsg("#msg", `Gemte ${payload.length} ændring${payload.length > 1 ? "er" : ""}.`, true);
+  showMsg("#msg", `Gemte ${payload.length} Ã¦ndring${payload.length > 1 ? "er" : ""}.`, true);
   await eksPull();
   await loadInventorySummary();
 }
@@ -797,7 +797,7 @@ async function eksPull() {
 
   if (!st.profile.adminCentralId) {
     tb.innerHTML = "";
-    $("#pinfo").textContent = "Vælg først en admin-profil (centralbibliotek) via Skift: Admin ↔ Booker.";
+    $("#pinfo").textContent = "VÃ¦lg fÃ¸rst en admin-profil (centralbibliotek) via Skift: Admin â†” Booker.";
      updateEksSaveButton();
     return;
   }
@@ -896,7 +896,7 @@ function eksNewRow() {
       tr.remove();
       updateEksSaveButton();
     }
-  }, "Annullér");
+  }, "AnnullÃ©r");
   const info = el("span", { class: "hint" }, "Gem via knappen ovenfor");
 
   tr.append(
@@ -952,7 +952,7 @@ function bindEksControls() {
 }
 
 // ----------------------------------------------------------
-// 7. Admin – Sæt (tbl_saet)
+// 7. Admin â€“ SÃ¦t (tbl_saet)
 // ----------------------------------------------------------
 
 async function fetchSaetUsage() {
@@ -984,16 +984,16 @@ function saetUsageFor(ownerId, isbn) {
 function saetValidate(r) {
   if (!r.title) return "Titel skal udfyldes";
   if (!r.visibility || !["national", "regional"].includes(r.visibility.toLowerCase())) {
-    return "Synlighed skal være national eller regional";
+    return "Synlighed skal vÃ¦re national eller regional";
   }
   if (!r.owner_bibliotek_id) return "Ejer (centralbibliotek) skal udfyldes";
-  if (!r.isbn) return "Vælg et ISBN fra beholdningen";
-  if (r.requested_count <= 0) return "Et sæt skal indeholde mindst 1 eksemplar";
+  if (!r.isbn) return "VÃ¦lg et ISBN fra beholdningen";
+  if (r.requested_count <= 0) return "Et sÃ¦t skal indeholde mindst 1 eksemplar";
   if (r.loan_weeks < 1 || r.loan_weeks > 12) {
-    return "Bookingperioden skal være mellem 1 og 12 uger";
+    return "Bookingperioden skal vÃ¦re mellem 1 og 12 uger";
   }
   if (r.buffer_days < 0 || r.min_delivery < 0) {
-    return "Talværdier må ikke være negative";
+    return "TalvÃ¦rdier mÃ¥ ikke vÃ¦re negative";
   }
   return null;
 }
@@ -1017,9 +1017,9 @@ function populateSaetIsbnSelect(selectEl, ownerId, selectedIsbn) {
   }
 
   selectEl.disabled = false;
-  selectEl.appendChild(el("option", { value: "" }, "(vælg ISBN)"));
+  selectEl.appendChild(el("option", { value: "" }, "(vÃ¦lg ISBN)"));
   inventory.forEach(meta => {
-    const label = `${meta.isbn || ""} – ${meta.title || "(uden titel)"} – ${meta.author || ""} – ${meta.faust || ""}`;
+    const label = `${meta.isbn || ""} â€“ ${meta.title || "(uden titel)"} â€“ ${meta.author || ""} â€“ ${meta.faust || ""}`;
     selectEl.appendChild(el("option", { value: meta.isbn }, label));
   });
 
@@ -1053,7 +1053,7 @@ function updateSaetAvailability(tr) {
 
   const savedCount = Number(tr.dataset.savedCount || 0);
   if (!ownerId || !isbn) {
-    hint.title = "Vælg først ejer og ISBN.";
+    hint.title = "VÃ¦lg fÃ¸rst ejer og ISBN.";
     hint.dataset.state = "error";
     reqInput.max = "";
     return;
@@ -1068,7 +1068,7 @@ function updateSaetAvailability(tr) {
 
   if (!available || maxForRow <= 0) {
     hint.title = available
-      ? `Andre sæt bruger ${otherUsed} af ${available} eksemplarer. Der er ingen ledige tilbage.`
+      ? `Andre sÃ¦t bruger ${otherUsed} af ${available} eksemplarer. Der er ingen ledige tilbage.`
       : "Ingen eksemplarer i beholdningen med dette ISBN.";
     hint.dataset.state = "error";
     reqInput.max = maxForRow || 0;
@@ -1076,10 +1076,10 @@ function updateSaetAvailability(tr) {
   }
 
   if (desired > maxForRow) {
-    hint.title = `Du har valgt ${desired}, men der er kun ${maxForRow} ledige (${available} total, ${otherUsed} bruges af andre sæt).`;
+    hint.title = `Du har valgt ${desired}, men der er kun ${maxForRow} ledige (${available} total, ${otherUsed} bruges af andre sÃ¦t).`;
     hint.dataset.state = "warning";
   } else {
-    hint.title = `Andre sæt bruger ${otherUsed} af ${available} eksemplarer. Max til dette sæt: ${maxForRow}.`;
+    hint.title = `Andre sÃ¦t bruger ${otherUsed} af ${available} eksemplarer. Max til dette sÃ¦t: ${maxForRow}.`;
     hint.dataset.state = "ok";
   }
   reqInput.max = maxForRow || "";
@@ -1228,7 +1228,7 @@ async function saetPull() {
   if (!activeOwner) {
     tb.innerHTML = "";
     $("#saetPinfo").textContent = "";
-    showMsg("#msgSaet", "Vælg først en admin-profil (centralbibliotek) via Skift: Admin ↔ Booker.");
+    showMsg("#msgSaet", "VÃ¦lg fÃ¸rst en admin-profil (centralbibliotek) via Skift: Admin â†” Booker.");
     return;
   }
   showMsg("#msgSaet", "");
@@ -1278,7 +1278,7 @@ async function saetPull() {
       min: "1",
       style: "width:6ch"
     });
-    const reqHint = el("span", { class: "saet-availability", title: "" }, "●");
+    const reqHint = el("span", { class: "saet-availability", title: "" }, "â—");
     reqHint.dataset.state = "error";
     const weeksIn = el("input", {
       type: "number",
@@ -1366,8 +1366,8 @@ async function saetPull() {
   updateSaetSaveButton();
   const totalPages = Math.ceil((st.saet.total || 0) / st.saet.pageSize);
   $("#saetPinfo").textContent = st.saet.total
-    ? `Side ${st.saet.page + 1}/${totalPages} – ${st.saet.total} sæt`
-    : "Ingen sæt fundet";
+    ? `Side ${st.saet.page + 1}/${totalPages} â€“ ${st.saet.total} sÃ¦t`
+    : "Ingen sÃ¦t fundet";
 }
 
 function ensureSaetCapacity(ownerId, isbn, requestedCount, currentSetId, savedCount = 0, usageOverride) {
@@ -1387,7 +1387,7 @@ function ensureSaetCapacity(ownerId, isbn, requestedCount, currentSetId, savedCo
   if (requestedCount > maxForSet) {
     return {
       ok: false,
-      message: `Der er ${available} eksemplarer og andre sæt bruger ${otherUsed}. Maksimalt ${Math.max(0, maxForSet)} til dette sæt.`
+      message: `Der er ${available} eksemplarer og andre sÃ¦t bruger ${otherUsed}. Maksimalt ${Math.max(0, maxForSet)} til dette sÃ¦t.`
     };
   }
 
@@ -1402,12 +1402,12 @@ async function saetDeleteRow(tr) {
     updateSaetSaveButton();
     return;
   }
-  if (!confirm("Slet sæt " + setId + "?")) return;
+  if (!confirm("Slet sÃ¦t " + setId + "?")) return;
   const { error } = await sb.from("tbl_saet").delete().eq("set_id", Number(setId));
   if (error) {
     showMsg("#msgSaet", "Fejl ved sletning: " + error.message);
   } else {
-    showMsg("#msgSaet", "Sæt slettet", true);
+    showMsg("#msgSaet", "SÃ¦t slettet", true);
     await saetPull();
   }
 }
@@ -1421,7 +1421,7 @@ function saetNewRow() {
 
   const ownerId = currentAdminId();
   if (!ownerId) {
-    showMsg("#msgSaet", "Vælg først en admin-profil (centralbibliotek) via Skift: Admin ↔ Booker.");
+    showMsg("#msgSaet", "VÃ¦lg fÃ¸rst en admin-profil (centralbibliotek) via Skift: Admin â†” Booker.");
     return;
   }
 
@@ -1475,14 +1475,14 @@ function saetNewRow() {
       tr.remove();
       updateSaetSaveButton();
     }
-  }, "Annullér");
+  }, "AnnullÃ©r");
   if (isbnSel.disabled) {
     btnSave.disabled = true;
     btnSave.title = "Ingen titler i beholdningen for det valgte centralbibliotek.";
   }
 
   const reqIn = el("input", { type: "number", class: "saet-requested", value: "1", min: "1", style: "width:6ch" });
-  const reqHint = el("span", { class: "saet-availability", title: "" }, "●");
+  const reqHint = el("span", { class: "saet-availability", title: "" }, "â—");
   reqHint.dataset.state = "error";
   const weeksIn = el("input", { type: "number", class: "saet-weeks", value: "8", min: "1", max: "12" });
   const bufferIn = el("input", { type: "number", class: "saet-buffer", value: "0", min: "0", style: "width:6ch" });
@@ -1538,7 +1538,7 @@ function bindSaetControls() {
   $("#btnSaetMine")?.addEventListener("click", () => {
     const adminId = currentAdminId();
     if (!adminId) {
-      showMsg("#msgSaet", "Vælg først en admin-profil (centralbibliotek).");
+      showMsg("#msgSaet", "VÃ¦lg fÃ¸rst en admin-profil (centralbibliotek).");
       return;
     }
     st.saet.owner = adminId;
@@ -1581,7 +1581,7 @@ function bindSaetControls() {
 }
 
 // ----------------------------------------------------------
-// 8. Admin – Region / relationer (tbl_bibliotek_relation)
+// 8. Admin â€“ Region / relationer (tbl_bibliotek_relation)
 // ----------------------------------------------------------
 
 async function relList() {
@@ -1675,16 +1675,16 @@ async function relAddExisting() {
   if (!sb) return;
   const centralId = $("#relCentralAssign")?.value || currentAdminId();
   if (!centralId) {
-    showMsg("#msgRel", "Vælg først et centralbibliotek.");
+    showMsg("#msgRel", "VÃ¦lg fÃ¸rst et centralbibliotek.");
     return;
   }
   const local = $("#relLocal")?.value;
   if (!local) {
-    showMsg("#msgRel", "Vælg regionsbibliotek.");
+    showMsg("#msgRel", "VÃ¦lg regionsbibliotek.");
     return;
   }
   if (local === centralId) {
-    showMsg("#msgRel", "Et bibliotek kan ikke være sin egen region.");
+    showMsg("#msgRel", "Et bibliotek kan ikke vÃ¦re sin egen region.");
     return;
   }
 
@@ -1705,7 +1705,7 @@ async function relCreateLocal() {
   if (!sb) return;
   const centralId = $("#newLocalCentral")?.value || currentAdminId();
   if (!centralId) {
-    showMsg("#msgRel", "Vælg hvilket centralbibliotek regionen skal tilknyttes.");
+    showMsg("#msgRel", "VÃ¦lg hvilket centralbibliotek regionen skal tilknyttes.");
     return;
   }
   const id = $("#newLocalId")?.value.trim();
@@ -1718,7 +1718,7 @@ async function relCreateLocal() {
   const active = activeStr === "true";
 
   if (!id || id.length > 20) {
-    showMsg("#msgRel", "ID skal udfyldes (1–20 tegn).");
+    showMsg("#msgRel", "ID skal udfyldes (1â€“20 tegn).");
     return;
   }
   if (!name) {
@@ -1769,11 +1769,11 @@ function bindRelControls() {
   });
   $("#relDetailSel")?.addEventListener("change", renderRegionDetails);
   renderRegionDetails();
-  // Auto-gem ændringer i active-dropdowns når man forlader fanen kunne laves her – vi holder det manuelt
+  // Auto-gem Ã¦ndringer i active-dropdowns nÃ¥r man forlader fanen kunne laves her â€“ vi holder det manuelt
 }
 
 // ----------------------------------------------------------
-// 9. Booker – søgning (tbl_saet + relationer)
+// 9. Booker â€“ sÃ¸gning (tbl_saet + relationer)
 // ----------------------------------------------------------
 
 async function resolveBookerCentrals() {
@@ -1829,11 +1829,11 @@ async function bookerSearchInternal() {
   ]);
 
   if (natRes.error) {
-    showMsg("#bMsg", "Fejl ved national søgning: " + natRes.error.message);
+    showMsg("#bMsg", "Fejl ved national sÃ¸gning: " + natRes.error.message);
     return [];
   }
   if (regRes.error) {
-    showMsg("#bMsg", "Fejl ved regional søgning: " + regRes.error.message);
+    showMsg("#bMsg", "Fejl ved regional sÃ¸gning: " + regRes.error.message);
     return [];
   }
 
@@ -1860,20 +1860,20 @@ function renderBookerResults() {
       el("td", {}, r.faust || ""),
       el("td", {}, r.visibility || ""),
       el("td", {}, ownerLabel),
-      el("td", {}, el("span", { class: "hint" }, "Booking POC – ingen rigtig booking endnu"))
+      el("td", {}, el("span", { class: "hint" }, "Booking POC â€“ ingen rigtig booking endnu"))
     );
     tb.appendChild(tr);
   });
 
   const totalPages = Math.ceil((st.b.total || 0) / st.b.pageSize);
   $("#bInfo").textContent = st.b.total
-    ? `Side ${st.b.page + 1}/${totalPages} – ${st.b.total} sæt`
-    : "Ingen sæt fundet";
+    ? `Side ${st.b.page + 1}/${totalPages} â€“ ${st.b.total} sÃ¦t`
+    : "Ingen sÃ¦t fundet";
 }
 
 async function bookerSearch() {
   if (!st.profile.bookerLocalId) {
-    showMsg("#bMsg", "Vælg først en booker-profil (regionsbibliotek).");
+    showMsg("#bMsg", "VÃ¦lg fÃ¸rst en booker-profil (regionsbibliotek).");
     return;
   }
   st.b.q = $("#bQ")?.value || "";
@@ -1908,7 +1908,7 @@ function bindBookerControls() {
 }
 
 // ----------------------------------------------------------
-// 10. Fælles refresh pr. rolle & boot
+// 10. FÃ¦lles refresh pr. rolle & boot
 // ----------------------------------------------------------
 
 async function refreshForRole() {
@@ -1966,7 +1966,7 @@ function updateSaetSaveButton() {
   if (!btn) return;
   const count = saetDirtyRows().length;
   btn.disabled = count === 0;
-  btn.textContent = count ? `Gem ${count} sæt` : "Gem ændringer";
+  btn.textContent = count ? `Gem ${count} sÃ¦t` : "Gem Ã¦ndringer";
 }
 
 function saetAttachRowListeners(tr) {
@@ -2042,7 +2042,7 @@ async function saetPrepareRecord(tr, usageOverride) {
 async function saetSaveAll() {
   const rows = saetDirtyRows();
   if (!rows.length) {
-    showMsg("#msgSaet", "Der er ingen ændringer at gemme.");
+    showMsg("#msgSaet", "Der er ingen Ã¦ndringer at gemme.");
     return;
   }
   if (!sb) return;
@@ -2076,14 +2076,15 @@ async function saetSaveAll() {
   }
 
   if (successCount) {
-    showMsg("#msgSaet", `Gemte ${successCount} sæt`, true);
+    showMsg("#msgSaet", `Gemte ${successCount} sÃ¦t`, true);
     highlightSaveBar();
     await saetPull();
   }
   if (failures.length) {
-    alert("Kunne ikke gemme følgende sæt:\n" + failures.join("\n"));
+    alert("Kunne ikke gemme fÃ¸lgende sÃ¦t:\n" + failures.join("\n"));
   }
 }
+
 
 
 
