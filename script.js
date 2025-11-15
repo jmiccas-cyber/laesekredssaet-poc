@@ -902,10 +902,12 @@ function applyInventoryMeta(tr, ownerId, isbn, force = false) {
   const titleEl = tr.querySelector(".saet-title");
   const authorEl = tr.querySelector(".saet-author");
   const faustEl = tr.querySelector(".saet-faust");
+  const isbnField = tr.querySelector(".saet-isbn-field");
 
   if (titleEl && (force || !titleEl.value)) titleEl.value = meta.title || "";
   if (authorEl && (force || !authorEl.value)) authorEl.value = meta.author || "";
   if (faustEl && (force || !faustEl.value)) faustEl.value = meta.faust || "";
+  if (isbnField) isbnField.value = isbn || "";
 }
 
 function updateSaetAvailability(tr) {
@@ -1066,6 +1068,7 @@ async function saetPull() {
     const tiIn = el("input", { class: "saet-title", value: r.title || "" });
     const auIn = el("input", { class: "saet-author", value: r.author || "" });
     const isbnSel = el("select", { class: "saet-isbn" });
+    const isbnField = el("input", { type: "text", class: "saet-isbn-field", value: r.isbn || "", readonly: true });
     populateSaetIsbnSelect(isbnSel, r.owner_bibliotek_id, r.isbn || "");
     const faIn = el("input", { class: "saet-faust", value: r.faust || "" });
     const reqIn = el("input", {
@@ -1122,7 +1125,7 @@ async function saetPull() {
       idCell,
       el("td", {}, tiIn),
       el("td", {}, auIn),
-      el("td", {}, isbnSel),
+      el("td", {}, isbnSel, el("div", {}, isbnField)),
       el("td", {}, faIn),
       el("td", {}, reqIn, reqHint),
       el("td", {}, weeksIn),
@@ -1289,6 +1292,7 @@ function saetNewRow() {
   const ownerLabel = el("span", { class: "saet-owner-label" }, fmtLibLabel(st.libs.byId[ownerId]) || ownerId);
 
   const isbnSel = el("select", { class: "saet-isbn" });
+  const isbnField = el("input", { type: "text", class: "saet-isbn-field", readonly: true });
   populateSaetIsbnSelect(isbnSel, ownerId, "");
 
   const activeSel = el("select", { class: "saet-active" },
@@ -1326,7 +1330,7 @@ function saetNewRow() {
     el("td", {}, ""), // ID (autoincrement)
     el("td", {}, el("input", { class: "saet-title" })),
     el("td", {}, el("input", { class: "saet-author" })),
-    el("td", {}, isbnSel),
+    el("td", {}, isbnSel, el("div", {}, isbnField)),
     el("td", {}, el("input", { class: "saet-faust" })),
     el("td", {}, reqIn, reqHint),
     el("td", {}, weeksIn),
