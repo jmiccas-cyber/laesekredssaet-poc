@@ -975,12 +975,12 @@ function refreshSaetInventoryControls() {
 }
 
 
-async function saetCount() {
+async function saetCount(ownerFilter) {
   if (!sb) return 0;
   let q = sb.from("tbl_saet").select("*", { count: "exact", head: true });
   const f = st.saet;
-  if (f.owner) q = q.eq("owner_bibliotek_id", f.owner);
-  else if (currentAdminId()) q = q.eq("owner_bibliotek_id", currentAdminId());
+  const owner = ownerFilter || f.owner || currentAdminId();
+  if (owner) q = q.eq("owner_bibliotek_id", owner);
   if (f.vis) q = q.eq("visibility", f.vis);
   if (f.q) {
     const v = f.q;
@@ -999,7 +999,7 @@ async function saetCount() {
   return count || 0;
 }
 
-async function saetFetch() {
+async function saetFetch(ownerFilter) {
   if (!sb) return [];
   const from = st.saet.page * st.saet.pageSize;
   const to = from + st.saet.pageSize - 1;
@@ -1009,8 +1009,8 @@ async function saetFetch() {
     .range(from, to);
 
   const f = st.saet;
-  if (f.owner) q = q.eq("owner_bibliotek_id", f.owner);
-  else if (currentAdminId()) q = q.eq("owner_bibliotek_id", currentAdminId());
+  const owner = ownerFilter || f.owner || currentAdminId();
+  if (owner) q = q.eq("owner_bibliotek_id", owner);
   if (f.vis) q = q.eq("visibility", f.vis);
   if (f.q) {
     const v = f.q;
@@ -1048,6 +1048,7 @@ async function saetPull() {
   }
 
   const activeOwner = ownerSel?.value || adminId || "";
+  if (ownerSel) ownerSel.value = activeOwner;
   st.saet.owner = activeOwner;
 
   if (!activeOwner) {
@@ -1063,8 +1064,8 @@ async function saetPull() {
 
   const [usage, total, rows] = await Promise.all([
     fetchSaetUsage(),
-    saetCount(),
-    saetFetch()
+    saetCount(activeOwner),
+    saetFetch(activeOwner)
   ]);
 
   st.saet.usage = usage;
