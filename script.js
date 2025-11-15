@@ -193,6 +193,14 @@ async function loadLibraries() {
   st.libs.byId = Object.fromEntries(rows.map(x => [x.bibliotek_id, x]));
   st.libs.centrals = rows.filter(x => x.is_central);
   st.libs.locals = rows.filter(x => !x.is_central);
+  populateCentralDropdown(document.querySelector("#relFilterSel"), { includeAll: true, allLabel: "(alle centralbiblioteker)" });
+  populateCentralDropdown(document.querySelector("#relCentralAssign"));
+  populateCentralDropdown(document.querySelector("#newLocalCentral"));
+  const defaultCentral = st.profile.adminCentralId || st.libs.centrals[0]?.bibliotek_id || "";
+  const assignSel = document.querySelector("#relCentralAssign");
+  const newCentralSel = document.querySelector("#newLocalCentral");
+  if (assignSel && !assignSel.value) assignSel.value = defaultCentral;
+  if (newCentralSel && !newCentralSel.value) newCentralSel.value = defaultCentral;
   populateSaetOwnerSelect();
 
   // Sæt-ejer filter
@@ -205,13 +213,19 @@ async function loadLibraries() {
   });
 }
 
-function populateSaetOwnerSelect() {
-  const sel = document.querySelector("#saetOwnerFilterSel");
-  if (!sel) return;
-  sel.innerHTML = "";
+function populateCentralDropdown(select, { includeAll = false, allLabel = "(alle)" } = {}) {
+  if (!select) return;
+  select.innerHTML = "";
+  if (includeAll) {
+    select.appendChild(el("option", { value: "" }, allLabel));
+  }
   st.libs.centrals.forEach(lib => {
-    sel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
+    select.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
   });
+}
+
+function populateSaetOwnerSelect() {
+  populateCentralDropdown(document.querySelector("#saetOwnerFilterSel"));
 }
 
 // Hvis der ikke er valgt admin-central, sæt default = Gentofte eller første central
@@ -301,6 +315,12 @@ function renderLayout() {
   const adminTabs = $("#adminTabs");
   const bookerView = $("#bookerView");
   const panels = $$(".panel");
+  const relTabButton = document.querySelector('nav.tabs button[data-tab="tab-region"]');
+  const relPanel = $("#tab-region");
+  const adminLib = st.libs.byId[currentAdminId()];
+  const isSuper = isSuperLibrary(adminLib);
+  if (relTabButton) relTabButton.style.display = isSuper ? "" : "none";
+  if (relPanel) relPanel.style.display = isSuper ? "" : "none";
 
   if (!adminTabs || !bookerView) return;
 
@@ -1523,15 +1543,18 @@ function bindSaetControls() {
 // ----------------------------------------------------------
 
 async function relList() {
-  if (!sb || !st.profile.adminCentralId) return;
-  const centralId = st.profile.adminCentralId;
-  $("#relCentralReadonly").value = fmtLibLabel(st.libs.byId[centralId]) || "";
+  if (!sb) return;
+  const filter = $("#relFilterSel")?.value || "";
 
-  const { data, error } = await sb
+  let query = sb
     .from("tbl_bibliotek_relation")
     .select("relation_id,bibliotek_id,central_id,active")
-    .eq("central_id", centralId)
     .order("relation_id");
+  if (filter) {
+    query = query.eq("central_id", filter);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     showMsg("#msgRel", "Fejl ved hentning af relationer: " + error.message);
@@ -1570,7 +1593,11 @@ async function relList() {
     tb.appendChild(tr);
   });
 
-  showMsg("#msgRel", data && data.length ? `Antal relationer: ${data.length}` : "Ingen relationer endnu.", true);
+  const filterLabel = filter ? (fmtLibLabel(st.libs.byId[filter]) || filter) : "";
+  const msg = data && data.length
+    ? `Antal relationer${filterLabel ? " for " + filterLabel : ""}: ${data.length}`
+    : "Ingen relationer.";
+  showMsg("#msgRel", msg, true);
 }
 
 async function relSaveActives() {
@@ -1603,8 +1630,12 @@ async function relDelete(relationId) {
 }
 
 async function relAddExisting() {
-  if (!sb || !st.profile.adminCentralId) return;
-  const centralId = st.profile.adminCentralId;
+  if (!sb) return;
+  const centralId = $("#relCentralAssign")?.value || currentAdminId();
+  if (!centralId) {
+    showMsg("#msgRel", "Vælg først et centralbibliotek.");
+    return;
+  }
   const local = $("#relLocal")?.value;
   if (!local) {
     showMsg("#msgRel", "Vælg lånerbibliotek.");
@@ -1629,10 +1660,18 @@ async function relAddExisting() {
 }
 
 async function relCreateLocal() {
-  if (!sb || !st.profile.adminCentralId) return;
-  const centralId = st.profile.adminCentralId;
+  if (!sb) return;
+  const centralId = $("#newLocalCentral")?.value || currentAdminId();
+  if (!centralId) {
+    showMsg("#msgRel", "Vælg hvilket centralbibliotek låneren skal tilknyttes.");
+    return;
+  }
   const id = $("#newLocalId")?.value.trim();
   const name = $("#newLocalName")?.value.trim();
+  const address = $("#newLocalAddress")?.value.trim() || "";
+  const postal_code = $("#newLocalPostal")?.value.trim() || "";
+  const city = $("#newLocalCity")?.value.trim() || "";
+  const notes = $("#newLocalNotes")?.value.trim() || "";
   const activeStr = $("#newLocalActive")?.value || "true";
   const active = activeStr === "true";
 
@@ -1649,7 +1688,11 @@ async function relCreateLocal() {
     bibliotek_id: id,
     bibliotek_navn: name,
     is_central: false,
-    active: active
+    active,
+    address,
+    postal_code,
+    city,
+    notes
   });
   if (e1) {
     showMsg("#msgRel", "Fejl ved oprettelse af bibliotek: " + e1.message);
@@ -1665,6 +1708,11 @@ async function relCreateLocal() {
     showMsg("#msgRel", "Bibliotek oprettet, men fejl ved relation: " + e2.message);
   } else {
     showMsg("#msgRel", "Lånerbibliotek oprettet og relateret", true);
+    ["#newLocalId","#newLocalName","#newLocalAddress","#newLocalPostal","#newLocalCity","#newLocalNotes"].forEach(sel => {
+      const input = $(sel);
+      if (input) input.value = "";
+    });
+    $("#newLocalActive").value = "true";
   }
 
   await loadLibraries();
@@ -1674,6 +1722,9 @@ async function relCreateLocal() {
 function bindRelControls() {
   $("#btnRelAdd")?.addEventListener("click", relAddExisting);
   $("#btnCreateLocal")?.addEventListener("click", relCreateLocal);
+  $("#relFilterSel")?.addEventListener("change", () => {
+    relList();
+  });
   // Auto-gem ændringer i active-dropdowns når man forlader fanen kunne laves her – vi holder det manuelt
 }
 

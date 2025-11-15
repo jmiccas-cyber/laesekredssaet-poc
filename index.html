@@ -140,6 +140,13 @@ select {
   height: 20px;
   line-height: 1.2;
 }
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  font-size: var(--table-row-size);
+  font-family: var(--table-row-font);
+}
 input[readonly], select[disabled] {
   background: #f3f4f6;
   color: #4b5563;
@@ -458,73 +465,95 @@ td {
     </section>
 
     <!-- ADMIN: Region / relationer -->
-    <section id="tab-region" class="panel">
-      <div class="card" style="margin-bottom:12px;">
-        <div class="row">
-          <div>
-            <label>Centralbibliotek (lÃ¥st til admin-profil)</label>
-            <input id="relCentralReadonly" readonly />
-          </div>
-          <div>
-            <label for="relLocal">TilfÃ¸j eksisterende lÃ¥nerbibliotek</label>
-            <select id="relLocal"></select>
-          </div>
-          <div>
-            <label>&nbsp;</label>
-            <button id="btnRelAdd" class="btn">+ TilfÃ¸j relation</button>
-          </div>
+  <section id="tab-region" class="panel">
+    <div class="card" style="margin-bottom:12px;">
+      <div class="row" style="align-items:flex-end;">
+        <div>
+          <label for="relFilterSel">Vis relationer for</label>
+          <select id="relFilterSel"></select>
         </div>
-        <p class="hint" style="margin-top:8px;">
-          Listen nedenfor er filtreret til <strong>din admin-profil</strong>. Du kan oprette nye lÃ¥nerbiblioteker,
-          aktivere/deaktivere dem og slette relationer (blokkeres hvis der findes aktive bookinger).
-        </p>
-      </div>
-
-      <div class="card" style="margin-bottom:12px;">
-        <h3 style="margin-top:0; font-size:14px;">Opret nyt lÃ¥nerbibliotek</h3>
-        <div class="row">
-          <div>
-            <label for="newLocalId">ID (1â€“20 ASCII-tegn)</label>
-            <input id="newLocalId" type="text" />
-          </div>
-          <div style="flex:1; min-width:220px;">
-            <label for="newLocalName">Navn</label>
-            <input id="newLocalName" type="text" />
-          </div>
-          <div>
-            <label for="newLocalActive">Aktiv</label>
-            <select id="newLocalActive">
-              <option value="true">Ja</option>
-              <option value="false">Nej</option>
-            </select>
-          </div>
-          <div style="margin-left:auto;">
-            <label>&nbsp;</label>
-            <button id="btnCreateLocal" class="btn primary">Opret lÃ¥nerbibliotek</button>
+        <div>
+          <label for="relCentralAssign">Tilknyt til centralbibliotek</label>
+          <select id="relCentralAssign"></select>
+        </div>
+        <div style="flex:1; min-width:260px;">
+          <label for="relLocal">Tilføj eksisterende lånerbibliotek</label>
+          <div style="display:flex; gap:6px;">
+            <select id="relLocal" style="flex:1;"></select>
+            <button id="btnRelAdd" class="btn">+ Tilføj relation</button>
           </div>
         </div>
       </div>
+      <p class="hint" style="margin-top:8px;">
+        Filtrér relationer pr. centralbibliotek og tilknyt eksisterende biblioteker til de seks centraler.
+      </p>
+    </div>
 
-      <div id="msgRel" class="msg" style="display:none;"></div>
-
-      <div class="card">
-        <table id="tblRel">
-          <thead>
-          <tr>
-            <th>relation_id</th>
-            <th>LÃ¥nerbibliotek</th>
-            <th>Centralbibliotek</th>
-            <th>Relation aktiv</th>
-            <th>LÃ¥ner aktiv</th>
-            <th>Handling</th>
-          </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+    <div class="card" style="margin-bottom:12px;">
+      <h3 style="margin-top:0; font-size:14px;">Opret nyt lånerbibliotek</h3>
+      <div class="row">
+        <div>
+          <label for="newLocalId">Biblioteksnummer (1–20 tegn)</label>
+          <input id="newLocalId" type="text" />
+        </div>
+        <div style="flex:1; min-width:220px;">
+          <label for="newLocalName">Navn</label>
+          <input id="newLocalName" type="text" />
+        </div>
+        <div style="flex:1; min-width:220px;">
+          <label for="newLocalAddress">Adresse</label>
+          <input id="newLocalAddress" type="text" />
+        </div>
+        <div>
+          <label for="newLocalPostal">Postnummer</label>
+          <input id="newLocalPostal" type="text" />
+        </div>
+        <div>
+          <label for="newLocalCity">By</label>
+          <input id="newLocalCity" type="text" />
+        </div>
       </div>
-    </section>
-  </div>
+      <div class="row" style="margin-top:8px;">
+        <div style="flex:1; min-width:220px;">
+          <label for="newLocalNotes">Kommentarer / pakkenoter</label>
+          <textarea id="newLocalNotes" rows="2" style="width:100%;"></textarea>
+        </div>
+        <div>
+          <label for="newLocalCentral">Tilknyttes centralbibliotek</label>
+          <select id="newLocalCentral"></select>
+        </div>
+        <div>
+          <label for="newLocalActive">Aktiv</label>
+          <select id="newLocalActive">
+            <option value="true">Ja</option>
+            <option value="false">Nej</option>
+          </select>
+        </div>
+        <div style="margin-left:auto;">
+          <label>&nbsp;</label>
+          <button id="btnCreateLocal" class="btn primary">Opret lånerbibliotek</button>
+        </div>
+      </div>
+    </div>
 
+    <div id="msgRel" class="msg" style="display:none;"></div>
+
+    <div class="card">
+      <table id="tblRel">
+        <thead>
+        <tr>
+          <th>relation_id</th>
+          <th>Lånerbibliotek</th>
+          <th>Centralbibliotek</th>
+          <th>Relation aktiv</th>
+          <th>Låner aktiv</th>
+          <th>Handling</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
   <!-- BOOKER VIEW -->
   <section id="bookerView" class="panel hidden">
     <div class="card">
@@ -616,3 +645,5 @@ td {
 
 </body>
 </html>
+
+
