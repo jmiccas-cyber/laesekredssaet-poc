@@ -45,6 +45,10 @@ function fmtLibLabel(lib) {
   return `${lib.bibliotek_navn} (${lib.bibliotek_id})`;
 }
 
+function currentAdminId() {
+  return st.profile?.adminCentralId || "";
+}
+
 // ----------------------------------------------------------
 // 2. Global state
 // ----------------------------------------------------------
@@ -175,6 +179,9 @@ async function loadLibraries() {
     st.libs.centrals.forEach(lib => {
       ownerSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
     });
+    if (st.profile.adminCentralId) {
+      ownerSel.value = st.profile.adminCentralId;
+    }
   }
 
   // Region: dropdown med lånerbiblioteker
@@ -940,6 +947,7 @@ async function saetCount() {
   let q = sb.from("tbl_saet").select("*", { count: "exact", head: true });
   const f = st.saet;
   if (f.owner) q = q.eq("owner_bibliotek_id", f.owner);
+  else if (currentAdminId()) q = q.eq("owner_bibliotek_id", currentAdminId());
   if (f.vis) q = q.eq("visibility", f.vis);
   if (f.q) {
     const v = f.q;
@@ -969,6 +977,7 @@ async function saetFetch() {
 
   const f = st.saet;
   if (f.owner) q = q.eq("owner_bibliotek_id", f.owner);
+  else if (currentAdminId()) q = q.eq("owner_bibliotek_id", currentAdminId());
   if (f.vis) q = q.eq("visibility", f.vis);
   if (f.q) {
     const v = f.q;
@@ -996,7 +1005,26 @@ async function saetPull() {
     await loadInventorySummary();
   }
 
-  st.saet.owner = $("#saetOwnerFilterSel")?.value || "";
+  const adminId = currentAdminId();
+  const ownerSel = $("#saetOwnerFilterSel");
+  if (ownerSel) {
+    if (!ownerSel.value && adminId) {
+      ownerSel.value = adminId;
+    }
+    ownerSel.disabled = !adminId;
+  }
+
+  const activeOwner = ownerSel?.value || adminId || "";
+  st.saet.owner = activeOwner;
+
+  if (!activeOwner) {
+    tb.innerHTML = "";
+    $("#saetPinfo").textContent = "";
+    showMsg("#msgSaet", "Vælg først en admin-profil (centralbibliotek) via Skift: Admin ↔ Booker.");
+    return;
+  }
+  showMsg("#msgSaet", "");
+
   st.saet.vis = $("#saetVisFilter")?.value || "";
   st.saet.q = $("#saetQ")?.value || "";
 
@@ -1045,11 +1073,9 @@ async function saetPull() {
     );
     visSel.value = (r.visibility || "national").toLowerCase();
 
-    const ownerIn = el("select", { class: "saet-owner" });
-    st.libs.centrals.forEach(lib => {
-      ownerIn.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
-    });
-    ownerIn.value = r.owner_bibliotek_id || st.profile.adminCentralId || "";
+    const ownerVal = r.owner_bibliotek_id || adminId || "";
+    const ownerHidden = el("input", { type: "hidden", class: "saet-owner", value: ownerVal });
+    const ownerLabel = el("span", { class: "saet-owner-label" }, fmtLibLabel(st.libs.byId[ownerVal]) || ownerVal || "");
 
     const activeSel = el("select", { class: "saet-active" },
       el("option", { value: "true" }, "Ja"),
@@ -1085,7 +1111,7 @@ async function saetPull() {
       el("td", {}, weeksIn),
       el("td", {}, bufferIn),
       el("td", {}, visSel),
-      el("td", {}, ownerIn),
+      el("td", {}, ownerLabel, ownerHidden),
       el("td", {}, activeSel),
       el("td", {}, subSel),
       el("td", {}, partSel),
@@ -1093,12 +1119,8 @@ async function saetPull() {
       actions
     );
 
-    ownerIn.addEventListener("change", () => {
-      populateSaetIsbnSelect(isbnSel, ownerIn.value, "");
-      updateSaetAvailability(tr);
-    });
     isbnSel.addEventListener("change", () => {
-      applyInventoryMeta(tr, ownerIn.value, isbnSel.value, true);
+      applyInventoryMeta(tr, ownerVal, isbnSel.value, true);
       updateSaetAvailability(tr);
     });
     reqIn.addEventListener("input", () => updateSaetAvailability(tr));
@@ -1166,7 +1188,7 @@ async function saetSaveRow(tr) {
   const loan_weeks = Number(tr.querySelector(".saet-weeks")?.value || 0);
   const buffer_days = Number(tr.querySelector(".saet-buffer")?.value || 0);
   const visibility = (tr.querySelector(".saet-vis")?.value || "national").toLowerCase();
-  const owner_bibliotek_id = tr.querySelector(".saet-owner")?.value || "";
+  const owner_bibliotek_id = tr.querySelector(".saet-owner")?.value || currentAdminId() || "";
   const active = (tr.querySelector(".saet-active")?.value || "true") === "true";
   const allow_substitution = (tr.querySelector(".saet-sub")?.value || "false") === "true";
   const allow_partial = (tr.querySelector(".saet-part")?.value || "false") === "true";
@@ -1232,7 +1254,13 @@ function saetNewRow() {
   if (!tb) return;
   const tr = el("tr");
   tr.dataset.setId = "";
-   tr.dataset.savedCount = "0";
+  tr.dataset.savedCount = "0";
+
+  const ownerId = currentAdminId();
+  if (!ownerId) {
+    showMsg("#msgSaet", "Vælg først en admin-profil (centralbibliotek) via Skift: Admin ↔ Booker.");
+    return;
+  }
 
   const visSel = el("select", { class: "saet-vis" },
     el("option", { value: "national" }, "national"),
@@ -1240,14 +1268,11 @@ function saetNewRow() {
   );
   visSel.value = "national";
 
-  const ownerSel = el("select", { class: "saet-owner" });
-  st.libs.centrals.forEach(lib => {
-    ownerSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
-  });
-  ownerSel.value = st.profile.adminCentralId || (st.libs.centrals[0]?.bibliotek_id || "");
+  const ownerHidden = el("input", { type: "hidden", class: "saet-owner", value: ownerId });
+  const ownerLabel = el("span", { class: "saet-owner-label" }, fmtLibLabel(st.libs.byId[ownerId]) || ownerId);
 
   const isbnSel = el("select", { class: "saet-isbn" });
-  populateSaetIsbnSelect(isbnSel, ownerSel.value, "");
+  populateSaetIsbnSelect(isbnSel, ownerId, "");
 
   const activeSel = el("select", { class: "saet-active" },
     el("option", { value: "true" }, "Ja"),
@@ -1290,7 +1315,7 @@ function saetNewRow() {
     el("td", {}, weeksIn),
     el("td", {}, bufferIn),
     el("td", {}, visSel),
-    el("td", {}, ownerSel),
+    el("td", {}, ownerLabel, ownerHidden),
     el("td", {}, activeSel),
     el("td", {}, subSel),
     el("td", {}, partSel),
@@ -1299,13 +1324,8 @@ function saetNewRow() {
   );
   tb.prepend(tr);
 
-  ownerSel.addEventListener("change", () => {
-    populateSaetIsbnSelect(isbnSel, ownerSel.value, "");
-    btnSave.disabled = !!isbnSel.disabled;
-    updateSaetAvailability(tr);
-  });
   isbnSel.addEventListener("change", () => {
-    applyInventoryMeta(tr, ownerSel.value, isbnSel.value, true);
+    applyInventoryMeta(tr, ownerId, isbnSel.value, true);
     updateSaetAvailability(tr);
   });
   reqIn.addEventListener("input", () => updateSaetAvailability(tr));
@@ -1315,6 +1335,21 @@ function saetNewRow() {
 
 function bindSaetControls() {
   $("#btnSaetSearch")?.addEventListener("click", () => {
+    st.saet.page = 0;
+    saetPull();
+  });
+  $("#btnSaetMine")?.addEventListener("click", () => {
+    const adminId = currentAdminId();
+    if (!adminId) {
+      showMsg("#msgSaet", "Vælg først en admin-profil (centralbibliotek).");
+      return;
+    }
+    const ownerSel = $("#saetOwnerFilterSel");
+    if (ownerSel) {
+      ownerSel.value = adminId;
+    }
+    $("#saetQ")?.value = "";
+    $("#saetVisFilter")?.value = "";
     st.saet.page = 0;
     saetPull();
   });
