@@ -342,40 +342,6 @@ async function saveRegionDetails() {
   await relList();
   if (info) info.textContent = "Detaljer opdateret.";
 }
-
-  const lib = st.libs.byId[id];
-  if (!lib) {
-    if (info) info.textContent = \"Biblioteket findes ikke lǟ��ngere.\";
-    return;
-  }
-
-  if (fields.name) fields.name.value = lib.bibliotek_navn || \"\";
-  if (fields.address) fields.address.value = lib.address || \"\";
-  if (fields.postal) fields.postal.value = lib.postal_code || \"\";
-  if (fields.city) fields.city.value = lib.city || \"\";
-  if (fields.notes) fields.notes.value = lib.notes || \"\";
-  if (fields.active) fields.active.value = lib.active !== false ? \"true\" : \"false\";
-  setDisabled(false);
-  if (info) info.textContent = \"Opdater oplysninger og tryk Gem detaljer.\";
-}
-  const lib = st.libs.byId[id];
-  if (!lib) {
-    info.textContent = "Biblioteket findes ikke lÃ¦ngere.";
-    return;
-  }
-  const addr = lib.address || "-";
-  const postal = lib.postal_code || "";
-  const city = lib.city || "";
-  const notes = lib.notes || "-";
-  const active = lib.active !== false ? "Ja" : "Nej";
-  info.innerHTML = `
-    <strong>${fmtLibLabel(lib)}</strong><br>
-    Adresse: ${addr}<br>
-    Postnummer / by: ${postal} ${city}<br>
-    Aktiv: ${active}<br>
-    Kommentarer/pakkenoter: ${notes}
-  `;
-}
 function loadProfileDropdown() {
   const adminSel = document.querySelector("#adminProfileSel");
   const bookerSel = document.querySelector("#bookerProfileSel");
