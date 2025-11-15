@@ -136,11 +136,14 @@ async function loadLibraries() {
     return;
   }
 
+  // Hent alle kolonner for robusthed (nogle installationer kan have ekstra felter)
   const { data, error } = await sb
     .from("tbl_bibliotek")
-    .select("bibliotek_id,bibliotek_navn,is_central,active")
+    .select("*")
     .order("is_central", { ascending: false })
     .order("bibliotek_navn", { ascending: true });
+
+  console.debug("loadLibraries: raw data", data, "error", error);
 
   if (error) {
     console.error("Fejl ved loadLibraries:", error);
@@ -189,7 +192,46 @@ async function loadLibraries() {
   }
 }
 
+// Centraliseret: fyld profil-dropdowns i modal
+function loadProfileDropdown() {
+  const adminSel = document.querySelector("#adminProfileSel");
+  const bookerSel = document.querySelector("#bookerProfileSel");
+  if (!adminSel || !bookerSel) return;
 
+  adminSel.innerHTML = "";
+  bookerSel.innerHTML = "";
+
+  const centrals = st.libs.centrals || [];
+  const locals = st.libs.locals || [];
+
+  if (!centrals.length) {
+    adminSel.appendChild(el("option", { value: "" }, "(ingen centralbiblioteker fundet)"));
+  } else {
+    centrals.forEach(lib => {
+      adminSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
+    });
+  }
+
+  if (!locals.length) {
+    bookerSel.appendChild(el("option", { value: "" }, "(ingen lånerbiblioteker fundet)"));
+  } else {
+    locals.forEach(lib => {
+      bookerSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
+    });
+  }
+
+  if (st.profile.adminCentralId && st.libs.byId[st.profile.adminCentralId]) {
+    adminSel.value = st.profile.adminCentralId;
+  } else if (centrals.length) {
+    adminSel.value = centrals[0].bibliotek_id;
+  }
+
+  if (st.profile.bookerLocalId && st.libs.byId[st.profile.bookerLocalId]) {
+    bookerSel.value = st.profile.bookerLocalId;
+  } else if (locals.length) {
+    bookerSel.value = locals[0].bibliotek_id;
+  }
+}
 
 // ----------------------------------------------------------
 // 5. Rolle / layout / profil-modal
@@ -280,27 +322,8 @@ async function openRoleModal(targetRole) {
 
   roleSelect.value = targetRole || st.role;
 
-  // 3) Fyld dropdown for centralbiblioteker (admin)
-  adminSel.innerHTML = "";
-  st.libs.centrals.forEach(lib => {
-    adminSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
-  });
-  if (st.profile.adminCentralId && st.libs.byId[st.profile.adminCentralId]) {
-    adminSel.value = st.profile.adminCentralId;
-  } else if (st.libs.centrals.length) {
-    adminSel.value = st.libs.centrals[0].bibliotek_id;
-  }
-
-  // 4) Fyld dropdown for lånerbiblioteker (booker)
-  bookerSel.innerHTML = "";
-  st.libs.locals.forEach(lib => {
-    bookerSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
-  });
-  if (st.profile.bookerLocalId && st.libs.byId[st.profile.bookerLocalId]) {
-    bookerSel.value = st.profile.bookerLocalId;
-  } else if (st.libs.locals.length) {
-    bookerSel.value = st.libs.locals[0].bibliotek_id;
-  }
+  // 3+4) Fyld dropdowns via central helper
+  await loadProfileDropdown();
 
   // 5) Vis/hide blokke afhængigt af valgt rolle
   function updateRoleWrap() {
@@ -350,54 +373,6 @@ async function openRoleModal(targetRole) {
   document.querySelector("#roleCancel").onclick = () => {
     modal.style.display = "none";
   };
-
-  modal.style.display = "flex";
-}
-
-
-
-  function updateRoleWrap() {
-    if (roleSelect.value === "admin") {
-      show(adminWrap);
-      hide(bookerWrap);
-    } else {
-      hide(adminWrap);
-      show(bookerWrap);
-    }
-  }
-  roleSelect.onchange = updateRoleWrap;
-  updateRoleWrap();
-
-  $("#roleSave").onclick = async () => {
-    const newRole = roleSelect.value;
-    if (newRole === "admin") {
-      if (!adminSel.value) {
-        alert("Vælg et centralbibliotek.");
-        return;
-      }
-      st.role = "admin";
-      st.profile.adminCentralId = adminSel.value;
-      saveProfile();
-      renderRoleBadge();
-      renderLayout();
-      await refreshForRole();
-      hide(modal);
-    } else {
-      if (!bookerSel.value) {
-        alert("Vælg et lånerbibliotek.");
-        return;
-      }
-      st.role = "booker";
-      st.profile.bookerLocalId = bookerSel.value;
-      saveProfile();
-      renderRoleBadge();
-      renderLayout();
-      await refreshForRole();
-      hide(modal);
-    }
-  };
-
-  $("#roleCancel").onclick = () => hide(modal);
 
   modal.style.display = "flex";
 }
