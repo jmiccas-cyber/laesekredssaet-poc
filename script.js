@@ -1130,31 +1130,6 @@ async function saetPull() {
   const tb = $("#tblSaet tbody");
   if (!tb) return;
 
-  const sortMap = {
-    set_id: "set_id",
-    isbn: "isbn",
-    title: "title",
-    author: "author",
-    faust: "faust",
-    requested_count: "requested_count",
-    loan_weeks: "loan_weeks",
-    buffer_days: "buffer_days",
-    visibility: "visibility",
-    owner: "owner_bibliotek_id",
-    active: "active",
-    substitution: "allow_substitution",
-    partial: "allow_partial",
-    min_delivery: "min_delivery"
-  };
-  const sortKey = sortMap[f.sortBy] || "set_id";
-  const ascending = f.sortDir !== "desc";
-  q = q.order(sortKey, { ascending });
-  if (sortKey !== "set_id") {
-    q = q.order("set_id", { ascending: true });
-  }
-
-  q = q.range(from, to);
-
   if (!st.stock.list.length) {
     await loadInventorySummary();
   }
