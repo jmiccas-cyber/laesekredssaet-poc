@@ -894,20 +894,55 @@ function bindGlobal(){
 }
 
 async function boot(){
+  // 1) Hent tidligere gemt profil (hvis nogen)
   loadProfile();
+
+  // 2) Bind knapper og admin-funktioner
   bindGlobal();
   bindAdmin();
+
+  // 3) Hent biblioteker fra Supabase
   await loadLibraries();
+
+  // 4) Sæt ALWAYS default profil = Admin + Gentofte (første gang / hvis tom)
+  if (!st.profile.adminCentralId) {
+    // prøv at finde et centralbibliotek med navn der indeholder "gentofte"
+    const gent = st.libs.list.find(
+      x => x.is_central && (x.bibliotek_navn || '').toLowerCase().includes('gentofte')
+    );
+
+    // fallback: første centralbibliotek i listen
+    const firstCentral = st.libs.list.find(x => x.is_central);
+
+    // sidste fallback: første bibliotek overhovedet
+    const fallback = st.libs.list[0];
+
+    const chosen = gent || firstCentral || fallback;
+
+    if (chosen) {
+      st.role = 'admin';                           // tving rolle til admin
+      st.profile.adminCentralId = chosen.bibliotek_id; // sæt valgt central
+      saveProfile();                               // gem i localStorage
+      console.log('Default profil sat til Admin +', chosen.bibliotek_navn, `(${chosen.bibliotek_id})`);
+    } else {
+      console.warn('Ingen biblioteker fundet til default-profil.');
+    }
+  }
+
+  // 5) Tegn rolle-badge og layout på baggrund af profil
   renderRoleBadge();
   renderLayout();
 
+  // 6) Admin-data (eksemplarer/sæt/relationer)
   eksPull();
   saetPull();
   relList();
 
+  // 7) Booker-data kun hvis rollen *faktisk* er booker
   if (st.role==='booker'){
     await resolveBookerCentrals();
     await bookerPull();
   }
 }
 boot();
+
