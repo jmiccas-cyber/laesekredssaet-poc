@@ -1162,13 +1162,15 @@ async function saetPull() {
   const adminId = currentAdminId();
   const ownerSel = $("#saetOwnerFilterSel");
   if (ownerSel) {
-    if (!ownerSel.value && adminId) {
+    if (adminId) {
       ownerSel.value = adminId;
+      ownerSel.disabled = false;
+    } else {
+      ownerSel.disabled = true;
     }
-    ownerSel.disabled = !adminId;
   }
 
-  const activeOwner = ownerSel?.value || adminId || "";
+  const activeOwner = adminId || ownerSel?.value || "";
   if (ownerSel) ownerSel.value = activeOwner;
   st.saet.owner = activeOwner;
 
@@ -1563,6 +1565,7 @@ function bindSaetControls() {
     if (ownerSel) {
       ownerSel.value = adminId;
     }
+    st.saet.owner = adminId;
     const qInput = $("#saetQ");
     if (qInput) qInput.value = "";
     const visSel = $("#saetVisFilter");
