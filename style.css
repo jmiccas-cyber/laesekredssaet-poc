@@ -105,21 +105,25 @@ footer {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1rem;
-  height: 1rem;
+  width: 1.2rem;
+  height: 1.2rem;
   border-radius: 50%;
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-weight: bold;
+  margin-left: 0.3rem;
 }
 
 .saet-availability[data-state="ok"] {
-  color: #0d6832;
+  color: #ffffff;
+  background: #0d6832;
 }
 
 .saet-availability[data-state="warning"] {
-  color: #c2410c;
+  color: #ffffff;
+  background: #f59e0b;
 }
 
 .saet-availability[data-state="error"] {
-  color: #b91c1c;
+  color: #ffffff;
+  background: #dc2626;
 }

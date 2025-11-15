@@ -1090,7 +1090,8 @@ async function saetPull() {
       type: "number",
       class: "saet-requested",
       value: r.requested_count ?? 1,
-      min: "1"
+      min: "1",
+      style: "width:4ch"
     });
     const reqHint = el("span", { class: "saet-availability", title: "" }, "●");
     const weeksIn = el("input", {
@@ -1352,7 +1353,7 @@ function saetNewRow() {
     btnSave.title = "Ingen titler i beholdningen for det valgte centralbibliotek.";
   }
 
-  const reqIn = el("input", { type: "number", class: "saet-requested", value: "1", min: "1" });
+  const reqIn = el("input", { type: "number", class: "saet-requested", value: "1", min: "1", style: "width:4ch" });
   const reqHint = el("span", { class: "saet-availability", title: "" }, "●");
   const weeksIn = el("input", { type: "number", class: "saet-weeks", value: "8", min: "1", max: "12" });
   const bufferIn = el("input", { type: "number", class: "saet-buffer", value: "0", min: "0" });
