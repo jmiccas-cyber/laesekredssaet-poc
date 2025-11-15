@@ -187,17 +187,6 @@ async function loadLibraries() {
   st.libs.locals = rows.filter(x => !x.is_central);
 
   // Sæt-ejer filter
-  const ownerSel = document.querySelector("#saetOwnerFilterSel");
-  if (ownerSel) {
-    ownerSel.innerHTML = '<option value="">(alle)</option>';
-    st.libs.centrals.forEach(lib => {
-      ownerSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
-    });
-    if (st.profile.adminCentralId) {
-      ownerSel.value = st.profile.adminCentralId;
-    }
-  }
-
   // Region: dropdown med lånerbiblioteker
   const relLocal = document.querySelector("#relLocal");
   if (relLocal) {
@@ -1135,18 +1124,7 @@ async function saetPull() {
   }
 
   const adminId = currentAdminId();
-  const ownerSel = $("#saetOwnerFilterSel");
-  if (ownerSel) {
-    if (adminId) {
-      ownerSel.value = adminId;
-      ownerSel.disabled = false;
-    } else {
-      ownerSel.disabled = true;
-    }
-  }
-
-  const activeOwner = adminId || ownerSel?.value || "";
-  if (ownerSel) ownerSel.value = activeOwner;
+  const activeOwner = adminId || "";
   st.saet.owner = activeOwner;
 
   if (!activeOwner) {
@@ -1157,7 +1135,7 @@ async function saetPull() {
   }
   showMsg("#msgSaet", "");
 
-  st.saet.vis = $("#saetVisFilter")?.value || "";
+  st.saet.vis = "";
   st.saet.q = $("#saetQ")?.value || "";
 
   const [usage, total, rows] = await Promise.all([
@@ -1536,15 +1514,9 @@ function bindSaetControls() {
       showMsg("#msgSaet", "Vælg først en admin-profil (centralbibliotek).");
       return;
     }
-    const ownerSel = $("#saetOwnerFilterSel");
-    if (ownerSel) {
-      ownerSel.value = adminId;
-    }
     st.saet.owner = adminId;
     const qInput = $("#saetQ");
     if (qInput) qInput.value = "";
-    const visSel = $("#saetVisFilter");
-    if (visSel) visSel.value = "";
     st.saet.page = 0;
     saetPull();
   });
