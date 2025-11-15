@@ -886,7 +886,7 @@ function populateSaetIsbnSelect(selectEl, ownerId, selectedIsbn) {
   selectEl.disabled = false;
   selectEl.appendChild(el("option", { value: "" }, "(vælg ISBN)"));
   inventory.forEach(meta => {
-    const label = `${meta.title || "(uden titel)"} – ${meta.isbn} (${meta.count})`;
+    const label = `${meta.isbn || ""} – ${meta.title || "(uden titel)"} – ${meta.author || ""} – ${meta.faust || ""}`;
     selectEl.appendChild(el("option", { value: meta.isbn }, label));
   });
 
