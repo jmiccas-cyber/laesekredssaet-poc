@@ -1365,8 +1365,10 @@ function bindSaetControls() {
     if (ownerSel) {
       ownerSel.value = adminId;
     }
-    $("#saetQ")?.value = "";
-    $("#saetVisFilter")?.value = "";
+    const qInput = $("#saetQ");
+    if (qInput) qInput.value = "";
+    const visSel = $("#saetVisFilter");
+    if (visSel) visSel.value = "";
     st.saet.page = 0;
     saetPull();
   });
