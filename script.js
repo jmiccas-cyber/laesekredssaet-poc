@@ -384,9 +384,12 @@ function renderLayout() {
 }
 
 function bindTabs() {
-  $$(".tabs button[data-tab]").forEach(btn => {
+  const tabButtons = $$(".tabs button[data-tab]");
+  tabButtons.forEach(btn => {
     btn.addEventListener("click", () => {
       const tabId = btn.getAttribute("data-tab");
+      tabButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
       $$(".panel").forEach(p => p.classList.remove("active"));
       const panel = $("#" + tabId);
       if (panel) panel.classList.add("active");
