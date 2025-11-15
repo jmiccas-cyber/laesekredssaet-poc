@@ -1070,6 +1070,16 @@ async function saetPull() {
     const isbnSel = el("select", { class: "saet-isbn" });
     const isbnField = el("input", { type: "text", class: "saet-isbn-field", value: r.isbn || "", readonly: true });
     const isbnWrap = el("div", { class: "saet-isbn-wrap" }, isbnField, isbnSel);
+    isbnWrap.style.position = "relative";
+    Object.assign(isbnSel.style, {
+      position: "absolute",
+      inset: "0",
+      width: "100%",
+      height: "100%",
+      opacity: "0",
+      cursor: "pointer",
+      background: "transparent"
+    });
     populateSaetIsbnSelect(isbnSel, r.owner_bibliotek_id, r.isbn || "");
     const faIn = el("input", { class: "saet-faust", value: r.faust || "" });
     const reqIn = el("input", {
@@ -1301,6 +1311,16 @@ function saetNewRow() {
   const isbnSel = el("select", { class: "saet-isbn" });
   const isbnField = el("input", { type: "text", class: "saet-isbn-field", readonly: true });
   const isbnWrap = el("div", { class: "saet-isbn-wrap" }, isbnField, isbnSel);
+  isbnWrap.style.position = "relative";
+  Object.assign(isbnSel.style, {
+    position: "absolute",
+    inset: "0",
+    width: "100%",
+    height: "100%",
+    opacity: "0",
+    cursor: "pointer",
+    background: "transparent"
+  });
   populateSaetIsbnSelect(isbnSel, ownerId, "");
 
   const activeSel = el("select", { class: "saet-active" },
