@@ -197,6 +197,28 @@
       margin-bottom: 6px;
       font-size: 16px;
     }
+    .saet-availability {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.8rem;
+      height: 1.8rem;
+      border-radius: 50%;
+      font-size: 1rem;
+      font-weight: 700;
+      margin-left: 4px;
+      color: #fff;
+      background: #4b5563;
+    }
+    .saet-availability[data-state="ok"] {
+      background: #0f9d58;
+    }
+    .saet-availability[data-state="warning"] {
+      background: #f59e0b;
+    }
+    .saet-availability[data-state="error"] {
+      background: #dc2626;
+    }
   </style>
   <script src="https://unpkg.com/@supabase/supabase-js@2.48.0/dist/umd/supabase.min.js"></script>
 </head>

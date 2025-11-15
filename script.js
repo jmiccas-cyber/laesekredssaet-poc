@@ -1104,6 +1104,7 @@ async function saetPull() {
       style: "width:6ch"
     });
     const reqHint = el("span", { class: "saet-availability", title: "" }, "●");
+    reqHint.dataset.state = "error";
     const weeksIn = el("input", {
       type: "number",
       class: "saet-weeks",
@@ -1365,6 +1366,7 @@ function saetNewRow() {
 
   const reqIn = el("input", { type: "number", class: "saet-requested", value: "1", min: "1", style: "width:6ch" });
   const reqHint = el("span", { class: "saet-availability", title: "" }, "●");
+  reqHint.dataset.state = "error";
   const weeksIn = el("input", { type: "number", class: "saet-weeks", value: "8", min: "1", max: "12" });
   const bufferIn = el("input", { type: "number", class: "saet-buffer", value: "0", min: "0", style: "width:6ch" });
   const minIn = el("input", { type: "number", class: "saet-min", value: "0", min: "0" });
