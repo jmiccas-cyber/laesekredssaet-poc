@@ -920,7 +920,8 @@ function updateSaetAvailability(tr) {
 
   const savedCount = Number(tr.dataset.savedCount || 0);
   if (!ownerId || !isbn) {
-    hint.textContent = "Vælg først ejer og ISBN.";
+    hint.title = "Vælg først ejer og ISBN.";
+    hint.dataset.state = "error";
     reqInput.max = "";
     return;
   }
@@ -932,19 +933,22 @@ function updateSaetAvailability(tr) {
   const maxForRow = Math.max(0, remaining);
   const desired = Math.floor(Number(reqInput.value || 0));
 
-  if (!available) {
-    hint.textContent = "Ingen eksemplarer i beholdningen med dette ISBN.";
-    reqInput.max = 0;
+  if (!available || maxForRow <= 0) {
+    hint.title = available
+      ? `Andre sæt bruger ${otherUsed} af ${available} eksemplarer. Der er ingen ledige tilbage.`
+      : "Ingen eksemplarer i beholdningen med dette ISBN.";
+    hint.dataset.state = "error";
+    reqInput.max = maxForRow || 0;
     return;
   }
 
-  let note = `Andre sæt bruger ${otherUsed} af ${available} eksemplarer. Max til dette sæt: ${maxForRow}.`;
-  if (maxForRow <= 0) {
-    note += " Der er ingen ledige eksemplarer tilbage.";
-  } else if (desired > maxForRow) {
-    note += ` Reducér til højst ${maxForRow}.`;
+  if (desired > maxForRow) {
+    hint.title = `Du har valgt ${desired}, men der er kun ${maxForRow} ledige (${available} total, ${otherUsed} bruges af andre sæt).`;
+    hint.dataset.state = "warning";
+  } else {
+    hint.title = `Andre sæt bruger ${otherUsed} af ${available} eksemplarer. Max til dette sæt: ${maxForRow}.`;
+    hint.dataset.state = "ok";
   }
-  hint.textContent = note;
   reqInput.max = maxForRow || "";
 }
 
@@ -1088,7 +1092,7 @@ async function saetPull() {
       value: r.requested_count ?? 1,
       min: "1"
     });
-    const reqHint = el("div", { class: "hint saet-availability" });
+    const reqHint = el("span", { class: "saet-availability", title: "" }, "●");
     const weeksIn = el("input", {
       type: "number",
       class: "saet-weeks",
@@ -1138,7 +1142,7 @@ async function saetPull() {
       el("td", {}, auIn),
       el("td", {}, isbnWrap),
       el("td", {}, faIn),
-      el("td", {}, reqIn, reqHint),
+    el("td", {}, reqIn, " ", reqHint),
       el("td", {}, weeksIn),
       el("td", {}, bufferIn),
       el("td", {}, visSel),
@@ -1349,7 +1353,7 @@ function saetNewRow() {
   }
 
   const reqIn = el("input", { type: "number", class: "saet-requested", value: "1", min: "1" });
-  const reqHint = el("div", { class: "hint saet-availability" });
+  const reqHint = el("span", { class: "saet-availability", title: "" }, "●");
   const weeksIn = el("input", { type: "number", class: "saet-weeks", value: "8", min: "1", max: "12" });
   const bufferIn = el("input", { type: "number", class: "saet-buffer", value: "0", min: "0" });
   const minIn = el("input", { type: "number", class: "saet-min", value: "0", min: "0" });
@@ -1360,7 +1364,7 @@ function saetNewRow() {
     el("td", {}, el("input", { class: "saet-author" })),
     el("td", {}, isbnWrap),
     el("td", {}, el("input", { class: "saet-faust" })),
-    el("td", {}, reqIn, reqHint),
+    el("td", {}, reqIn, " ", reqHint),
     el("td", {}, weeksIn),
     el("td", {}, bufferIn),
     el("td", {}, visSel),

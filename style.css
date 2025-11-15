@@ -99,5 +99,27 @@ footer {
   height: 100%;
   opacity: 0;
   cursor: pointer;
-  padding: 0 1rem;
+}
+
+.saet-availability {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: bold;
+}
+
+.saet-availability[data-state="ok"] {
+  color: #0d6832;
+}
+
+.saet-availability[data-state="warning"] {
+  color: #c2410c;
+}
+
+.saet-availability[data-state="error"] {
+  color: #b91c1c;
 }
