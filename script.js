@@ -1144,9 +1144,10 @@ async function saetPull() {
 
     const minIn = el("input", { type: "number", class: "saet-min", value: r.min_delivery ?? 0, min: "0" });
 
-    const btnSave = el("button", { class: "btn", onclick: () => saetSaveRow(tr) }, "Gem");
-    const btnDel = el("button", { class: "btn", onclick: () => saetDeleteRow(tr) }, "Slet");
-    const actions = el("td", {}, btnSave, " ", btnDel);
+    const btnSave = el("button", { class: "btn btn-small", onclick: () => saetSaveRow(tr) }, "Gem");
+    const btnDel = el("button", { class: "btn btn-small", onclick: () => saetDeleteRow(tr) }, "Slet");
+    const saveCell = el("td", {}, btnSave);
+    const deleteCell = el("td", {}, btnDel);
 
     tr.append(
       idCell,
@@ -1163,7 +1164,8 @@ async function saetPull() {
       el("td", {}, subSel),
       el("td", {}, partSel),
       el("td", {}, minIn),
-      actions
+      saveCell,
+      deleteCell
     );
 
     isbnSel.addEventListener("change", () => {
@@ -1357,8 +1359,8 @@ function saetNewRow() {
   );
   partSel.value = "false";
 
-  const btnSave = el("button", { class: "btn", onclick: () => saetSaveRow(tr) }, "Gem");
-  const btnCancel = el("button", { class: "btn", onclick: () => tr.remove() }, "Annullér");
+  const btnSave = el("button", { class: "btn btn-small", onclick: () => saetSaveRow(tr) }, "Gem");
+  const btnCancel = el("button", { class: "btn btn-small", onclick: () => tr.remove() }, "Annullér");
   if (isbnSel.disabled) {
     btnSave.disabled = true;
     btnSave.title = "Ingen titler i beholdningen for det valgte centralbibliotek.";
@@ -1386,7 +1388,8 @@ function saetNewRow() {
     el("td", {}, subSel),
     el("td", {}, partSel),
     el("td", {}, minIn),
-    el("td", {}, btnSave, " ", btnCancel)
+    el("td", {}, btnSave),
+    el("td", {}, btnCancel)
   );
   tb.prepend(tr);
 
