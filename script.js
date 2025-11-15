@@ -55,6 +55,14 @@ function fmtOwnerCity(lib) {
   return (name.split(" ")[0] || name).trim();
 }
 
+function isSuperLibrary(lib) {
+  if (!lib) return false;
+  if (lib.is_super_admin) return true;
+  const id = (lib.bibliotek_id || "").toLowerCase();
+  const name = (lib.bibliotek_navn || "").toLowerCase();
+  return id === "gent" || name.includes("gentofte");
+}
+
 function currentAdminId() {
   return st.profile?.adminCentralId || "";
 }
@@ -185,18 +193,28 @@ async function loadLibraries() {
   st.libs.byId = Object.fromEntries(rows.map(x => [x.bibliotek_id, x]));
   st.libs.centrals = rows.filter(x => x.is_central);
   st.libs.locals = rows.filter(x => !x.is_central);
+  populateSaetOwnerSelect();
 
   // Sæt-ejer filter
   // Region: dropdown med lånerbiblioteker
   const relLocal = document.querySelector("#relLocal");
   if (relLocal) {
     relLocal.innerHTML = "";
-    st.libs.locals.forEach(lib => {
-      relLocal.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
-    });
-  }
+  st.libs.locals.forEach(lib => {
+    relLocal.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
+  });
+}
 
-  // Hvis der ikke er valgt admin-central, sæt default = Gentofte eller første central
+function populateSaetOwnerSelect() {
+  const sel = document.querySelector("#saetOwnerFilterSel");
+  if (!sel) return;
+  sel.innerHTML = "";
+  st.libs.centrals.forEach(lib => {
+    sel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
+  });
+}
+
+// Hvis der ikke er valgt admin-central, sæt default = Gentofte eller første central
   if (!st.profile.adminCentralId && st.libs.centrals.length) {
     const gent = st.libs.centrals.find(x =>
       (x.bibliotek_navn || "").toLowerCase().includes("gentofte")
@@ -1124,7 +1142,25 @@ async function saetPull() {
   }
 
   const adminId = currentAdminId();
-  const activeOwner = adminId || "";
+  const adminLib = st.libs.byId[adminId];
+  const isSuper = isSuperLibrary(adminLib);
+  const ownerWrap = $("#saetOwnerWrap");
+  const ownerSel = $("#saetOwnerFilterSel");
+
+  if (ownerWrap) ownerWrap.style.display = isSuper ? "" : "none";
+  if (ownerSel) {
+    if (isSuper) {
+      if (!ownerSel.options.length) populateSaetOwnerSelect();
+    } else {
+      ownerSel.value = "";
+    }
+  }
+
+  let activeOwner = adminId || "";
+  if (isSuper && ownerSel) {
+    if (!ownerSel.value) ownerSel.value = adminId;
+    activeOwner = ownerSel.value;
+  }
   st.saet.owner = activeOwner;
 
   if (!activeOwner) {
@@ -1444,6 +1480,10 @@ function bindSaetControls() {
       return;
     }
     st.saet.owner = adminId;
+    const ownerSel = $("#saetOwnerFilterSel");
+    if (ownerSel) {
+      ownerSel.value = adminId;
+    }
     const qInput = $("#saetQ");
     if (qInput) qInput.value = "";
     st.saet.page = 0;
@@ -1457,6 +1497,11 @@ function bindSaetControls() {
       const field = th.dataset.sort;
       if (field) setSaetSort(field);
     });
+  });
+  $("#saetOwnerFilterSel")?.addEventListener("change", () => {
+    st.saet.owner = $("#saetOwnerFilterSel").value || currentAdminId();
+    st.saet.page = 0;
+    saetPull();
   });
   $("#saetPrev")?.addEventListener("click", () => {
     if (st.saet.page > 0) {

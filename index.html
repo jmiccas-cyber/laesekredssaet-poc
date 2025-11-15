@@ -401,12 +401,15 @@ td {
           og antal eksemplarer per sæt kontrolleres mod det samlede antal eksemplarer.
           Synlighed (national/regional) og ejer-sted (centralbibliotek) styrer, hvilke bookere der kan se sættet.
         </p>
-        <div class="row" style="margin-top:6px;">
-          <div>
-            <label>&nbsp;</label>
+        <div class="row" style="margin-top:6px; align-items:flex-end;">
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
             <button id="btnSaetNew" class="btn">+ Nyt sæt</button>
             <button id="btnSaetMine" class="btn">Genindlæs mine sæt</button>
             <button id="btnSaetSaveAll" class="btn primary" disabled>Gem ændringer</button>
+          </div>
+          <div id="saetOwnerWrap" style="min-width:220px; display:none;">
+            <label for="saetOwnerFilterSel">Vis sæt for</label>
+            <select id="saetOwnerFilterSel"></select>
           </div>
           <div style="flex:1; min-width:220px; margin-left:auto;">
             <label for="saetQ">Søg (titel/forfatter/ISBN/FAUST)</label>
