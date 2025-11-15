@@ -477,23 +477,23 @@ td {
           <select id="relCentralAssign"></select>
         </div>
         <div style="flex:1; min-width:260px;">
-          <label for="relLocal">Tilføj eksisterende lånerbibliotek</label>
+          <label for="relLocal">Tilfï¿½j eksisterende regionsbibliotek</label>
           <div style="display:flex; gap:6px;">
             <select id="relLocal" style="flex:1;"></select>
-            <button id="btnRelAdd" class="btn">+ Tilføj relation</button>
+            <button id="btnRelAdd" class="btn">+ Tilfï¿½j relation</button>
           </div>
         </div>
       </div>
       <p class="hint" style="margin-top:8px;">
-        Filtrér relationer pr. centralbibliotek og tilknyt eksisterende biblioteker til de seks centraler.
+        Filtrï¿½r relationer pr. centralbibliotek og tilknyt eksisterende biblioteker til de seks centraler.
       </p>
     </div>
 
     <div class="card" style="margin-bottom:12px;">
-      <h3 style="margin-top:0; font-size:14px;">Opret nyt lånerbibliotek</h3>
+      <h3 style="margin-top:0; font-size:14px;">Opret nyt regionsbibliotek</h3>
       <div class="row">
         <div>
-          <label for="newLocalId">Biblioteksnummer (1–20 tegn)</label>
+          <label for="newLocalId">Biblioteksnummer (1ï¿½20 tegn)</label>
           <input id="newLocalId" type="text" />
         </div>
         <div style="flex:1; min-width:220px;">
@@ -531,7 +531,7 @@ td {
         </div>
         <div style="margin-left:auto;">
           <label>&nbsp;</label>
-          <button id="btnCreateLocal" class="btn primary">Opret lånerbibliotek</button>
+          <button id="btnCreateLocal" class="btn primary">Opret regionsbibliotek</button>
         </div>
       </div>
     </div>
@@ -543,10 +543,10 @@ td {
         <thead>
         <tr>
           <th>relation_id</th>
-          <th>Lånerbibliotek</th>
+          <th>regionsbibliotek</th>
           <th>Centralbibliotek</th>
           <th>Relation aktiv</th>
-          <th>Låner aktiv</th>
+          <th>Lï¿½ner aktiv</th>
           <th>Handling</th>
         </tr>
         </thead>
@@ -620,7 +620,7 @@ td {
         <label for="roleSelect">Rolle</label>
         <select id="roleSelect">
           <option value="admin">Admin (centralbibliotek)</option>
-          <option value="booker">Booker (lÃ¥nerbibliotek)</option>
+          <option value="booker">Booker (regionsbibliotek)</option>
         </select>
       </div>
       <div id="adminProfileWrap">
@@ -628,7 +628,7 @@ td {
         <select id="adminProfileSel"></select>
       </div>
       <div id="bookerProfileWrap" style="display:none;">
-        <label for="bookerProfileSel">LÃ¥nerbibliotek</label>
+        <label for="bookerProfileSel">Regionsbibliotek</label>
         <select id="bookerProfileSel"></select>
       </div>
       <div style="margin-left:auto;">
@@ -645,6 +645,9 @@ td {
 
 </body>
 </html>
+
+
+
 
 
 

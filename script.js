@@ -204,14 +204,7 @@ async function loadLibraries() {
   populateSaetOwnerSelect();
 
   // Sæt-ejer filter
-  // Region: dropdown med lånerbiblioteker
-  const relLocal = document.querySelector("#relLocal");
-  if (relLocal) {
-    relLocal.innerHTML = "";
-  st.libs.locals.forEach(lib => {
-    relLocal.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
-  });
-}
+  populateRegionSelects();
 
 function populateCentralDropdown(select, { includeAll = false, allLabel = "(alle)" } = {}) {
   if (!select) return;
@@ -226,6 +219,56 @@ function populateCentralDropdown(select, { includeAll = false, allLabel = "(alle
 
 function populateSaetOwnerSelect() {
   populateCentralDropdown(document.querySelector("#saetOwnerFilterSel"));
+}
+
+function populateRegionSelects() {
+  const locals = st.libs.locals || [];
+  const relLocal = document.querySelector("#relLocal");
+  if (relLocal) {
+    relLocal.innerHTML = "";
+    locals.forEach(lib => {
+      relLocal.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
+    });
+  }
+  const detailSel = document.querySelector("#relDetailSel");
+  if (detailSel) {
+    const current = detailSel.value;
+    detailSel.innerHTML = '<option value="">(vælg regionsbibliotek)</option>';
+    locals.forEach(lib => {
+      detailSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
+    });
+    if (current && locals.some(lib => lib.bibliotek_id === current)) {
+      detailSel.value = current;
+    }
+    renderRegionDetails();
+  }
+}
+
+function renderRegionDetails() {
+  const info = $("#relDetailInfo");
+  if (!info) return;
+  const id = $("#relDetailSel")?.value || "";
+  if (!id) {
+    info.textContent = "Vælg et regionsbibliotek for at se detaljer.";
+    return;
+  }
+  const lib = st.libs.byId[id];
+  if (!lib) {
+    info.textContent = "Biblioteket findes ikke længere.";
+    return;
+  }
+  const addr = lib.address || "-";
+  const postal = lib.postal_code || "";
+  const city = lib.city || "";
+  const notes = lib.notes || "-";
+  const active = lib.active !== false ? "Ja" : "Nej";
+  info.innerHTML = `
+    <strong>${fmtLibLabel(lib)}</strong><br>
+    Adresse: ${addr}<br>
+    Postnummer / by: ${postal} ${city}<br>
+    Aktiv: ${active}<br>
+    Kommentarer/pakkenoter: ${notes}
+  `;
 }
 
 // Hvis der ikke er valgt admin-central, sæt default = Gentofte eller første central
@@ -261,7 +304,7 @@ function loadProfileDropdown() {
   }
 
   if (!locals.length) {
-    bookerSel.appendChild(el("option", { value: "" }, "(ingen lånerbiblioteker fundet)"));
+    bookerSel.appendChild(el("option", { value: "" }, "(ingen regionsbiblioteker fundet)"));
   } else {
     locals.forEach(lib => {
       bookerSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
@@ -307,7 +350,7 @@ function renderRoleBadge() {
   } else {
     const id = st.profile.bookerLocalId;
     const lib = id ? st.libs.byId[id] : null;
-    profileText.textContent = lib ? ` · ${fmtLibLabel(lib)}` : " · (ingen låner valgt)";
+    profileText.textContent = lib ? ` · ${fmtLibLabel(lib)}` : " · (ingen regionsbibliotek valgt)";
   }
 }
 
@@ -411,7 +454,7 @@ async function openRoleModal(targetRole) {
 
     if (newRole === "booker") {
       if (!bookerSel.value) {
-        alert("Vælg et lånerbibliotek.");
+        alert("Vælg et regionsbibliotek.");
         return;
       }
       st.role = "booker";
@@ -1638,11 +1681,11 @@ async function relAddExisting() {
   }
   const local = $("#relLocal")?.value;
   if (!local) {
-    showMsg("#msgRel", "Vælg lånerbibliotek.");
+    showMsg("#msgRel", "Vælg regionsbibliotek.");
     return;
   }
   if (local === centralId) {
-    showMsg("#msgRel", "Et bibliotek kan ikke være sin egen låner.");
+    showMsg("#msgRel", "Et bibliotek kan ikke være sin egen region.");
     return;
   }
 
@@ -1663,7 +1706,7 @@ async function relCreateLocal() {
   if (!sb) return;
   const centralId = $("#newLocalCentral")?.value || currentAdminId();
   if (!centralId) {
-    showMsg("#msgRel", "Vælg hvilket centralbibliotek låneren skal tilknyttes.");
+    showMsg("#msgRel", "Vælg hvilket centralbibliotek regionen skal tilknyttes.");
     return;
   }
   const id = $("#newLocalId")?.value.trim();
@@ -1707,7 +1750,7 @@ async function relCreateLocal() {
   if (e2) {
     showMsg("#msgRel", "Bibliotek oprettet, men fejl ved relation: " + e2.message);
   } else {
-    showMsg("#msgRel", "Lånerbibliotek oprettet og relateret", true);
+    showMsg("#msgRel", "Regionsbibliotek oprettet og relateret", true);
     ["#newLocalId","#newLocalName","#newLocalAddress","#newLocalPostal","#newLocalCity","#newLocalNotes"].forEach(sel => {
       const input = $(sel);
       if (input) input.value = "";
@@ -1725,6 +1768,8 @@ function bindRelControls() {
   $("#relFilterSel")?.addEventListener("change", () => {
     relList();
   });
+  $("#relDetailSel")?.addEventListener("change", renderRegionDetails);
+  renderRegionDetails();
   // Auto-gem ændringer i active-dropdowns når man forlader fanen kunne laves her – vi holder det manuelt
 }
 
@@ -1829,7 +1874,7 @@ function renderBookerResults() {
 
 async function bookerSearch() {
   if (!st.profile.bookerLocalId) {
-    showMsg("#bMsg", "Vælg først en booker-profil (lånerbibliotek).");
+    showMsg("#bMsg", "Vælg først en booker-profil (regionsbibliotek).");
     return;
   }
   st.b.q = $("#bQ")?.value || "";
@@ -2040,5 +2085,9 @@ async function saetSaveAll() {
     alert("Kunne ikke gemme følgende sæt:\n" + failures.join("\n"));
   }
 }
+
+
+
+
 
 
