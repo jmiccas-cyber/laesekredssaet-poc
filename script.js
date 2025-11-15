@@ -1114,6 +1114,7 @@ async function saetPull() {
       max: "12"
     });
     const bufferIn = el("input", { type: "number", class: "saet-buffer", value: r.buffer_days ?? 0, min: "0", style: "width:6ch" });
+    const bufferWrap = el("div", { class: "buffer-wrap" }, bufferIn, " dg");
 
     const visSel = el("select", { class: "saet-vis" },
       el("option", { value: "national" }, "national"),
@@ -1158,7 +1159,7 @@ async function saetPull() {
       el("td", {}, faIn),
     el("td", {}, reqIn, " ", reqHint),
       el("td", {}, weeksIn),
-      el("td", {}, bufferIn),
+      el("td", {}, bufferWrap),
       el("td", {}, visSel),
       el("td", {}, ownerLabel, ownerHidden),
       el("td", {}, activeSel),
@@ -1372,6 +1373,7 @@ function saetNewRow() {
   reqHint.dataset.state = "error";
   const weeksIn = el("input", { type: "number", class: "saet-weeks", value: "8", min: "1", max: "12" });
   const bufferIn = el("input", { type: "number", class: "saet-buffer", value: "0", min: "0", style: "width:6ch" });
+  const bufferWrap = el("div", { class: "buffer-wrap" }, bufferIn, " dg");
   const minIn = el("input", { type: "number", class: "saet-min", value: "0", min: "0" });
 
   tr.append(
@@ -1382,7 +1384,7 @@ function saetNewRow() {
     el("td", {}, el("input", { class: "saet-faust", style: "width:6ch" })),
     el("td", {}, reqIn, " ", reqHint),
     el("td", {}, weeksIn),
-    el("td", {}, bufferIn),
+    el("td", {}, bufferWrap),
     el("td", {}, visSel),
     el("td", {}, ownerLabel, ownerHidden),
     el("td", {}, activeSel),

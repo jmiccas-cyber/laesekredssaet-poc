@@ -138,12 +138,17 @@ select {
   font-size: var(--table-row-size);
   font-family: var(--table-row-font);
 }
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: var(--table-row-size);
-  margin-top: 8px;
-}
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: var(--table-row-size);
+      margin-top: 8px;
+    }
+    table input,
+    table select {
+      font-family: var(--table-row-font);
+      font-size: var(--table-row-size);
+    }
     th, td {
       border: 1px solid #ddd;
       padding: 4px 6px;
@@ -234,6 +239,20 @@ td {
     }
     .saet-availability[data-state="warning"] {
       background: #f59e0b;
+    }
+    .buffer-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .buffer-wrap input {
+      width: 60px;
+      font-family: var(--table-row-font);
+      font-size: var(--table-row-size);
+    }
+    .buffer-wrap span,
+    .buffer-wrap label {
+      font-size: var(--table-row-size);
     }
     .saet-availability[data-state="error"] {
       background: #dc2626;
@@ -373,7 +392,7 @@ td {
             <th>FAUST</th>
             <th>Eksemplarer i sæt</th>
             <th>Bookinguger (1-12)</th>
-            <th>Bufferdage</th>
+            <th>Buffer</th>
             <th>Synlighed</th>
             <th>Ejer</th>
             <th>Aktiv</th>
