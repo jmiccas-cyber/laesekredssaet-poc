@@ -190,6 +190,7 @@ async function loadLibraries() {
 }
 
 
+
 // ----------------------------------------------------------
 // 5. Rolle / layout / profil-modal
 // ----------------------------------------------------------
@@ -352,6 +353,7 @@ async function openRoleModal(targetRole) {
 
   modal.style.display = "flex";
 }
+
 
 
   function updateRoleWrap() {
