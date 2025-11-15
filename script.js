@@ -1125,7 +1125,7 @@ async function saetPull() {
       idCell,
       el("td", {}, tiIn),
       el("td", {}, auIn),
-      el("td", {}, isbnSel, el("div", {}, isbnField)),
+      el("td", {}, isbnField),
       el("td", {}, faIn),
       el("td", {}, reqIn, reqHint),
       el("td", {}, weeksIn),
@@ -1330,7 +1330,7 @@ function saetNewRow() {
     el("td", {}, ""), // ID (autoincrement)
     el("td", {}, el("input", { class: "saet-title" })),
     el("td", {}, el("input", { class: "saet-author" })),
-    el("td", {}, isbnSel, el("div", {}, isbnField)),
+    el("td", {}, isbnField),
     el("td", {}, el("input", { class: "saet-faust" })),
     el("td", {}, reqIn, reqHint),
     el("td", {}, weeksIn),
