@@ -1237,15 +1237,24 @@ async function saetSaveRow(tr) {
   if (!sb) return;
   const setId = tr.dataset.setId ? Number(tr.dataset.setId) : null;
 
-  const title = tr.querySelector(".saet-title")?.value.trim() || "";
-  const author = tr.querySelector(".saet-author")?.value.trim() || "";
   const isbn = tr.querySelector(".saet-isbn")?.value || "";
-  const faust = tr.querySelector(".saet-faust")?.value.trim() || "";
+  const owner_bibliotek_id = tr.querySelector(".saet-owner")?.value || currentAdminId() || "";
+
+  let title = tr.querySelector(".saet-title")?.value.trim() || "";
+  let author = tr.querySelector(".saet-author")?.value.trim() || "";
+  let faust = tr.querySelector(".saet-faust")?.value.trim() || "";
+
+  const meta = getInventoryMeta(owner_bibliotek_id, isbn);
+  if (meta) {
+    if (meta.title) title = meta.title;
+    if (meta.author) author = meta.author;
+    if (meta.faust) faust = meta.faust;
+  }
+
   const requested_count = Math.floor(Number(tr.querySelector(".saet-requested")?.value || 0));
   const loan_weeks = Number(tr.querySelector(".saet-weeks")?.value || 0);
   const buffer_days = Number(tr.querySelector(".saet-buffer")?.value || 0);
   const visibility = (tr.querySelector(".saet-vis")?.value || "national").toLowerCase();
-  const owner_bibliotek_id = tr.querySelector(".saet-owner")?.value || currentAdminId() || "";
   const active = (tr.querySelector(".saet-active")?.value || "true") === "true";
   const allow_substitution = (tr.querySelector(".saet-sub")?.value || "false") === "true";
   const allow_partial = (tr.querySelector(".saet-part")?.value || "false") === "true";
