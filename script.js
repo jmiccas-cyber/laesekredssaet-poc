@@ -63,6 +63,11 @@ const st = {
     centrals: [],
     locals: []
   },
+  stock: {
+    list: [],
+    byOwner: {},
+    byOwnerMap: {}
+  },
   eks: {
     page: 0,
     pageSize: 20,
@@ -76,7 +81,8 @@ const st = {
     total: 0,
     owner: "",
     vis: "",
-    q: ""
+    q: "",
+    usage: {}
   },
   b: {
     page: 0,
@@ -461,6 +467,71 @@ function updateEksSaveButton() {
   }
 }
 
+async function loadInventorySummary() {
+  if (!sb) return;
+
+  const { data, error } = await sb
+    .from("tbl_beholdning")
+    .select("owner_bibliotek_id,isbn,title,author,faust,count:count(*)")
+    .neq("isbn", "")
+    .group("owner_bibliotek_id,isbn,title,author,faust")
+    .order("title", { ascending: true });
+
+  if (error) {
+    console.error("Fejl ved loadInventorySummary:", error);
+    st.stock.list = [];
+    st.stock.byOwner = {};
+    st.stock.byOwnerMap = {};
+    return;
+  }
+
+  st.stock.list = data || [];
+  st.stock.byOwner = {};
+  st.stock.byOwnerMap = {};
+
+  (st.stock.list || []).forEach(row => {
+    const owner = row.owner_bibliotek_id || "";
+    if (!owner) return;
+    if (!st.stock.byOwner[owner]) {
+      st.stock.byOwner[owner] = [];
+      st.stock.byOwnerMap[owner] = {};
+    }
+    const meta = {
+      owner_bibliotek_id: owner,
+      isbn: row.isbn,
+      title: row.title,
+      author: row.author,
+      faust: row.faust,
+      count: Number(row.count) || 0
+    };
+    st.stock.byOwner[owner].push(meta);
+    if (meta.isbn) {
+      st.stock.byOwnerMap[owner][meta.isbn] = meta;
+    }
+  });
+
+  Object.values(st.stock.byOwner).forEach(list => {
+    list.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+  });
+
+  refreshSaetInventoryControls();
+}
+
+function getOwnerInventory(ownerId) {
+  if (!ownerId) return [];
+  return st.stock.byOwner[ownerId] || [];
+}
+
+function getInventoryMeta(ownerId, isbn) {
+  if (!ownerId || !isbn) return null;
+  return st.stock.byOwnerMap[ownerId]?.[isbn] || null;
+}
+
+function getInventoryCount(ownerId, isbn) {
+  const meta = getInventoryMeta(ownerId, isbn);
+  return meta ? Number(meta.count) || 0 : 0;
+}
+
 function markEksDirty(tr) {
   if (!tr) return;
   tr.dataset.dirty = "1";
@@ -557,6 +628,7 @@ async function eksSaveAll() {
 
   showMsg("#msg", `Gemte ${payload.length} ændring${payload.length > 1 ? "er" : ""}.`, true);
   await eksPull();
+  await loadInventorySummary();
 }
 
 function eksValidate(r) {
@@ -649,6 +721,7 @@ async function eksDeleteRow(tr) {
   st.eks.total = Math.max(0, (st.eks.total || 0) - 1);
   renderEksPagerInfo();
   updateEksSaveButton();
+  await loadInventorySummary();
 }
 
 function eksNewRow() {
@@ -724,17 +797,143 @@ function bindEksControls() {
 // 7. Admin – Sæt (tbl_saet)
 // ----------------------------------------------------------
 
+async function fetchSaetUsage() {
+  if (!sb) return {};
+  const { data, error } = await sb
+    .from("tbl_saet")
+    .select("owner_bibliotek_id,isbn,total:sum(requested_count)")
+    .group("owner_bibliotek_id,isbn");
+
+  if (error) {
+    console.error("Fejl ved fetchSaetUsage:", error);
+    return {};
+  }
+
+  const usage = {};
+  (data || []).forEach(row => {
+    const owner = row.owner_bibliotek_id || "";
+    if (!owner || !row.isbn) return;
+    if (!usage[owner]) usage[owner] = {};
+    usage[owner][row.isbn] = Number(row.total) || 0;
+  });
+  return usage;
+}
+
+function saetUsageFor(ownerId, isbn) {
+  if (!ownerId || !isbn) return 0;
+  return Number(st.saet.usage?.[ownerId]?.[isbn]) || 0;
+}
+
 function saetValidate(r) {
   if (!r.title) return "Titel skal udfyldes";
   if (!r.visibility || !["national", "regional"].includes(r.visibility.toLowerCase())) {
     return "Synlighed skal være national eller regional";
   }
   if (!r.owner_bibliotek_id) return "Ejer (centralbibliotek) skal udfyldes";
-  if (r.requested_count < 0 || r.loan_weeks < 0 || r.buffer_days < 0 || r.min_delivery < 0) {
+  if (!r.isbn) return "Vælg et ISBN fra beholdningen";
+  if (r.requested_count <= 0) return "Et sæt skal indeholde mindst 1 eksemplar";
+  if (r.loan_weeks < 1 || r.loan_weeks > 12) {
+    return "Bookingperioden skal være mellem 1 og 12 uger";
+  }
+  if (r.buffer_days < 0 || r.min_delivery < 0) {
     return "Talværdier må ikke være negative";
   }
   return null;
 }
+
+function populateSaetIsbnSelect(selectEl, ownerId, selectedIsbn) {
+  if (!selectEl) return;
+  const inventory = getOwnerInventory(ownerId);
+  selectEl.innerHTML = "";
+
+  if (!inventory.length) {
+    selectEl.appendChild(el("option", { value: "" }, "(ingen titler i beholdningen)"));
+    if (selectedIsbn) {
+      selectEl.appendChild(el("option", { value: selectedIsbn }, `${selectedIsbn} (ikke i beholdning)`));
+      selectEl.value = selectedIsbn;
+      selectEl.disabled = false;
+    } else {
+      selectEl.value = "";
+      selectEl.disabled = true;
+    }
+    return;
+  }
+
+  selectEl.disabled = false;
+  selectEl.appendChild(el("option", { value: "" }, "(vælg ISBN)"));
+  inventory.forEach(meta => {
+    const label = `${meta.title || "(uden titel)"} – ${meta.isbn} (${meta.count})`;
+    selectEl.appendChild(el("option", { value: meta.isbn }, label));
+  });
+
+  if (selectedIsbn && !inventory.some(m => m.isbn === selectedIsbn)) {
+    selectEl.appendChild(el("option", { value: selectedIsbn }, `${selectedIsbn} (ikke i beholdning)`));
+  }
+  selectEl.value = selectedIsbn || "";
+}
+
+function applyInventoryMeta(tr, ownerId, isbn, force = false) {
+  const meta = getInventoryMeta(ownerId, isbn);
+  if (!meta) return;
+  const titleEl = tr.querySelector(".saet-title");
+  const authorEl = tr.querySelector(".saet-author");
+  const faustEl = tr.querySelector(".saet-faust");
+
+  if (titleEl && (force || !titleEl.value)) titleEl.value = meta.title || "";
+  if (authorEl && (force || !authorEl.value)) authorEl.value = meta.author || "";
+  if (faustEl && (force || !faustEl.value)) faustEl.value = meta.faust || "";
+}
+
+function updateSaetAvailability(tr) {
+  if (!tr) return;
+  const ownerId = tr.querySelector(".saet-owner")?.value || "";
+  const isbn = tr.querySelector(".saet-isbn")?.value || "";
+  const reqInput = tr.querySelector(".saet-requested");
+  const hint = tr.querySelector(".saet-availability");
+  if (!reqInput || !hint) return;
+
+  const savedCount = Number(tr.dataset.savedCount || 0);
+  if (!ownerId || !isbn) {
+    hint.textContent = "Vælg først ejer og ISBN.";
+    reqInput.max = "";
+    return;
+  }
+
+  const available = getInventoryCount(ownerId, isbn);
+  const usedTotal = saetUsageFor(ownerId, isbn);
+  const otherUsed = Math.max(0, usedTotal - savedCount);
+  const remaining = available - otherUsed;
+  const maxForRow = Math.max(0, remaining);
+  const desired = Math.floor(Number(reqInput.value || 0));
+
+  if (!available) {
+    hint.textContent = "Ingen eksemplarer i beholdningen med dette ISBN.";
+    reqInput.max = 0;
+    return;
+  }
+
+  let note = `Andre sæt bruger ${otherUsed} af ${available} eksemplarer. Max til dette sæt: ${maxForRow}.`;
+  if (maxForRow <= 0) {
+    note += " Der er ingen ledige eksemplarer tilbage.";
+  } else if (desired > maxForRow) {
+    note += ` Reducér til højst ${maxForRow}.`;
+  }
+  hint.textContent = note;
+  reqInput.max = maxForRow || "";
+}
+
+function refreshSaetInventoryControls() {
+  $$("#tblSaet tbody tr").forEach(tr => {
+    const ownerId = tr.querySelector(".saet-owner")?.value || "";
+    const isbnSel = tr.querySelector(".saet-isbn");
+    if (isbnSel) {
+      const current = isbnSel.value;
+      populateSaetIsbnSelect(isbnSel, ownerId, current);
+    }
+    updateSaetAvailability(tr);
+  });
+}
+
 
 async function saetCount() {
   if (!sb) return 0;
@@ -793,27 +992,51 @@ async function saetPull() {
   const tb = $("#tblSaet tbody");
   if (!tb) return;
 
+  if (!st.stock.list.length) {
+    await loadInventorySummary();
+  }
+
   st.saet.owner = $("#saetOwnerFilterSel")?.value || "";
   st.saet.vis = $("#saetVisFilter")?.value || "";
   st.saet.q = $("#saetQ")?.value || "";
 
-  st.saet.total = await saetCount();
-  const rows = await saetFetch();
+  const [usage, total, rows] = await Promise.all([
+    fetchSaetUsage(),
+    saetCount(),
+    saetFetch()
+  ]);
+
+  st.saet.usage = usage;
+  st.saet.total = total;
 
   tb.innerHTML = "";
   rows.forEach(r => {
     const tr = el("tr");
     tr.dataset.setId = r.set_id;
+    tr.dataset.savedCount = String(r.requested_count ?? 0);
 
     const owner = st.libs.byId[r.owner_bibliotek_id];
 
     const idCell = el("td", {}, String(r.set_id ?? ""));
     const tiIn = el("input", { class: "saet-title", value: r.title || "" });
     const auIn = el("input", { class: "saet-author", value: r.author || "" });
-    const isbnIn = el("input", { class: "saet-isbn", value: r.isbn || "" });
+    const isbnSel = el("select", { class: "saet-isbn" });
+    populateSaetIsbnSelect(isbnSel, r.owner_bibliotek_id, r.isbn || "");
     const faIn = el("input", { class: "saet-faust", value: r.faust || "" });
-    const reqIn = el("input", { type: "number", class: "saet-requested", value: r.requested_count ?? 0, min: "0" });
-    const weeksIn = el("input", { type: "number", class: "saet-weeks", value: r.loan_weeks ?? 8, min: "0" });
+    const reqIn = el("input", {
+      type: "number",
+      class: "saet-requested",
+      value: r.requested_count ?? 1,
+      min: "1"
+    });
+    const reqHint = el("div", { class: "hint saet-availability" });
+    const weeksIn = el("input", {
+      type: "number",
+      class: "saet-weeks",
+      value: r.loan_weeks ?? 8,
+      min: "1",
+      max: "12"
+    });
     const bufferIn = el("input", { type: "number", class: "saet-buffer", value: r.buffer_days ?? 0, min: "0" });
 
     const visSel = el("select", { class: "saet-vis" },
@@ -856,9 +1079,9 @@ async function saetPull() {
       idCell,
       el("td", {}, tiIn),
       el("td", {}, auIn),
-      el("td", {}, isbnIn),
+      el("td", {}, isbnSel),
       el("td", {}, faIn),
-      el("td", {}, reqIn),
+      el("td", {}, reqIn, reqHint),
       el("td", {}, weeksIn),
       el("td", {}, bufferIn),
       el("td", {}, visSel),
@@ -869,6 +1092,19 @@ async function saetPull() {
       el("td", {}, minIn),
       actions
     );
+
+    ownerIn.addEventListener("change", () => {
+      populateSaetIsbnSelect(isbnSel, ownerIn.value, "");
+      updateSaetAvailability(tr);
+    });
+    isbnSel.addEventListener("change", () => {
+      applyInventoryMeta(tr, ownerIn.value, isbnSel.value, true);
+      updateSaetAvailability(tr);
+    });
+    reqIn.addEventListener("input", () => updateSaetAvailability(tr));
+    reqIn.addEventListener("change", () => updateSaetAvailability(tr));
+    updateSaetAvailability(tr);
+
     tb.appendChild(tr);
   });
 
@@ -878,15 +1114,55 @@ async function saetPull() {
     : "Ingen sæt fundet";
 }
 
+async function ensureSaetCapacity(ownerId, isbn, requestedCount, currentSetId) {
+  const available = getInventoryCount(ownerId, isbn);
+  if (!available) {
+    return {
+      ok: false,
+      message: "Der er ingen eksemplarer i beholdningen med det valgte ISBN."
+    };
+  }
+
+  const { data, error } = await sb
+    .from("tbl_saet")
+    .select("set_id,requested_count")
+    .eq("owner_bibliotek_id", ownerId)
+    .eq("isbn", isbn);
+
+  if (error) {
+    return {
+      ok: false,
+      message: "Kunne ikke kontrollere øvrige sæt: " + error.message
+    };
+  }
+
+  let otherTotal = 0;
+  (data || []).forEach(row => {
+    const rowId = row.set_id == null ? null : Number(row.set_id);
+    if (currentSetId != null && rowId === currentSetId) return;
+    otherTotal += Number(row.requested_count) || 0;
+  });
+
+  if (requestedCount + otherTotal > available) {
+    const max = Math.max(0, available - otherTotal);
+    return {
+      ok: false,
+      message: `Der er ${available} eksemplarer i beholdningen og andre sæt bruger ${otherTotal}. Du kan maksimalt bruge ${max} eksemplarer i dette sæt.`
+    };
+  }
+
+  return { ok: true };
+}
+
 async function saetSaveRow(tr) {
   if (!sb) return;
   const setId = tr.dataset.setId ? Number(tr.dataset.setId) : null;
 
   const title = tr.querySelector(".saet-title")?.value.trim() || "";
   const author = tr.querySelector(".saet-author")?.value.trim() || "";
-  const isbn = tr.querySelector(".saet-isbn")?.value.trim() || "";
+  const isbn = tr.querySelector(".saet-isbn")?.value || "";
   const faust = tr.querySelector(".saet-faust")?.value.trim() || "";
-  const requested_count = Number(tr.querySelector(".saet-requested")?.value || 0);
+  const requested_count = Math.floor(Number(tr.querySelector(".saet-requested")?.value || 0));
   const loan_weeks = Number(tr.querySelector(".saet-weeks")?.value || 0);
   const buffer_days = Number(tr.querySelector(".saet-buffer")?.value || 0);
   const visibility = (tr.querySelector(".saet-vis")?.value || "national").toLowerCase();
@@ -916,6 +1192,12 @@ async function saetSaveRow(tr) {
   const err = saetValidate(rec);
   if (err) {
     showMsg("#msgSaet", err);
+    return;
+  }
+
+  const capacity = await ensureSaetCapacity(owner_bibliotek_id, isbn, requested_count, setId);
+  if (!capacity.ok) {
+    showMsg("#msgSaet", capacity.message);
     return;
   }
 
@@ -950,6 +1232,7 @@ function saetNewRow() {
   if (!tb) return;
   const tr = el("tr");
   tr.dataset.setId = "";
+   tr.dataset.savedCount = "0";
 
   const visSel = el("select", { class: "saet-vis" },
     el("option", { value: "national" }, "national"),
@@ -962,6 +1245,9 @@ function saetNewRow() {
     ownerSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
   });
   ownerSel.value = st.profile.adminCentralId || (st.libs.centrals[0]?.bibliotek_id || "");
+
+  const isbnSel = el("select", { class: "saet-isbn" });
+  populateSaetIsbnSelect(isbnSel, ownerSel.value, "");
 
   const activeSel = el("select", { class: "saet-active" },
     el("option", { value: "true" }, "Ja"),
@@ -983,25 +1269,48 @@ function saetNewRow() {
 
   const btnSave = el("button", { class: "btn", onclick: () => saetSaveRow(tr) }, "Gem");
   const btnCancel = el("button", { class: "btn", onclick: () => tr.remove() }, "Annullér");
+  if (isbnSel.disabled) {
+    btnSave.disabled = true;
+    btnSave.title = "Ingen titler i beholdningen for det valgte centralbibliotek.";
+  }
+
+  const reqIn = el("input", { type: "number", class: "saet-requested", value: "1", min: "1" });
+  const reqHint = el("div", { class: "hint saet-availability" });
+  const weeksIn = el("input", { type: "number", class: "saet-weeks", value: "8", min: "1", max: "12" });
+  const bufferIn = el("input", { type: "number", class: "saet-buffer", value: "0", min: "0" });
+  const minIn = el("input", { type: "number", class: "saet-min", value: "0", min: "0" });
 
   tr.append(
     el("td", {}, ""), // ID (autoincrement)
     el("td", {}, el("input", { class: "saet-title" })),
     el("td", {}, el("input", { class: "saet-author" })),
-    el("td", {}, el("input", { class: "saet-isbn" })),
+    el("td", {}, isbnSel),
     el("td", {}, el("input", { class: "saet-faust" })),
-    el("td", {}, el("input", { type: "number", class: "saet-requested", value: "0", min: "0" })),
-    el("td", {}, el("input", { type: "number", class: "saet-weeks", value: "8", min: "0" })),
-    el("td", {}, el("input", { type: "number", class: "saet-buffer", value: "0", min: "0" })),
+    el("td", {}, reqIn, reqHint),
+    el("td", {}, weeksIn),
+    el("td", {}, bufferIn),
     el("td", {}, visSel),
     el("td", {}, ownerSel),
     el("td", {}, activeSel),
     el("td", {}, subSel),
     el("td", {}, partSel),
-    el("td", {}, el("input", { type: "number", class: "saet-min", value: "0", min: "0" })),
+    el("td", {}, minIn),
     el("td", {}, btnSave, " ", btnCancel)
   );
   tb.prepend(tr);
+
+  ownerSel.addEventListener("change", () => {
+    populateSaetIsbnSelect(isbnSel, ownerSel.value, "");
+    btnSave.disabled = !!isbnSel.disabled;
+    updateSaetAvailability(tr);
+  });
+  isbnSel.addEventListener("change", () => {
+    applyInventoryMeta(tr, ownerSel.value, isbnSel.value, true);
+    updateSaetAvailability(tr);
+  });
+  reqIn.addEventListener("input", () => updateSaetAvailability(tr));
+  reqIn.addEventListener("change", () => updateSaetAvailability(tr));
+  updateSaetAvailability(tr);
 }
 
 function bindSaetControls() {
@@ -1330,6 +1639,7 @@ async function refreshForRole() {
   renderLayout();
 
   if (st.role === "admin") {
+    await loadInventorySummary();
     await eksPull();
     await saetPull();
     await relList();
