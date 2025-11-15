@@ -283,6 +283,9 @@ td {
     .saet-availability[data-state="error"] {
       background: #dc2626;
     }
+    .saet-dirty {
+      background: #fff7ed;
+    }
     #saveNotice {
       position: fixed;
       top: 12px;
@@ -399,15 +402,18 @@ td {
           Synlighed (national/regional) og ejer-sted (centralbibliotek) styrer, hvilke bookere der kan se sættet.
         </p>
         <div class="row" style="margin-top:6px;">
-          <div style="flex:1; min-width:220px;">
-            <label for="saetQ">Søg (titel/forfatter/ISBN/FAUST)</label>
-            <input id="saetQ" type="text" placeholder="Søg i sæt…" />
-          </div>
-          <div style="margin-left:auto;">
+          <div>
             <label>&nbsp;</label>
-            <button id="btnSaetMine" class="btn">Genindlæs mine sæt</button>
-            <button id="btnSaetSearch" class="btn primary">Søg</button>
             <button id="btnSaetNew" class="btn">+ Nyt sæt</button>
+            <button id="btnSaetMine" class="btn">Genindlæs mine sæt</button>
+            <button id="btnSaetSaveAll" class="btn primary" disabled>Gem ændringer</button>
+          </div>
+          <div style="flex:1; min-width:220px; margin-left:auto;">
+            <label for="saetQ">Søg (titel/forfatter/ISBN/FAUST)</label>
+            <div style="display:flex; gap:6px;">
+              <input id="saetQ" type="text" placeholder="Søg i sæt…" style="flex:1;" />
+              <button id="btnSaetSearch" class="btn primary">Søg</button>
+            </div>
           </div>
         </div>
       </div>
