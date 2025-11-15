@@ -206,6 +206,19 @@ async function loadLibraries() {
   // Sæt-ejer filter
   populateRegionSelects();
 
+// Hvis der ikke er valgt admin-central, sæt default = Gentofte eller første central
+  if (!st.profile.adminCentralId && st.libs.centrals.length) {
+    const gent = st.libs.centrals.find(x =>
+      (x.bibliotek_navn || "").toLowerCase().includes("gentofte")
+    );
+    const chosen = gent || st.libs.centrals[0];
+    st.profile.adminCentralId = chosen.bibliotek_id;
+    st.role = "admin";
+    saveProfile();
+  }
+}
+
+// Centraliseret: fyld profil-dropdowns i modal
 function populateCentralDropdown(select, { includeAll = false, allLabel = "(alle)" } = {}) {
   if (!select) return;
   select.innerHTML = "";
@@ -270,20 +283,6 @@ function renderRegionDetails() {
     Kommentarer/pakkenoter: ${notes}
   `;
 }
-
-// Hvis der ikke er valgt admin-central, sæt default = Gentofte eller første central
-  if (!st.profile.adminCentralId && st.libs.centrals.length) {
-    const gent = st.libs.centrals.find(x =>
-      (x.bibliotek_navn || "").toLowerCase().includes("gentofte")
-    );
-    const chosen = gent || st.libs.centrals[0];
-    st.profile.adminCentralId = chosen.bibliotek_id;
-    st.role = "admin";
-    saveProfile();
-  }
-}
-
-// Centraliseret: fyld profil-dropdowns i modal
 function loadProfileDropdown() {
   const adminSel = document.querySelector("#adminProfileSel");
   const bookerSel = document.querySelector("#bookerProfileSel");
