@@ -1096,7 +1096,7 @@ async function saetPull() {
       background: "transparent"
     });
     populateSaetIsbnSelect(isbnSel, r.owner_bibliotek_id, r.isbn || "");
-    const faIn = el("input", { class: "saet-faust", value: r.faust || "", style: "width:6ch" });
+    const faIn = el("input", { class: "saet-faust", value: r.faust || "", style: "width:6ch", readonly: true });
     const reqIn = el("input", {
       type: "number",
       class: "saet-requested",
@@ -1153,11 +1153,11 @@ async function saetPull() {
 
     tr.append(
       idCell,
-    el("td", {}, isbnWrap),
-    el("td", {}, tiIn),
-    el("td", {}, auIn),
+      el("td", {}, isbnWrap),
+      el("td", {}, tiIn),
+      el("td", {}, auIn),
       el("td", {}, faIn),
-    el("td", {}, reqIn, " ", reqHint),
+      el("td", {}, reqIn, " ", reqHint),
       el("td", {}, weeksIn),
       el("td", {}, bufferWrap),
       el("td", {}, visSel),
@@ -1276,6 +1276,9 @@ async function saetSaveRow(tr) {
     allow_partial,
     min_delivery
   };
+  if (setId == null) {
+    delete rec.set_id;
+  }
 
   const err = saetValidate(rec);
   if (err) {
@@ -1389,10 +1392,10 @@ function saetNewRow() {
 
   tr.append(
     el("td", {}, ""), // ID (autoincrement)
+    el("td", {}, isbnWrap),
     el("td", {}, titleIn),
     el("td", {}, authorIn),
-    el("td", {}, isbnWrap),
-    el("td", {}, el("input", { class: "saet-faust", style: "width:6ch" })),
+    el("td", {}, el("input", { class: "saet-faust", style: "width:6ch", readonly: true })),
     el("td", {}, reqIn, " ", reqHint),
     el("td", {}, weeksIn),
     el("td", {}, bufferWrap),
