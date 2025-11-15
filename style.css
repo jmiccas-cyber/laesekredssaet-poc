@@ -82,3 +82,21 @@ footer {
   font-size: 0.85rem;
   color: #555;
 }
+
+.saet-isbn-wrap {
+  position: relative;
+}
+
+.saet-isbn-wrap input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.saet-isbn-wrap select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}

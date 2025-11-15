@@ -1069,6 +1069,7 @@ async function saetPull() {
     const auIn = el("input", { class: "saet-author", value: r.author || "" });
     const isbnSel = el("select", { class: "saet-isbn" });
     const isbnField = el("input", { type: "text", class: "saet-isbn-field", value: r.isbn || "", readonly: true });
+    const isbnWrap = el("div", { class: "saet-isbn-wrap" }, isbnField, isbnSel);
     populateSaetIsbnSelect(isbnSel, r.owner_bibliotek_id, r.isbn || "");
     const faIn = el("input", { class: "saet-faust", value: r.faust || "" });
     const reqIn = el("input", {
@@ -1125,7 +1126,7 @@ async function saetPull() {
       idCell,
       el("td", {}, tiIn),
       el("td", {}, auIn),
-      el("td", {}, isbnField),
+      el("td", {}, isbnWrap),
       el("td", {}, faIn),
       el("td", {}, reqIn, reqHint),
       el("td", {}, weeksIn),
@@ -1142,6 +1143,13 @@ async function saetPull() {
     isbnSel.addEventListener("change", () => {
       applyInventoryMeta(tr, ownerVal, isbnSel.value, true);
       updateSaetAvailability(tr);
+    });
+    const focusSelect = () => {
+      isbnSel.focus();
+      isbnSel.click();
+    };
+    isbnField.addEventListener("click", focusSelect);
+    isbnField.addEventListener("focus", focusSelect);
     });
     reqIn.addEventListener("input", () => updateSaetAvailability(tr));
     reqIn.addEventListener("change", () => updateSaetAvailability(tr));
@@ -1293,6 +1301,7 @@ function saetNewRow() {
 
   const isbnSel = el("select", { class: "saet-isbn" });
   const isbnField = el("input", { type: "text", class: "saet-isbn-field", readonly: true });
+  const isbnWrap = el("div", { class: "saet-isbn-wrap" }, isbnField, isbnSel);
   populateSaetIsbnSelect(isbnSel, ownerId, "");
 
   const activeSel = el("select", { class: "saet-active" },
@@ -1330,7 +1339,7 @@ function saetNewRow() {
     el("td", {}, ""), // ID (autoincrement)
     el("td", {}, el("input", { class: "saet-title" })),
     el("td", {}, el("input", { class: "saet-author" })),
-    el("td", {}, isbnField),
+    el("td", {}, isbnWrap),
     el("td", {}, el("input", { class: "saet-faust" })),
     el("td", {}, reqIn, reqHint),
     el("td", {}, weeksIn),
@@ -1349,6 +1358,12 @@ function saetNewRow() {
     applyInventoryMeta(tr, ownerId, isbnSel.value, true);
     updateSaetAvailability(tr);
   });
+  const focusSelect = () => {
+    isbnSel.focus();
+    isbnSel.click();
+  };
+  isbnField.addEventListener("click", focusSelect);
+  isbnField.addEventListener("focus", focusSelect);
   reqIn.addEventListener("input", () => updateSaetAvailability(tr));
   reqIn.addEventListener("change", () => updateSaetAvailability(tr));
   updateSaetAvailability(tr);
