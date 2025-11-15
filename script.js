@@ -127,7 +127,15 @@ function saveProfile() {
 // ----------------------------------------------------------
 
 async function loadLibraries() {
-  if (!sb) return;
+  if (!sb) {
+    console.error("loadLibraries: Supabase-klient ikke initialiseret.");
+    st.libs.list = [];
+    st.libs.byId = {};
+    st.libs.centrals = [];
+    st.libs.locals = [];
+    return;
+  }
+
   const { data, error } = await sb
     .from("tbl_bibliotek")
     .select("bibliotek_id,bibliotek_navn,is_central,active")
@@ -136,17 +144,23 @@ async function loadLibraries() {
 
   if (error) {
     console.error("Fejl ved loadLibraries:", error);
+    st.libs.list = [];
+    st.libs.byId = {};
+    st.libs.centrals = [];
+    st.libs.locals = [];
     return;
   }
 
-  const rows = (data || []).filter(x => x.active !== false); // alt der ikke er false
+  const rows = (data || []).filter(x => x.active !== false);
+  console.log("loadLibraries: hentede", rows.length, "biblioteker");
+
   st.libs.list = rows;
   st.libs.byId = Object.fromEntries(rows.map(x => [x.bibliotek_id, x]));
   st.libs.centrals = rows.filter(x => x.is_central);
   st.libs.locals = rows.filter(x => !x.is_central);
 
   // Sæt-ejer filter
-  const ownerSel = $("#saetOwnerFilterSel");
+  const ownerSel = document.querySelector("#saetOwnerFilterSel");
   if (ownerSel) {
     ownerSel.innerHTML = '<option value="">(alle)</option>';
     st.libs.centrals.forEach(lib => {
@@ -155,7 +169,7 @@ async function loadLibraries() {
   }
 
   // Region: dropdown med lånerbiblioteker
-  const relLocal = $("#relLocal");
+  const relLocal = document.querySelector("#relLocal");
   if (relLocal) {
     relLocal.innerHTML = "";
     st.libs.locals.forEach(lib => {
@@ -174,6 +188,7 @@ async function loadLibraries() {
     saveProfile();
   }
 }
+
 
 // ----------------------------------------------------------
 // 5. Rolle / layout / profil-modal
@@ -240,39 +255,104 @@ function bindTabs() {
   });
 }
 
-function openRoleModal(targetRole) {
-  const modal = $("#roleModal");
+async function openRoleModal(targetRole) {
+  const modal = document.querySelector("#roleModal");
   if (!modal) return;
 
-  const roleSelect = $("#roleSelect");
-  const adminWrap = $("#adminProfileWrap");
-  const bookerWrap = $("#bookerProfileWrap");
-  const adminSel = $("#adminProfileSel");
-  const bookerSel = $("#bookerProfileSel");
+  const roleSelect = document.querySelector("#roleSelect");
+  const adminWrap  = document.querySelector("#adminProfileWrap");
+  const bookerWrap = document.querySelector("#bookerProfileWrap");
+  const adminSel   = document.querySelector("#adminProfileSel");
+  const bookerSel  = document.querySelector("#bookerProfileSel");
+
+  // 1) Hent biblioteker frisk hver gang modal åbnes
+  await loadLibraries();
+
+  // 2) Hvis der stadig ikke er biblioteker, giv en klar fejl
+  if (!st.libs.list.length) {
+    alert("Der blev ikke hentet nogen biblioteker fra databasen. Tjek tbl_bibliotek og RLS.");
+    adminSel.innerHTML = "";
+    bookerSel.innerHTML = "";
+    modal.style.display = "flex";
+    return;
+  }
 
   roleSelect.value = targetRole || st.role;
 
-  // Fyld admin-profiler (centralbiblioteker)
-  if (adminSel) {
-    adminSel.innerHTML = "";
-    st.libs.centrals.forEach(lib => {
-      adminSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
-    });
-    if (st.profile.adminCentralId && st.libs.byId[st.profile.adminCentralId]) {
-      adminSel.value = st.profile.adminCentralId;
-    }
+  // 3) Fyld dropdown for centralbiblioteker (admin)
+  adminSel.innerHTML = "";
+  st.libs.centrals.forEach(lib => {
+    adminSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
+  });
+  if (st.profile.adminCentralId && st.libs.byId[st.profile.adminCentralId]) {
+    adminSel.value = st.profile.adminCentralId;
+  } else if (st.libs.centrals.length) {
+    adminSel.value = st.libs.centrals[0].bibliotek_id;
   }
 
-  // Fyld booker-profiler (lånerbiblioteker)
-  if (bookerSel) {
-    bookerSel.innerHTML = "";
-    st.libs.locals.forEach(lib => {
-      bookerSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
-    });
-    if (st.profile.bookerLocalId && st.libs.byId[st.profile.bookerLocalId]) {
-      bookerSel.value = st.profile.bookerLocalId;
+  // 4) Fyld dropdown for lånerbiblioteker (booker)
+  bookerSel.innerHTML = "";
+  st.libs.locals.forEach(lib => {
+    bookerSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
+  });
+  if (st.profile.bookerLocalId && st.libs.byId[st.profile.bookerLocalId]) {
+    bookerSel.value = st.profile.bookerLocalId;
+  } else if (st.libs.locals.length) {
+    bookerSel.value = st.libs.locals[0].bibliotek_id;
+  }
+
+  // 5) Vis/hide blokke afhængigt af valgt rolle
+  function updateRoleWrap() {
+    if (roleSelect.value === "admin") {
+      adminWrap.style.display = "block";
+      bookerWrap.style.display = "none";
+    } else {
+      adminWrap.style.display = "none";
+      bookerWrap.style.display = "block";
     }
   }
+  roleSelect.onchange = updateRoleWrap;
+  updateRoleWrap();
+
+  // 6) Gem-knap
+  document.querySelector("#roleSave").onclick = async () => {
+    const newRole = roleSelect.value;
+
+    if (newRole === "admin") {
+      if (!adminSel.value) {
+        alert("Vælg et centralbibliotek.");
+        return;
+      }
+      st.role = "admin";
+      st.profile.adminCentralId = adminSel.value;
+      saveProfile();
+      await refreshForRole();
+      modal.style.display = "none";
+      return;
+    }
+
+    if (newRole === "booker") {
+      if (!bookerSel.value) {
+        alert("Vælg et lånerbibliotek.");
+        return;
+      }
+      st.role = "booker";
+      st.profile.bookerLocalId = bookerSel.value;
+      saveProfile();
+      await refreshForRole();
+      modal.style.display = "none";
+      return;
+    }
+  };
+
+  // 7) Annuller
+  document.querySelector("#roleCancel").onclick = () => {
+    modal.style.display = "none";
+  };
+
+  modal.style.display = "flex";
+}
+
 
   function updateRoleWrap() {
     if (roleSelect.value === "admin") {
