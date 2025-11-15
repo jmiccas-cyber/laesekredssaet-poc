@@ -45,6 +45,16 @@ function fmtLibLabel(lib) {
   return `${lib.bibliotek_navn} (${lib.bibliotek_id})`;
 }
 
+function fmtOwnerCity(lib) {
+  if (!lib) return "";
+  const name = lib.bibliotek_navn || "";
+  const idx = name.toLowerCase().indexOf("centralbibliotek");
+  if (idx > 0) {
+    return name.slice(0, idx).trim();
+  }
+  return (name.split(" ")[0] || name).trim();
+}
+
 function currentAdminId() {
   return st.profile?.adminCentralId || "";
 }
@@ -1085,13 +1095,13 @@ async function saetPull() {
       background: "transparent"
     });
     populateSaetIsbnSelect(isbnSel, r.owner_bibliotek_id, r.isbn || "");
-    const faIn = el("input", { class: "saet-faust", value: r.faust || "" });
+    const faIn = el("input", { class: "saet-faust", value: r.faust || "", style: "width:6ch" });
     const reqIn = el("input", {
       type: "number",
       class: "saet-requested",
       value: r.requested_count ?? 1,
       min: "1",
-      style: "width:4ch"
+      style: "width:6ch"
     });
     const reqHint = el("span", { class: "saet-availability", title: "" }, "●");
     const weeksIn = el("input", {
@@ -1101,7 +1111,7 @@ async function saetPull() {
       min: "1",
       max: "12"
     });
-    const bufferIn = el("input", { type: "number", class: "saet-buffer", value: r.buffer_days ?? 0, min: "0" });
+    const bufferIn = el("input", { type: "number", class: "saet-buffer", value: r.buffer_days ?? 0, min: "0", style: "width:6ch" });
 
     const visSel = el("select", { class: "saet-vis" },
       el("option", { value: "national" }, "national"),
@@ -1111,7 +1121,7 @@ async function saetPull() {
 
     const ownerVal = r.owner_bibliotek_id || adminId || "";
     const ownerHidden = el("input", { type: "hidden", class: "saet-owner", value: ownerVal });
-    const ownerLabel = el("span", { class: "saet-owner-label" }, fmtLibLabel(st.libs.byId[ownerVal]) || ownerVal || "");
+    const ownerLabel = el("span", { class: "saet-owner-label" }, fmtOwnerCity(st.libs.byId[ownerVal]) || ownerVal || "");
 
     const activeSel = el("select", { class: "saet-active" },
       el("option", { value: "true" }, "Ja"),
@@ -1311,7 +1321,7 @@ function saetNewRow() {
   visSel.value = "national";
 
   const ownerHidden = el("input", { type: "hidden", class: "saet-owner", value: ownerId });
-  const ownerLabel = el("span", { class: "saet-owner-label" }, fmtLibLabel(st.libs.byId[ownerId]) || ownerId);
+  const ownerLabel = el("span", { class: "saet-owner-label" }, fmtOwnerCity(st.libs.byId[ownerId]) || ownerId);
 
   const isbnSel = el("select", { class: "saet-isbn" });
   const isbnField = el("input", { type: "text", class: "saet-isbn-field", readonly: true });
@@ -1353,10 +1363,10 @@ function saetNewRow() {
     btnSave.title = "Ingen titler i beholdningen for det valgte centralbibliotek.";
   }
 
-  const reqIn = el("input", { type: "number", class: "saet-requested", value: "1", min: "1", style: "width:4ch" });
+  const reqIn = el("input", { type: "number", class: "saet-requested", value: "1", min: "1", style: "width:6ch" });
   const reqHint = el("span", { class: "saet-availability", title: "" }, "●");
   const weeksIn = el("input", { type: "number", class: "saet-weeks", value: "8", min: "1", max: "12" });
-  const bufferIn = el("input", { type: "number", class: "saet-buffer", value: "0", min: "0" });
+  const bufferIn = el("input", { type: "number", class: "saet-buffer", value: "0", min: "0", style: "width:6ch" });
   const minIn = el("input", { type: "number", class: "saet-min", value: "0", min: "0" });
 
   tr.append(
@@ -1364,7 +1374,7 @@ function saetNewRow() {
     el("td", {}, el("input", { class: "saet-title" })),
     el("td", {}, el("input", { class: "saet-author" })),
     el("td", {}, isbnWrap),
-    el("td", {}, el("input", { class: "saet-faust" })),
+    el("td", {}, el("input", { class: "saet-faust", style: "width:6ch" })),
     el("td", {}, reqIn, " ", reqHint),
     el("td", {}, weeksIn),
     el("td", {}, bufferIn),
