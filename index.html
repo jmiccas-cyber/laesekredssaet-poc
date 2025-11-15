@@ -512,6 +512,41 @@ td {
           <select id="relDetailSel"></select>
         </div>
       </div>
+      <div class="row" style="margin-top:8px;">
+        <div style="flex:1; min-width:220px;">
+          <label for="relDetailName">Navn</label>
+          <input id="relDetailName" type="text" />
+        </div>
+        <div style="flex:1; min-width:220px;">
+          <label for="relDetailAddress">Adresse</label>
+          <input id="relDetailAddress" type="text" />
+        </div>
+        <div>
+          <label for="relDetailPostal">Postnummer</label>
+          <input id="relDetailPostal" type="text" />
+        </div>
+        <div>
+          <label for="relDetailCity">By</label>
+          <input id="relDetailCity" type="text" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <div style="flex:1; min-width:220px;">
+          <label for="relDetailNotes">Kommentarer / pakkenoter</label>
+          <textarea id="relDetailNotes" rows="2" style="width:100%;"></textarea>
+        </div>
+        <div>
+          <label for="relDetailActive">Aktiv</label>
+          <select id="relDetailActive">
+            <option value="true">Ja</option>
+            <option value="false">Nej</option>
+          </select>
+        </div>
+        <div style="margin-left:auto;">
+          <label>&nbsp;</label>
+          <button id="btnRelDetailSave" class="btn primary">Gem detaljer</button>
+        </div>
+      </div>
       <div id="relDetailInfo" class="hint" style="margin-top:8px;"></div>
     </div>
 
