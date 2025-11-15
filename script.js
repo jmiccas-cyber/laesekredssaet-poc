@@ -443,6 +443,122 @@ async function eksFetch() {
   return data || [];
 }
 
+function eksDirtyRows() {
+  return Array.from(document.querySelectorAll("#tblEks tbody tr"))
+    .filter(tr => tr.dataset.dirty === "1");
+}
+
+function updateEksSaveButton() {
+  const btn = $("#btnSaveAll");
+  if (!btn) return;
+  const dirtyCount = eksDirtyRows().length;
+  btn.disabled = dirtyCount === 0;
+  if (dirtyCount > 0) {
+    const suffix = dirtyCount > 1 ? "ændringer" : "ændring";
+    btn.textContent = `Gem ${dirtyCount} ${suffix}`;
+  } else {
+    btn.textContent = "Gem alle ændringer";
+  }
+}
+
+function markEksDirty(tr) {
+  if (!tr) return;
+  tr.dataset.dirty = "1";
+  tr.classList.add("dirty");
+  updateEksSaveButton();
+}
+
+function clearEksDirty(tr) {
+  if (!tr) return;
+  tr.dataset.dirty = "";
+  tr.classList.remove("dirty");
+  updateEksSaveButton();
+}
+
+function eksAttachRowListeners(tr) {
+  if (!tr) return;
+  const fields = tr.querySelectorAll("input, select");
+  fields.forEach(field => {
+    field.addEventListener("input", () => markEksDirty(tr));
+    field.addEventListener("change", () => markEksDirty(tr));
+  });
+}
+
+function eksCollectRow(tr) {
+  if (!tr) return null;
+  const barcode = tr.dataset.barcode || tr.querySelector(".bc")?.value || "";
+  return {
+    barcode: (barcode || "").trim(),
+    title: tr.querySelector(".title")?.value.trim() || "",
+    author: tr.querySelector(".author")?.value.trim() || "",
+    isbn: tr.querySelector(".isbn")?.value.trim() || "",
+    faust: tr.querySelector(".faust")?.value.trim() || "",
+    booking_status: tr.querySelector(".status")?.value || "Ledig",
+    loan_status: "Ukendt",
+    owner_bibliotek_id: st.profile.adminCentralId
+  };
+}
+
+function renderEksPagerInfo() {
+  const totalPages = Math.ceil((st.eks.total || 0) / st.eks.pageSize);
+  $("#pinfo").textContent = st.eks.total
+    ? `Side ${st.eks.page + 1}/${totalPages} - ${st.eks.total} eksemplarer`
+    : "Ingen eksemplarer fundet";
+}
+
+function eksRevertRow(tr) {
+  if (!tr) return;
+  const raw = tr.dataset.original;
+  if (!raw) return;
+  try {
+    const original = JSON.parse(raw);
+    tr.querySelector(".title").value = original.title || "";
+    tr.querySelector(".author").value = original.author || "";
+    tr.querySelector(".isbn").value = original.isbn || "";
+    tr.querySelector(".faust").value = original.faust || "";
+    const stSel = tr.querySelector(".status");
+    if (stSel) stSel.value = original.booking_status || "Ledig";
+    clearEksDirty(tr);
+  } catch (e) {
+    console.warn("Kunne ikke fortryde række", e);
+  }
+}
+
+async function eksSaveAll() {
+  if (!sb) return;
+  if (!st.profile.adminCentralId) {
+    showMsg("#msg", "Vælg først en admin-profil.");
+    return;
+  }
+  const dirtyRows = eksDirtyRows();
+  if (!dirtyRows.length) {
+    showMsg("#msg", "Der er ingen ændringer at gemme.");
+    return;
+  }
+
+  const payload = [];
+  for (const tr of dirtyRows) {
+    const rec = eksCollectRow(tr);
+    const err = eksValidate(rec || {});
+    if (err) {
+      showMsg("#msg", `Fejl i række (${rec?.barcode || "ny"}): ${err}`);
+      tr.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+    payload.push(rec);
+  }
+
+  showMsg("#msg", "Gemmer ændringer...");
+  const { error } = await sb.from("tbl_beholdning").upsert(payload, { onConflict: "barcode" });
+  if (error) {
+    showMsg("#msg", "Fejl ved gem: " + error.message);
+    return;
+  }
+
+  showMsg("#msg", `Gemte ${payload.length} ændring${payload.length > 1 ? "er" : ""}.`, true);
+  await eksPull();
+}
+
 function eksValidate(r) {
   if (!r.barcode) return "Stregkode skal udfyldes";
   if (!r.title) return "Titel skal udfyldes";
@@ -459,6 +575,7 @@ async function eksPull() {
   if (!st.profile.adminCentralId) {
     tb.innerHTML = "";
     $("#pinfo").textContent = "Vælg først en admin-profil (centralbibliotek) via Skift: Admin ↔ Booker.";
+     updateEksSaveButton();
     return;
   }
 
@@ -469,6 +586,7 @@ async function eksPull() {
   rows.forEach(r => {
     const tr = el("tr");
     tr.dataset.barcode = r.barcode;
+    tr.dataset.original = JSON.stringify(r);
 
     const bcLabel = el("span", { class: "bc-label" }, r.barcode || "");
     const bcCell = el("td", {}, bcLabel);
@@ -485,15 +603,15 @@ async function eksPull() {
     );
     stSel.value = r.booking_status || "Ledig";
 
-    const btnSave = el("button", {
+    const btnReset = el("button", {
       class: "btn",
-      onclick: () => eksSaveRow(tr)
-    }, "Gem");
+      onclick: () => eksRevertRow(tr)
+    }, "Fortryd");
     const btnDel = el("button", {
       class: "btn",
       onclick: () => eksDeleteRow(tr)
     }, "Slet");
-    const actions = el("td", {}, btnSave, " ", btnDel);
+    const actions = el("td", {}, btnReset, " ", btnDel);
 
     tr.append(
       bcCell,
@@ -504,62 +622,33 @@ async function eksPull() {
       el("td", {}, stSel),
       actions
     );
+    eksAttachRowListeners(tr);
     tb.appendChild(tr);
   });
 
-  const totalPages = Math.ceil((st.eks.total || 0) / st.eks.pageSize);
-  $("#pinfo").textContent = st.eks.total
-    ? `Side ${st.eks.page + 1}/${totalPages} – ${st.eks.total} eksemplarer`
-    : "Ingen eksemplarer fundet";
-}
-
-async function eksSaveRow(tr) {
-  if (!sb) return;
-  const barcode = tr.dataset.barcode || tr.querySelector(".bc")?.value || tr.querySelector(".bc-label")?.textContent || "";
-  const title = tr.querySelector(".title")?.value.trim() || "";
-  const author = tr.querySelector(".author")?.value.trim() || "";
-  const isbn = tr.querySelector(".isbn")?.value.trim() || "";
-  const faust = tr.querySelector(".faust")?.value.trim() || "";
-  const statusVal = tr.querySelector(".status")?.value || "Ledig";
-
-  const rec = {
-    barcode: barcode.trim(),
-    title,
-    author,
-    isbn,
-    faust,
-    booking_status: statusVal,
-    loan_status: "Ukendt",
-    owner_bibliotek_id: st.profile.adminCentralId
-  };
-
-  const err = eksValidate(rec);
-  if (err) {
-    showMsg("#msg", `Fejl i række (${rec.barcode || "ny"}): ` + err);
-    return;
-  }
-
-  const { error } = await sb.from("tbl_beholdning").upsert(rec, { onConflict: "barcode" });
-  if (error) {
-    showMsg("#msg", "Fejl ved gem: " + error.message);
-  } else {
-    showMsg("#msg", "Eksemplar gemt", true);
-    await eksPull();
-  }
+  renderEksPagerInfo();
+  updateEksSaveButton();
 }
 
 async function eksDeleteRow(tr) {
   if (!sb) return;
-  const bc = tr.dataset.barcode || tr.querySelector(".bc-label")?.textContent || "";
-  if (!bc) return;
+  const bc = tr.dataset.barcode || tr.querySelector(".bc-label")?.textContent || tr.querySelector(".bc")?.value || "";
+  if (!bc) {
+    tr.remove();
+    updateEksSaveButton();
+    return;
+  }
   if (!confirm("Slet eksemplar " + bc + "?")) return;
   const { error } = await sb.from("tbl_beholdning").delete().eq("barcode", bc);
   if (error) {
     showMsg("#msg", "Fejl ved sletning: " + error.message);
-  } else {
-    showMsg("#msg", "Eksemplar slettet", true);
-    await eksPull();
+    return;
   }
+  showMsg("#msg", "Eksemplar slettet", true);
+  tr.remove();
+  st.eks.total = Math.max(0, (st.eks.total || 0) - 1);
+  renderEksPagerInfo();
+  updateEksSaveButton();
 }
 
 function eksNewRow() {
@@ -576,8 +665,14 @@ function eksNewRow() {
   );
   stSel.value = "Ledig";
 
-  const btnSave = el("button", { class: "btn", onclick: () => eksSaveRow(tr) }, "Gem");
-  const btnCancel = el("button", { class: "btn", onclick: () => { tr.remove(); } }, "Annullér");
+  const btnCancel = el("button", {
+    class: "btn",
+    onclick: () => {
+      tr.remove();
+      updateEksSaveButton();
+    }
+  }, "Annullér");
+  const info = el("span", { class: "hint" }, "Gem via knappen ovenfor");
 
   tr.append(
     el("td", {}, bcInput),
@@ -586,9 +681,10 @@ function eksNewRow() {
     el("td", {}, el("input", { class: "isbn" })),
     el("td", {}, el("input", { class: "faust" })),
     el("td", {}, stSel),
-    el("td", {}, btnSave, " ", btnCancel)
+    el("td", {}, info, " ", btnCancel)
   );
   tb.prepend(tr);
+  eksAttachRowListeners(tr);
 }
 
 function bindEksControls() {
@@ -605,6 +701,9 @@ function bindEksControls() {
   $("#btnNew")?.addEventListener("click", () => {
     eksNewRow();
   });
+  $("#btnSaveAll")?.addEventListener("click", () => {
+    eksSaveAll();
+  });
   $("#prev")?.addEventListener("click", () => {
     if (st.eks.page > 0) {
       st.eks.page--;
@@ -618,6 +717,7 @@ function bindEksControls() {
       eksPull();
     }
   });
+  updateEksSaveButton();
 }
 
 // ----------------------------------------------------------
