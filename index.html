@@ -54,8 +54,8 @@
     .btn {
       border: 1px solid #ccc;
       background: #fff;
-      padding: 4px 10px;
-      font-size: 13px;
+      padding: 4px 6px;
+      font-size: 12px;
       border-radius: 4px;
       cursor: pointer;
       font-family: inherit;
@@ -66,9 +66,9 @@
       color: #fff;
     }
     .btn-small {
-      font-size: 13px;
+      font-size: 12px;
       font-family: inherit;
-      padding: 4px 8px;
+      padding: 2px 4px;
     }
     .btn.ghost {
       background: transparent;
@@ -163,6 +163,27 @@ th {
   background: #f3f4f6;
   font-family: var(--table-header-font);
   font-size: var(--table-header-size);
+}
+th[data-sort] {
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  padding-right: 16px;
+}
+th.sorted-asc::after,
+th.sorted-desc::after {
+  content: attr(data-sort-indicator);
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+}
+th.sorted-asc::after {
+  content: "▲";
+}
+th.sorted-desc::after {
+  content: "▼";
 }
 td {
   font-family: var(--table-row-font);
@@ -262,6 +283,27 @@ td {
     .saet-availability[data-state="error"] {
       background: #dc2626;
     }
+    #saveNotice {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      background: #d1fae5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-size: 13px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      opacity: 0;
+      transform: translateY(-10px);
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      pointer-events: none;
+      z-index: 999;
+    }
+    #saveNotice.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
   </style>
   <script src="https://unpkg.com/@supabase/supabase-js@2.48.0/dist/umd/supabase.min.js"></script>
 </head>
@@ -327,12 +369,12 @@ td {
         <table id="tblEks">
           <thead>
           <tr>
-            <th>Stregkode</th>
-            <th>Titel</th>
-            <th>Forfatter</th>
-            <th>ISBN</th>
-            <th>FAUST</th>
-            <th>Booking-status</th>
+            <th data-sort="barcode">Stregkode</th>
+            <th data-sort="title">Titel</th>
+            <th data-sort="author">Forfatter</th>
+            <th data-sort="isbn">ISBN</th>
+            <th data-sort="faust">FAUST</th>
+            <th data-sort="booking_status">Booking-status</th>
             <th class="w180">Handling</th>
           </tr>
           </thead>
@@ -350,9 +392,9 @@ td {
 
     <!-- ADMIN: Sæt -->
     <section id="tab-saet" class="panel">
-      <div class="card">
-        <p class="hint">
-          Vedligeholdelse af læsekredssæt (metadata). Et sæt kan kun oprettes på ISBN'er, der findes i beholdningen,
+  <div class="card">
+    <p class="hint">
+      Vedligeholdelse af læsekredssæt (metadata). Et sæt kan kun oprettes på ISBN'er, der findes i beholdningen,
           og antal eksemplarer per sæt kontrolleres mod det samlede antal eksemplarer.
           Synlighed (national/regional) og ejer-sted (centralbibliotek) styrer, hvilke bookere der kan se sættet.
         </p>
@@ -390,20 +432,20 @@ td {
         <table id="tblSaet">
           <thead>
           <tr>
-            <th>ID</th>
-            <th>ISBN (fra beholdning)</th>
-            <th>Titel</th>
-            <th>Forfatter</th>
-            <th>FAUST</th>
-            <th>Eksemplarer i sæt</th>
-            <th>Bookinguger (1-12)</th>
-            <th>Buffer</th>
-            <th>Synlighed</th>
-            <th>Ejer</th>
-            <th>Aktiv</th>
-            <th>Substitution</th>
-            <th>Delvis levering</th>
-            <th>Min. levering</th>
+            <th data-sort="set_id">ID</th>
+            <th data-sort="isbn">ISBN (fra beholdning)</th>
+            <th data-sort="title">Titel</th>
+            <th data-sort="author">Forfatter</th>
+            <th data-sort="faust">FAUST</th>
+            <th data-sort="requested_count">Eksemplarer i sæt</th>
+            <th data-sort="loan_weeks">Bookinguger (1-12)</th>
+            <th data-sort="buffer_days">Buffer</th>
+            <th data-sort="visibility">Synlighed</th>
+            <th data-sort="owner">Ejer</th>
+            <th data-sort="active">Aktiv</th>
+            <th data-sort="substitution">Substitution</th>
+            <th data-sort="partial">Delvis levering</th>
+            <th data-sort="min_delivery">Min. levering</th>
             <th>Gem</th>
             <th>Slet</th>
           </tr>
@@ -542,6 +584,7 @@ td {
     </div>
   </section>
 </main>
+<div id="saveNotice">Sæt gemt</div>
 
 <!-- Role/Profile modal -->
 <div id="roleModal" class="modal-backdrop">

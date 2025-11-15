@@ -87,7 +87,9 @@ const st = {
     pageSize: 20,
     total: 0,
     status: "",
-    q: ""
+    q: "",
+    sortBy: "barcode",
+    sortDir: "asc"
   },
   saet: {
     page: 0,
@@ -96,6 +98,8 @@ const st = {
     owner: "",
     vis: "",
     q: "",
+    sortBy: "set_id",
+    sortDir: "asc",
     usage: {}
   },
   b: {
@@ -442,9 +446,7 @@ async function eksFetch() {
 
   let q = sb.from("tbl_beholdning")
     .select("barcode,title,author,isbn,faust,booking_status")
-    .eq("owner_bibliotek_id", st.profile.adminCentralId)
-    .order("barcode", { ascending: true })
-    .range(from, to);
+    .eq("owner_bibliotek_id", st.profile.adminCentralId);
 
   if (st.eks.status) q = q.eq("booking_status", st.eks.status);
   if (st.eks.q) {
@@ -457,6 +459,23 @@ async function eksFetch() {
       `barcode.ilike.%${v}%`
     ].join(","));
   }
+
+  const sortMap = {
+    barcode: "barcode",
+    title: "title",
+    author: "author",
+    isbn: "isbn",
+    faust: "faust",
+    booking_status: "booking_status"
+  };
+  const sortKey = sortMap[st.eks.sortBy] || "barcode";
+  const ascending = st.eks.sortDir !== "desc";
+  q = q.order(sortKey, { ascending });
+  if (sortKey !== "barcode") {
+    q = q.order("barcode", { ascending: true });
+  }
+
+  q = q.range(from, to);
 
   const { data, error } = await q;
   if (error) {
@@ -630,6 +649,34 @@ function eksRevertRow(tr) {
   }
 }
 
+function setEksSort(field) {
+  const valid = {
+    barcode: true,
+    title: true,
+    author: true,
+    isbn: true,
+    faust: true,
+    booking_status: true
+  };
+  if (!valid[field]) return;
+  if (st.eks.sortBy === field) {
+    st.eks.sortDir = st.eks.sortDir === "asc" ? "desc" : "asc";
+  } else {
+    st.eks.sortBy = field;
+    st.eks.sortDir = "asc";
+  }
+  st.eks.page = 0;
+  eksPull();
+}
+
+function updateEksSortIndicators() {
+  document.querySelectorAll("#tblEks thead th[data-sort]").forEach(th => {
+    const field = th.dataset.sort;
+    th.classList.toggle("sorted-asc", field === st.eks.sortBy && st.eks.sortDir === "asc");
+    th.classList.toggle("sorted-desc", field === st.eks.sortBy && st.eks.sortDir === "desc");
+  });
+}
+
 async function eksSaveAll() {
   if (!sb) return;
   if (!st.profile.adminCentralId) {
@@ -735,6 +782,7 @@ async function eksPull() {
 
   renderEksPagerInfo();
   updateEksSaveButton();
+  updateEksSortIndicators();
 }
 
 async function eksDeleteRow(tr) {
@@ -811,6 +859,12 @@ function bindEksControls() {
   });
   $("#btnSaveAll")?.addEventListener("click", () => {
     eksSaveAll();
+  });
+  document.querySelectorAll("#tblEks thead th[data-sort]").forEach(th => {
+    th.addEventListener("click", () => {
+      const field = th.dataset.sort;
+      if (field) setEksSort(field);
+    });
   });
   $("#prev")?.addEventListener("click", () => {
     if (st.eks.page > 0) {
@@ -962,6 +1016,50 @@ function updateSaetAvailability(tr) {
   reqInput.max = maxForRow || "";
 }
 
+function setSaetSort(field) {
+  const valid = {
+    set_id: true,
+    isbn: true,
+    title: true,
+    author: true,
+    faust: true,
+    requested_count: true,
+    loan_weeks: true,
+    buffer_days: true,
+    visibility: true,
+    owner: true,
+    active: true,
+    substitution: true,
+    partial: true,
+    min_delivery: true
+  };
+  if (!valid[field]) return;
+  if (st.saet.sortBy === field) {
+    st.saet.sortDir = st.saet.sortDir === "asc" ? "desc" : "asc";
+  } else {
+    st.saet.sortBy = field;
+    st.saet.sortDir = "asc";
+  }
+  st.saet.page = 0;
+  saetPull();
+}
+
+function updateSaetSortIndicators() {
+  const headers = document.querySelectorAll("#tblSaet thead th[data-sort]");
+  headers.forEach(th => {
+    const field = th.dataset.sort;
+    th.classList.toggle("sorted-asc", field === st.saet.sortBy && st.saet.sortDir === "asc");
+    th.classList.toggle("sorted-desc", field === st.saet.sortBy && st.saet.sortDir === "desc");
+  });
+}
+
+function highlightSaveBar() {
+  const bar = document.getElementById("saveNotice");
+  if (!bar) return;
+  bar.classList.add("visible");
+  setTimeout(() => bar.classList.remove("visible"), 2500);
+}
+
 function refreshSaetInventoryControls() {
   $$("#tblSaet tbody tr").forEach(tr => {
     const ownerId = tr.querySelector(".saet-owner")?.value || "";
@@ -1004,9 +1102,7 @@ async function saetFetch(ownerFilter) {
   const from = st.saet.page * st.saet.pageSize;
   const to = from + st.saet.pageSize - 1;
   let q = sb.from("tbl_saet")
-    .select("set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes")
-    .order("set_id", { ascending: true })
-    .range(from, to);
+    .select("set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes");
 
   const f = st.saet;
   const owner = ownerFilter || f.owner || currentAdminId();
@@ -1033,6 +1129,31 @@ async function saetFetch(ownerFilter) {
 async function saetPull() {
   const tb = $("#tblSaet tbody");
   if (!tb) return;
+
+  const sortMap = {
+    set_id: "set_id",
+    isbn: "isbn",
+    title: "title",
+    author: "author",
+    faust: "faust",
+    requested_count: "requested_count",
+    loan_weeks: "loan_weeks",
+    buffer_days: "buffer_days",
+    visibility: "visibility",
+    owner: "owner_bibliotek_id",
+    active: "active",
+    substitution: "allow_substitution",
+    partial: "allow_partial",
+    min_delivery: "min_delivery"
+  };
+  const sortKey = sortMap[f.sortBy] || "set_id";
+  const ascending = f.sortDir !== "desc";
+  q = q.order(sortKey, { ascending });
+  if (sortKey !== "set_id") {
+    q = q.order("set_id", { ascending: true });
+  }
+
+  q = q.range(from, to);
 
   if (!st.stock.list.length) {
     await loadInventorySummary();
@@ -1187,6 +1308,7 @@ async function saetPull() {
     tb.appendChild(tr);
   });
 
+  updateSaetSortIndicators();
   const totalPages = Math.ceil((st.saet.total || 0) / st.saet.pageSize);
   $("#saetPinfo").textContent = st.saet.total
     ? `Side ${st.saet.page + 1}/${totalPages} – ${st.saet.total} sæt`
@@ -1297,6 +1419,7 @@ async function saetSaveRow(tr) {
     showMsg("#msgSaet", "Fejl ved gem: " + error.message);
   } else {
     showMsg("#msgSaet", "Sæt gemt", true);
+    highlightSaveBar();
     await saetPull();
   }
 }
@@ -1449,6 +1572,12 @@ function bindSaetControls() {
   });
   $("#btnSaetNew")?.addEventListener("click", () => {
     saetNewRow();
+  });
+  document.querySelectorAll("#tblSaet thead th[data-sort]")?.forEach(th => {
+    th.addEventListener("click", () => {
+      const field = th.dataset.sort;
+      if (field) setSaetSort(field);
+    });
   });
   $("#saetPrev")?.addEventListener("click", () => {
     if (st.saet.page > 0) {
