@@ -135,33 +135,75 @@ function bindTabs(){
 
 // ---------- Role/Profile modal ----------
 function openRoleModal(target){
-  const modal = $('#roleModal'); modal.style.display='flex';
+  const modal = $('#roleModal'); 
+  if (!modal) return;
+  modal.style.display='flex';
+
   const roleSel = $('#roleSelect');
   const adminWrap = $('#adminProfileWrap');
   const bookerWrap = $('#bookerProfileWrap');
   const adminSel = $('#adminProfileSel');
   const bookerSel = $('#bookerProfileSel');
 
+  // Brug nuværende rolle som default, med mulighed for at tvinge target
   roleSel.value = target || st.role;
 
-  // fill dropdowns
+  // --- Fyld dropdowns ud fra st.libs.list ---
   adminSel.innerHTML = '';
-  st.libs.list.filter(x=>x.active && x.is_central)
-    .forEach(x=> adminSel.append(el('option',{value:x.bibliotek_id}, formatLibLabel(x))));
   bookerSel.innerHTML = '';
-  st.libs.list.filter(x=>x.active && !x.is_central)
-    .forEach(x=> bookerSel.append(el('option',{value:x.bibliotek_id}, formatLibLabel(x))));
 
-  if (st.profile.adminCentralId) adminSel.value = st.profile.adminCentralId;
-  if (st.profile.bookerLocalId) bookerSel.value = st.profile.bookerLocalId;
+  const centrals = st.libs.list.filter(x => x.is_central);
+  const locals   = st.libs.list.filter(x => !x.is_central);
 
+  centrals.forEach(x => 
+    adminSel.append(
+      el('option',{value:x.bibliotek_id}, formatLibLabel(x))
+    )
+  );
+  locals.forEach(x =>
+    bookerSel.append(
+      el('option',{value:x.bibliotek_id}, formatLibLabel(x))
+    )
+  );
+
+  if (!centrals.length) {
+    console.warn('openRoleModal: ingen centralbiblioteker i st.libs.list');
+  }
+  if (!locals.length) {
+    console.warn('openRoleModal: ingen lånerbiblioteker i st.libs.list');
+  }
+
+  // Sæt valgt værdi ud fra gemt profil, ellers første i listen
+  if (centrals.length) {
+    if (st.profile.adminCentralId && centrals.some(x => x.bibliotek_id === st.profile.adminCentralId)) {
+      adminSel.value = st.profile.adminCentralId;
+    } else {
+      adminSel.value = centrals[0].bibliotek_id;
+    }
+  }
+
+  if (locals.length) {
+    if (st.profile.bookerLocalId && locals.some(x => x.bibliotek_id === st.profile.bookerLocalId)) {
+      bookerSel.value = st.profile.bookerLocalId;
+    } else {
+      bookerSel.value = locals[0].bibliotek_id;
+    }
+  }
+
+  // Skift synlighed afhængigt af valgt rolle
   const upd = ()=>{
-    if (roleSel.value==='admin'){ adminWrap.style.display='block'; bookerWrap.style.display='none'; }
-    else { adminWrap.style.display='none'; bookerWrap.style.display='block'; }
+    if (roleSel.value==='admin'){ 
+      adminWrap.style.display='block'; 
+      bookerWrap.style.display='none'; 
+    } else { 
+      adminWrap.style.display='none'; 
+      bookerWrap.style.display='block'; 
+    }
   };
   upd();
   roleSel.onchange = upd;
 
+  // Gem profil når bruger trykker "Gem"
   $('#roleSave').onclick = async ()=>{
     const newRole = roleSel.value;
 
@@ -181,28 +223,24 @@ function openRoleModal(target){
       const chosen = bookerSel.value;
 
       if (!chosen) {
-        msg('#bMsg', 'Vælg et aktivt lånerbibliotek.');
-        return;
-      }
-      if (!st.libs.byId[chosen]) {
-        msg('#bMsg', 'Det valgte lånerbibliotek er deaktiveret. Vælg et andet.');
+        alert('Vælg et lånerbibliotek for booker-rollen.');
         return;
       }
 
       st.role = 'booker';
       st.profile.bookerLocalId = chosen;
 
-      await resolveBookerCentrals();
-      st.b.page = 0;
-      await bookerPull();
-
       saveProfile();
       renderRoleBadge();
       renderLayout();
+      await resolveBookerCentrals();
+      await bookerPull();
+
       modal.style.display = 'none';
       return;
     }
   };
+
   $('#roleCancel').onclick = ()=> modal.style.display='none';
 }
 
@@ -215,30 +253,69 @@ function bindRoleToggle(){
 
 // ---------- Load libraries ----------
 async function loadLibraries(){
+  if (!sb) {
+    console.error('loadLibraries: Supabase-klient er ikke initialiseret.');
+    st.libs.list = [];
+    st.libs.byId = {};
+    return;
+  }
+
   const { data, error } = await sb.from('tbl_bibliotek')
     .select('bibliotek_id,bibliotek_navn,is_central,active')
     .order('is_central',{ascending:false})
     .order('bibliotek_navn',{ascending:true});
-  if(error){ console.error(error); return; }
 
-  st.libs.list = (data||[]).filter(x=>x.active);
-  st.libs.byId = Object.fromEntries(st.libs.list.map(x=>[x.bibliotek_id,x]));
+  if (error) {
+    console.error('Fejl ved loadLibraries:', error);
+    // Fallback: ingen biblioteker fra DB
+    st.libs.list = [];
+    st.libs.byId = {};
+    return;
+  }
 
-  // Sæt-filter
-  const saetOwner = $('#saetOwnerFilterSel'); saetOwner.innerHTML='';
-  saetOwner.append(el('option',{value:''},'(alle)'));
-  st.libs.list.forEach(x=> saetOwner.append(
-    el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)
-  ));
+  let rows = data || [];
+  console.log('loadLibraries: hentede', rows.length, 'biblioteker');
 
-  // Eksemplarer: ejes altid af central → intet owner-filter her
-  const localSel = $('#relLocal'); localSel.innerHTML='';
-  st.libs.list.filter(x=>!x.is_central).forEach(x=> localSel.append(
-    el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)
-  ));
+  // Hvis der slet ingen biblioteker er i DB, lav en minimal fallback med Gentofte
+  if (!rows.length) {
+    console.warn('loadLibraries: ingen rækker i tbl_bibliotek – bruger fallback Gentofte Centralbibliotek');
+    rows = [{
+      bibliotek_id: 'GENT',
+      bibliotek_navn: 'Gentofte Centralbibliotek',
+      is_central: true,
+      active: true
+    }];
+  }
+
+  // Brug alle biblioteker – active bruges kun til visning/logik hvis sat
+  st.libs.list = rows;
+  st.libs.byId = Object.fromEntries(st.libs.list.map(x => [x.bibliotek_id, x]));
+
+  // Sæt-filter (owner = centralbibliotek)
+  const saetOwner = $('#saetOwnerFilterSel'); 
+  if (saetOwner) {
+    saetOwner.innerHTML='';
+    saetOwner.append(el('option',{value:''},'(alle)'));
+    st.libs.list.forEach(x=> saetOwner.append(
+      el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)
+    ));
+  }
+
+  // Region-fanens lånerbiblioteker (ikke-central)
+  const localSel = $('#relLocal'); 
+  if (localSel) {
+    localSel.innerHTML='';
+    st.libs.list
+      .filter(x=>!x.is_central)
+      .forEach(x=> localSel.append(
+        el('option',{value:x.bibliotek_id}, `${x.bibliotek_navn} (${x.bibliotek_id})`)
+      ));
+  }
 
   renderRoleBadge();
 }
+
+
 
 // ---------- Admin: Eksemplarer (central-ejet + gem alle) ----------
 function bindEksControls(){
@@ -894,42 +971,35 @@ function bindGlobal(){
 }
 
 async function boot(){
-  // 1) Hent tidligere gemt profil (hvis nogen)
+  // 1) Indlæs evt. tidligere gemt profil (fra localStorage)
   loadProfile();
 
-  // 2) Bind knapper og admin-funktioner
+  // 2) Bind globale knapper og admin-kontroller
   bindGlobal();
   bindAdmin();
 
-  // 3) Hent biblioteker fra Supabase
+  // 3) Hent biblioteker
   await loadLibraries();
 
-  // 4) Sæt ALWAYS default profil = Admin + Gentofte (første gang / hvis tom)
-  if (!st.profile.adminCentralId) {
-    // prøv at finde et centralbibliotek med navn der indeholder "gentofte"
-    const gent = st.libs.list.find(
-      x => x.is_central && (x.bibliotek_navn || '').toLowerCase().includes('gentofte')
-    );
+  // 4) Hvis der endnu ikke er valgt admin-central, forsøg at sætte default = Gentofte
+  if (!st.profile.adminCentralId && st.libs.list.length) {
+    const centrals = st.libs.list.filter(x => x.is_central);
+    let chosen = null;
 
-    // fallback: første centralbibliotek i listen
-    const firstCentral = st.libs.list.find(x => x.is_central);
-
-    // sidste fallback: første bibliotek overhovedet
-    const fallback = st.libs.list[0];
-
-    const chosen = gent || firstCentral || fallback;
+    // prøv at finde Gentofte
+    chosen = centrals.find(x => (x.bibliotek_navn || '').toLowerCase().includes('gentofte')) 
+           || centrals[0] 
+           || st.libs.list[0];
 
     if (chosen) {
-      st.role = 'admin';                           // tving rolle til admin
-      st.profile.adminCentralId = chosen.bibliotek_id; // sæt valgt central
-      saveProfile();                               // gem i localStorage
-      console.log('Default profil sat til Admin +', chosen.bibliotek_navn, `(${chosen.bibliotek_id})`);
-    } else {
-      console.warn('Ingen biblioteker fundet til default-profil.');
+      st.role = 'admin';
+      st.profile.adminCentralId = chosen.bibliotek_id;
+      saveProfile();
+      console.log('Default admin-profil sat til', chosen.bibliotek_navn, `(${chosen.bibliotek_id})`);
     }
   }
 
-  // 5) Tegn rolle-badge og layout på baggrund af profil
+  // 5) Opdater rollebadge og layout
   renderRoleBadge();
   renderLayout();
 
@@ -938,11 +1008,12 @@ async function boot(){
   saetPull();
   relList();
 
-  // 7) Booker-data kun hvis rollen *faktisk* er booker
+  // 7) Booker-data hvis rollen er booker
   if (st.role==='booker'){
     await resolveBookerCentrals();
     await bookerPull();
   }
 }
 boot();
+
 
