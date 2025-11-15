@@ -1080,10 +1080,10 @@ async function saetPull() {
     const owner = st.libs.byId[r.owner_bibliotek_id];
 
     const idCell = el("td", {}, String(r.set_id ?? ""));
-    const tiIn = el("input", { class: "saet-title", value: r.title || "" });
-    const auIn = el("input", { class: "saet-author", value: r.author || "" });
     const isbnSel = el("select", { class: "saet-isbn" });
     const isbnField = el("input", { type: "text", class: "saet-isbn-field", value: r.isbn || "", readonly: true });
+    const tiIn = el("input", { class: "saet-title", value: r.title || "", readonly: true });
+    const auIn = el("input", { class: "saet-author", value: r.author || "", readonly: true });
     const isbnWrap = el("div", { class: "saet-isbn-wrap" }, isbnField, isbnSel);
     isbnWrap.style.position = "relative";
     Object.assign(isbnSel.style, {
@@ -1153,9 +1153,9 @@ async function saetPull() {
 
     tr.append(
       idCell,
-      el("td", {}, tiIn),
-      el("td", {}, auIn),
-      el("td", {}, isbnWrap),
+    el("td", {}, isbnWrap),
+    el("td", {}, tiIn),
+    el("td", {}, auIn),
       el("td", {}, faIn),
     el("td", {}, reqIn, " ", reqHint),
       el("td", {}, weeksIn),
@@ -1330,6 +1330,8 @@ function saetNewRow() {
 
   const isbnSel = el("select", { class: "saet-isbn" });
   const isbnField = el("input", { type: "text", class: "saet-isbn-field", readonly: true });
+  const titleIn = el("input", { class: "saet-title", readonly: true });
+  const authorIn = el("input", { class: "saet-author", readonly: true });
   const isbnWrap = el("div", { class: "saet-isbn-wrap" }, isbnField, isbnSel);
   isbnWrap.style.position = "relative";
   Object.assign(isbnSel.style, {
@@ -1378,8 +1380,8 @@ function saetNewRow() {
 
   tr.append(
     el("td", {}, ""), // ID (autoincrement)
-    el("td", {}, el("input", { class: "saet-title" })),
-    el("td", {}, el("input", { class: "saet-author" })),
+    el("td", {}, titleIn),
+    el("td", {}, authorIn),
     el("td", {}, isbnWrap),
     el("td", {}, el("input", { class: "saet-faust", style: "width:6ch" })),
     el("td", {}, reqIn, " ", reqHint),

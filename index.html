@@ -137,6 +137,8 @@ select {
   padding: 4px 6px;
   font-size: var(--table-row-size);
   font-family: var(--table-row-font);
+  height: 20px;
+  line-height: 1.2;
 }
     table {
       width: 100%;
@@ -144,12 +146,9 @@ select {
       font-size: var(--table-row-size);
       margin-top: 8px;
     }
-    table input,
     table select {
-      font-family: var(--table-row-font);
-      font-size: var(--table-row-size);
-      height: 20px;
-      line-height: 1.2;
+      appearance: none;
+      padding-right: 16px;
     }
     th, td {
       border: 1px solid #ddd;
@@ -388,9 +387,8 @@ td {
           <thead>
           <tr>
             <th>ID</th>
-            <th>Titel</th>
-            <th>Forfatter</th>
             <th>ISBN (fra beholdning)</th>
+            <th>Titel</th>
             <th>FAUST</th>
             <th>Eksemplarer i sæt</th>
             <th>Bookinguger (1-12)</th>
