@@ -59,8 +59,7 @@ function isSuperLibrary(lib) {
   if (!lib) return false;
   if (lib.is_super_admin) return true;
   const id = (lib.bibliotek_id || "").toLowerCase();
-  const name = (lib.bibliotek_navn || "").toLowerCase();
-  return id === "gent" || name.includes("gentofte");
+  return id === "gent";
 }
 
 function currentAdminId() {
