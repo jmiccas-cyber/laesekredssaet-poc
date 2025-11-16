@@ -1298,6 +1298,19 @@ function bindEksControls() {
       eksPull();
     }
   });
+  $("#btnEksExport")?.addEventListener("click", () => {
+    exportEksToExcel();
+  });
+  $("#btnEksImport")?.addEventListener("click", () => {
+    $("#eksImportFile")?.click();
+  });
+  $("#eksImportFile")?.addEventListener("change", evt => {
+    const file = evt.target?.files?.[0];
+    if (file) {
+      importEksFromExcel(file);
+    }
+    evt.target.value = "";
+  });
   updateEksSaveButton();
 }
 
@@ -2230,6 +2243,19 @@ function bindSaetControls() {
       st.saet.page++;
       saetPull();
     }
+  });
+  $("#btnSaetExport")?.addEventListener("click", () => {
+    exportSaetToExcel();
+  });
+  $("#btnSaetImport")?.addEventListener("click", () => {
+    $("#saetImportFile")?.click();
+  });
+  $("#saetImportFile")?.addEventListener("change", evt => {
+    const file = evt.target?.files?.[0];
+    if (file) {
+      importSaetFromExcel(file);
+    }
+    evt.target.value = "";
   });
 }
 
