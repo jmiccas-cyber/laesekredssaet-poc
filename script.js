@@ -2003,7 +2003,7 @@ function renderBookerResults() {
       el("td", {}, r.faust || ""),
       el("td", {}, r.visibility || ""),
       el("td", {}, ownerLabel),
-      el("td", {}, el("span", { class: "hint" }, "Booking POC ??" ingen rigtig booking endnu"))
+      el("td", {}, el("span", { class: "hint" }, "Booking POC – ingen rigtig booking endnu"))
     );
     tb.appendChild(tr);
   });
