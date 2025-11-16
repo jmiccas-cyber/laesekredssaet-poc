@@ -3330,6 +3330,8 @@ async function bookingRulePull() {
   const isSuper = isSuperLibrary(adminLib);
   const ownerWrap = $("#bookingRuleOwnerWrap");
   if (ownerWrap) ownerWrap.style.display = isSuper ? "" : "none";
+  const superHint = $("#bookingRuleSuperHint");
+  if (superHint) superHint.style.display = isSuper ? "inline" : "none";
   const ownerSel = $("#bookingRuleOwnerSel");
   if (isSuper && ownerSel && !ownerSel.options.length) {
     populateBookingRuleOwnerSelect();
