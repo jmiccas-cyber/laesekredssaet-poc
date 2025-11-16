@@ -3766,13 +3766,13 @@ async function bookerSearchInternal() {
   // national
   let qNat = sb.from("tbl_saet")
     .select("set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,active,requested_count,loan_weeks,buffer_days")
-    .eq("visibility", "national")
+    .ilike("visibility", "national")
     .eq("active", true);
 
   // regional
   let qReg = sb.from("tbl_saet")
     .select("set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,active,requested_count,loan_weeks,buffer_days")
-    .eq("visibility", "regional")
+    .ilike("visibility", "regional")
     .eq("active", true);
 
   if (q) {
