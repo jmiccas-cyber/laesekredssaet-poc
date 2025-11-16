@@ -500,22 +500,22 @@ td {
           <select id="relCentralAssign"></select>
         </div>
         <div style="flex:1; min-width:260px;">
-          <label for="relLocal">Tilf�j eksisterende regionsbibliotek</label>
+          <label for="relLocal">Tilføj eksisterende regionsbibliotek</label>
           <div style="display:flex; gap:6px;">
             <select id="relLocal" style="flex:1;"></select>
-            <button id="btnRelAdd" class="btn">+ Tilf�j relation</button>
+            <button id="btnRelAdd" class="btn">+ Tilføj relation</button>
           </div>
         </div>
       </div>
       <p class="hint" style="margin-top:8px;">
-        Filtr�r relationer pr. centralbibliotek og tilknyt eksisterende biblioteker til de seks centraler.
+        Filtr r relationer pr. centralbibliotek og tilknyt eksisterende biblioteker til de seks centraler.
       </p>
     </div>
     <div class="card" style="margin-bottom:12px;">
       <h3 style="margin-top:0; font-size:14px;">Detaljer for regionsbibliotek</h3>
       <div class="row" style="align-items:flex-end;">
         <div style="min-width:220px;">
-          <label for="relDetailSel">V�lg regionsbibliotek</label>
+          <label for="relDetailSel">Vælg regionsbibliotek</label>
           <select id="relDetailSel"></select>
         </div>
       </div>
@@ -561,7 +561,7 @@ td {
       <h3 style="margin-top:0; font-size:14px;">Opret nyt regionsbibliotek</h3>
       <div class="row">
         <div>
-          <label for="newLocalId">Biblioteksnummer (1�20 tegn)</label>
+          <label for="newLocalId">Biblioteksnummer (1 20 tegn)</label>
           <input id="newLocalId" type="text" />
         </div>
         <div style="flex:1; min-width:220px;">
@@ -614,7 +614,7 @@ td {
           <th>regionsbibliotek</th>
           <th>Centralbibliotek</th>
           <th>Relation aktiv</th>
-          <th>L�ner aktiv</th>
+          <th>L ner aktiv</th>
           <th>Handling</th>
         </tr>
         </thead>
@@ -622,21 +622,30 @@ td {
       </table>
     </div>
   </section>
+
     <!-- ADMIN: Adgang -->
     <section id="tab-access" class="panel">
       <div class="card">
         <p class="hint">
-          Kun super admin (Gentofte Centralbibliotek) har adgang til denne fane. Her kommer senere funktioner til at vedligeholde roller og adgang.
+          Administrer hvilke centralbiblioteker der er super admin. Der skal altid v re mindst  n.
         </p>
-        <div style="margin-top:8px;">
-          <p>
-            Brug dette omraade til noter og arbejdsplaner, indtil de egentlige vaerktoejer bliver bygget.
-          </p>
-        </div>
+        <div id="accessMsg" class="msg" style="display:none;"></div>
+        <table id="tblSuperAdmin">
+          <thead>
+          <tr>
+            <th>Centralbibliotek</th>
+            <th>Super admin</th>
+            <th>Handling</th>
+          </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <p class="hint" style="margin-top:8px;">
+          Tilf j eller fjern super admin-adgang via knapperne. Du kan ikke fjerne den sidste super admin.
+        </p>
       </div>
     </section>
-
-  <!-- BOOKER VIEW -->
+<!-- BOOKER VIEW -->
   <section id="bookerView" class="panel hidden">
     <div class="card">
       <p class="hint">

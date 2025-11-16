@@ -57,9 +57,7 @@ function fmtOwnerCity(lib) {
 
 function isSuperLibrary(lib) {
   if (!lib) return false;
-  if (lib.is_super_admin) return true;
-  const id = (lib.bibliotek_id || "").toLowerCase();
-  return id === "gent";
+  return !!lib.is_super_admin;
 }
 
 function currentAdminId() {
@@ -204,6 +202,7 @@ async function loadLibraries() {
 
   // SÃ¦t-ejer filter
   populateRegionSelects();
+  renderSuperAdminList();
 
 // Hvis der ikke er valgt admin-central, sÃ¦t default = Gentofte eller fÃ¸rste central
   if (!st.profile.adminCentralId && st.libs.centrals.length) {
@@ -339,9 +338,80 @@ async function saveRegionDetails() {
     Object.assign(st.libs.byId[id], payload);
   }
   populateRegionSelects();
+  renderSuperAdminList();
   await relList();
   if (info) info.textContent = "Detaljer opdateret.";
 }
+
+function renderSuperAdminList(customMessage = "", customOk = false) {
+  const table = $("#tblSuperAdmin tbody");
+  const msgSel = "#accessMsg";
+  if (!table) return;
+  table.innerHTML = "";
+  const centrals = st.libs.centrals || [];
+  if (!centrals.length) {
+    showMsg(msgSel, "Ingen centralbiblioteker fundet.");
+    return;
+  }
+  const superCount = centrals.filter(lib => lib.is_super_admin).length;
+  centrals.forEach(lib => {
+    const isSuper = !!lib.is_super_admin;
+    const status = isSuper ? "Ja" : "Nej";
+    const btn = el("button", {
+      class: `btn ${isSuper ? "" : "primary"}`,
+      onclick: () => toggleSuperAdminRole(lib.bibliotek_id, !isSuper)
+    }, isSuper ? "Fjern" : "Tilføj");
+    if (isSuper && superCount <= 1) {
+      btn.disabled = true;
+      btn.title = "Der skal altid være mindst én super admin.";
+    }
+    const row = el("tr", {},
+      el("td", {}, fmtLibLabel(lib)),
+      el("td", {}, status),
+      el("td", {}, btn)
+    );
+    table.appendChild(row);
+  });
+  const msgText = customMessage || (superCount
+    ? `Aktive super admins: ${superCount}`
+    : "Ingen super admins markeret. Tilføj mindst én.");
+  const ok = customMessage ? customOk : superCount > 0;
+  showMsg(msgSel, msgText, ok);
+}
+
+async function toggleSuperAdminRole(bibliotekId, makeSuper) {
+  if (!sb) return;
+  const msgSel = "#accessMsg";
+  const centrals = st.libs.centrals || [];
+  const lib = st.libs.byId[bibliotekId];
+  if (!lib) {
+    showMsg(msgSel, "Biblioteket blev ikke fundet.");
+    return;
+  }
+  const superCount = centrals.filter(x => x.is_super_admin).length;
+  if (!makeSuper && superCount <= 1) {
+    showMsg(msgSel, "Der skal altid være mindst én super admin.");
+    return;
+  }
+
+  const { error } = await sb
+    .from("tbl_bibliotek")
+    .update({ is_super_admin: makeSuper })
+    .eq("bibliotek_id", bibliotekId);
+
+  if (error) {
+    showMsg(msgSel, "Fejl ved opdatering: " + error.message);
+    return;
+  }
+
+  lib.is_super_admin = makeSuper;
+  const msg = makeSuper
+    ? `${fmtLibLabel(lib)} er nu super admin.`
+    : `${fmtLibLabel(lib)} er ikke længere super admin.`;
+  renderSuperAdminList(msg, true);
+  renderLayout();
+}
+
 function loadProfileDropdown() {
   const adminSel = document.querySelector("#adminProfileSel");
   const bookerSel = document.querySelector("#bookerProfileSel");
