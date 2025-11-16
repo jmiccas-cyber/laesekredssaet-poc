@@ -2858,8 +2858,8 @@ async function calendarImportExcel(file) {
     return;
   }
 
-  const additions = [];
-  const deletions = [];
+  const additionMap = new Map();
+  const deletionSet = new Set();
   const failures = [];
   const getValue = (row, ...keys) => {
     for (const key of keys) {
@@ -2880,7 +2880,8 @@ async function calendarImportExcel(file) {
       return;
     }
     if (action === "slet" || action === "delete") {
-      deletions.push(isoDate);
+      additionMap.delete(isoDate);
+      deletionSet.add(isoDate);
       return;
     }
     const title = String(getValue(row, "Titel", "title", "Beskrivelse")).trim();
@@ -2889,8 +2890,11 @@ async function calendarImportExcel(file) {
       return;
     }
     const notes = String(getValue(row, "Noter", "notes", "Note")).trim();
-    additions.push({ holiday_date: isoDate, title, notes });
+    additionMap.set(isoDate, { holiday_date: isoDate, title, notes });
   });
+
+  const additions = Array.from(additionMap.values());
+  const deletions = Array.from(deletionSet);
 
   if (!additions.length && !deletions.length) {
     showMsg("#calendarMsg", failures[0] || "Ingen gyldige rækker fundet.");
