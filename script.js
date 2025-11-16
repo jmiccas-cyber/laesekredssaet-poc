@@ -39,6 +39,15 @@ function safeJsonParse(str) {
   }
 }
 
+function setActiveButtonState(btn, val) {
+  if (!btn) return;
+  const normalized = val === "false" ? "false" : "true";
+  btn.dataset.value = normalized;
+  btn.textContent = normalized === "true" ? "Aktiv" : "Inaktiv";
+  btn.style.background = normalized === "true" ? "#2e8540" : "#c32626";
+  btn.style.color = "#fff";
+}
+
 let sheetJsPromise = null;
 let accessUpdating = false;
 function ensureSheetJs() {
@@ -867,7 +876,7 @@ function eksCollectRow(tr) {
     isbn: tr.querySelector(".isbn")?.value.trim() || "",
     faust: tr.querySelector(".faust")?.value.trim() || "",
     booking_status: tr.querySelector(".status")?.value || "Ledig",
-    aktiv: (tr.querySelector(".active-flag")?.value || "true") === "true",
+    aktiv: tr.querySelector(".active-flag")?.dataset.value !== "false",
     loan_status: "Ukendt",
     owner_bibliotek_id: st.profile.adminCentralId
   };
@@ -892,8 +901,10 @@ function eksRevertRow(tr) {
     tr.querySelector(".faust").value = original.faust || "";
     const stSel = tr.querySelector(".status");
     if (stSel) stSel.value = original.booking_status || "Ledig";
-    const aktSel = tr.querySelector(".active-flag");
-    if (aktSel) aktSel.value = original.aktiv === false ? "false" : "true";
+    const aktBtn = tr.querySelector(".active-flag");
+    if (aktBtn) {
+      setActiveButtonState(aktBtn, original.aktiv === false ? "false" : "true");
+    }
     clearEksDirty(tr);
   } catch (e) {
     console.warn("Kunne ikke fortryde rÃ¦kke", e);
@@ -1253,11 +1264,16 @@ async function eksPull() {
     const au = el("input", { class: "author", value: r.author || "" });
     const isb = el("input", { class: "isbn", value: r.isbn || "" });
     const fa = el("input", { class: "faust", value: r.faust || "" });
-    const aktSel = el("select", { class: "active-flag" },
-      el("option", { value: "true" }, "Aktiv"),
-      el("option", { value: "false" }, "Inaktiv")
-    );
-    aktSel.value = r.aktiv === false ? "false" : "true";
+    const aktSel = el("button", {
+      class: "btn btn-small active-flag",
+      type: "button"
+    }, "");
+    setActiveButtonState(aktSel, r.aktiv === false ? "false" : "true");
+    aktSel.addEventListener("click", () => {
+      const next = aktSel.dataset.value === "true" ? "false" : "true";
+      setActiveButtonState(aktSel, next);
+      markEksDirty(tr);
+    });
 
     const stSel = el("select", { class: "status" },
       el("option", { value: "Ledig" }, "Ledig"),
@@ -1353,11 +1369,13 @@ function eksNewRow() {
     el("option", { value: "Booket" }, "Booket")
   );
   stSel.value = "Ledig";
-  const aktSel = el("select", { class: "active-flag" },
-    el("option", { value: "true" }, "Aktiv"),
-    el("option", { value: "false" }, "Inaktiv")
-  );
-  aktSel.value = "true";
+  const aktSel = el("button", { class: "btn btn-small active-flag", type: "button" }, "");
+  setActiveButtonState(aktSel, "true");
+  aktSel.addEventListener("click", () => {
+    const next = aktSel.dataset.value === "true" ? "false" : "true";
+    setActiveButtonState(aktSel, next);
+    markEksDirty(tr);
+  });
 
   const btnCancel = el("button", {
     class: "btn",
