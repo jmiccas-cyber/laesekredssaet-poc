@@ -135,6 +135,7 @@ const st = {
     pageSize: 15,
     total: 0,
     owner: "",
+    ownerAdminId: "",
     vis: "",
     q: "",
     sortBy: "set_id",
@@ -2030,6 +2031,12 @@ async function saetPull() {
     }
   }
 
+  if (adminId && st.saet.ownerAdminId !== adminId) {
+    st.saet.ownerAdminId = adminId;
+    st.saet.owner = adminId;
+    if (ownerSel) ownerSel.value = adminId;
+  }
+
   let activeOwner = adminId || "";
   if (isSuper && ownerSel) {
     if (!ownerSel.value) ownerSel.value = adminId;
@@ -2354,6 +2361,7 @@ function bindSaetControls() {
       return;
     }
     st.saet.owner = adminId;
+    st.saet.ownerAdminId = adminId;
     const ownerSel = $("#saetOwnerFilterSel");
     if (ownerSel) {
       ownerSel.value = adminId;
