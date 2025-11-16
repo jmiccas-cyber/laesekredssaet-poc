@@ -3872,7 +3872,7 @@ function renderBookerResults() {
   tb.innerHTML = "";
   slice.forEach(r => {
     const owner = st.libs.byId[r.owner_bibliotek_id];
-    const ownerLabel = owner ? fmtLibLabel(owner) : r.owner_bibliotek_id || "";
+    const ownerLabel = owner ? (owner.bibliotek_navn?.split(" ")[0] || fmtLibLabel(owner)) : r.owner_bibliotek_id || "";
     const ruleLabel = bookingRuleLabel(r.bookingRule) || "—";
     const loanWeeks = r.loan_weeks || "";
     const copies = r.requested_count || "";
