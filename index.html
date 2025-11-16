@@ -394,6 +394,14 @@ td {
             <button id="btnSaveAll" class="btn primary">Gem alle ændringer</button>
           </div>
         </div>
+        <div class="row" style="margin-top:8px; gap:8px;">
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button id="btnEksExport" class="btn">Download Excel</button>
+            <button id="btnEksImport" class="btn">Upload Excel</button>
+            <input id="eksImportFile" type="file" accept=".xlsx,.xls" style="display:none;" />
+          </div>
+          <span class="hint" style="margin-left:auto;">Excel skal indeholde kolonnerne: Handling (Opdater/Slet), barcode, title, author, isbn, faust, booking_status.</span>
+        </div>
       </div>
 
       <div id="msg" class="msg" style="display:none;"></div>

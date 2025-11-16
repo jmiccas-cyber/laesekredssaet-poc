@@ -32,6 +32,21 @@ function el(tag, attrs = {}, ...kids) {
 function show(node) { if (node) node.style.display = ""; }
 function hide(node) { if (node) node.style.display = "none"; }
 
+let sheetJsPromise = null;
+function ensureSheetJs() {
+  if (window.XLSX) return Promise.resolve();
+  if (!sheetJsPromise) {
+    sheetJsPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Kunne ikke indlæse Excel-biblioteket."));
+      document.head.appendChild(script);
+    });
+  }
+  return sheetJsPromise;
+}
+
 function showMsg(selectorOrEl, text, ok = false) {
   const box = typeof selectorOrEl === "string" ? $(selectorOrEl) : selectorOrEl;
   if (!box) return;
@@ -120,6 +135,8 @@ const st = {
     centralIds: [] // relationer for booker
   }
 };
+
+const BOOKING_STATUSES = ["Ledig", "Reserveret", "Booket"];
 
 // ----------------------------------------------------------
 // 3. Supabase & profil
@@ -881,10 +898,236 @@ async function eksSaveAll() {
 function eksValidate(r) {
   if (!r.barcode) return "Stregkode skal udfyldes";
   if (!r.title) return "Titel skal udfyldes";
-  if (!["Ledig", "Reserveret", "Booket"].includes(r.booking_status)) {
+  if (!BOOKING_STATUSES.includes(r.booking_status)) {
     return "Ugyldig booking-status";
   }
   return null;
+}
+
+async function exportEksToExcel() {
+  if (!sb) return;
+  const ownerId = currentAdminId();
+  if (!ownerId) {
+    showMsg("#msg", "Vælg først en admin-profil (centralbibliotek) via Skift: Admin ↔ Booker.");
+    return;
+  }
+
+  showMsg("#msg", "Henter eksemplarer til Excel…");
+  const { data, error } = await sb
+    .from("tbl_beholdning")
+    .select("barcode,title,author,isbn,faust,booking_status")
+    .eq("owner_bibliotek_id", ownerId)
+    .order("barcode");
+
+  if (error) {
+    showMsg("#msg", "Kunne ikke hente eksemplarer: " + error.message);
+    return;
+  }
+
+  try {
+    await ensureSheetJs();
+  } catch (e) {
+    showMsg("#msg", e.message);
+    return;
+  }
+
+  const rows = (data || []).map(row => ({
+    Barcode: row.barcode || "",
+    Titel: row.title || "",
+    Forfatter: row.author || "",
+    ISBN: row.isbn || "",
+    FAUST: row.faust || "",
+    Bookingstatus: row.booking_status || ""
+  }));
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{
+    Barcode: "",
+    Titel: "",
+    Forfatter: "",
+    ISBN: "",
+    FAUST: "",
+    Bookingstatus: ""
+  }]);
+  XLSX.utils.book_append_sheet(wb, ws, "Eksemplarer");
+  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `eksemplarer_${ownerId}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showMsg("#msg", "Excel klar.", true);
+}
+
+async function importEksFromExcel(file) {
+  if (!sb || !file) return;
+  const ownerId = currentAdminId();
+  if (!ownerId) {
+    showMsg("#msg", "Vælg først en admin-profil (centralbibliotek) via Skift: Admin ↔ Booker.");
+    return;
+  }
+
+  showMsg("#msg", "Indlæser Excel…");
+  try {
+    await ensureSheetJs();
+  } catch (e) {
+    showMsg("#msg", e.message);
+    return;
+  }
+
+  await loadInventorySummary();
+  const usageMap = await fetchSaetUsage();
+
+  let workbook;
+  try {
+    const buffer = await file.arrayBuffer();
+    workbook = XLSX.read(buffer, { type: "array" });
+  } catch (e) {
+    showMsg("#msg", "Kunne ikke læse Excel-filen: " + e.message);
+    return;
+  }
+
+  const sheetName = workbook.SheetNames?.[0];
+  if (!sheetName) {
+    showMsg("#msg", "Excel-filen indeholder ingen ark.");
+    return;
+  }
+
+  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
+  if (!rows.length) {
+    showMsg("#msg", "Excel-arket er tomt.");
+    return;
+  }
+
+  const updates = [];
+  const deletions = [];
+  const failures = [];
+  const seen = new Set();
+  rows.forEach((row, idx) => {
+    const line = idx + 2; // 1-based header
+    const get = (...keys) => {
+      for (const key of keys) {
+        if (row[key] != null && row[key] !== "") return row[key];
+        const lower = typeof key === "string" ? key.toLowerCase() : key;
+        if (row[lower] != null && row[lower] !== "") return row[lower];
+      }
+      return "";
+    };
+    const barcode = String(get("Barcode", "barcode", "Stregkode", "stregkode")).trim();
+    if (!barcode) {
+      failures.push(`Række ${line}: mangler Barcode`);
+      return;
+    }
+    if (seen.has(barcode)) {
+      failures.push(`Række ${line}: stregkode ${barcode} er duplikeret i arket.`);
+      return;
+    }
+    seen.add(barcode);
+
+    const actionRaw = String(get("Handling", "handling", "Action", "action")).trim().toLowerCase();
+    const action = actionRaw === "slet" ? "slet" : "opdater";
+    const bookingRaw = String(get("Bookingstatus", "booking_status")).trim();
+    const booking_status = BOOKING_STATUSES.find(
+      st => st.toLowerCase() === bookingRaw.toLowerCase()
+    ) || "Ledig";
+    if (action === "slet") {
+      const isbnVal = String(get("ISBN", "isbn")).trim();
+      if (!isbnVal) {
+        failures.push(`Række ${line}: mangler ISBN for sletning.`);
+        return;
+      }
+      deletions.push({ line, barcode, isbn: isbnVal });
+      return;
+    }
+    const record = {
+      barcode,
+      title: String(get("Titel", "title")).trim(),
+      author: String(get("Forfatter", "author")).trim(),
+      isbn: String(get("ISBN", "isbn")).trim(),
+      faust: String(get("FAUST", "faust")).trim(),
+      booking_status,
+      owner_bibliotek_id: ownerId
+    };
+    const validation = eksValidate(record);
+    if (validation) {
+      failures.push(`Række ${line}: ${validation}`);
+      return;
+    }
+    updates.push(record);
+  });
+
+  if (!updates.length && !deletions.length) {
+    showMsg("#msg", failures[0] || "Ingen gyldige rækker fundet.");
+    return;
+  }
+
+  if (deletions.length) {
+    const deleteByIsbn = {};
+    deletions.forEach(({ isbn }) => {
+      deleteByIsbn[isbn] = (deleteByIsbn[isbn] || 0) + 1;
+    });
+    const usageForOwner = usageMap[ownerId] || {};
+    const blocking = Object.entries(deleteByIsbn).filter(([isbn, count]) => {
+      const current = getInventoryCount(ownerId, isbn);
+      const used = Number(usageForOwner[isbn]) || 0;
+      return current - count < used;
+    });
+    if (blocking.length) {
+      const examples = blocking.slice(0, 5).map(([isbn, count]) => {
+        const used = Number(usageForOwner[isbn]) || 0;
+        const remaining = Math.max(0, getInventoryCount(ownerId, isbn) - count);
+        return `${isbn} (aktive sæt reserverer ${used}, tilbage efter sletning: ${remaining})`;
+      });
+      showMsg("#msg", "Eksemplarer kan ikke slettes før tilhørende sæt er nedtaget. Tjek følgende ISBN: " + examples.join(", "));
+      return;
+    }
+    const confirmMsg = `Der er ${deletions.length} rækker markeret til sletning. Handlingen kan ikke fortrydes. Fortsæt?`;
+    if (!confirm(confirmMsg)) {
+      showMsg("#msg", "Import annulleret.");
+      return;
+    }
+  }
+
+  let upsertsDone = 0;
+  const chunkSize = 100;
+
+  for (let i = 0; i < updates.length; i += chunkSize) {
+    const chunk = updates.slice(i, i + chunkSize);
+    const { error } = await sb.from("tbl_beholdning").upsert(chunk, { onConflict: "barcode" });
+    if (error) {
+      showMsg("#msg", "Fejl ved import: " + error.message);
+      return;
+    }
+    upsertsDone += chunk.length;
+  }
+
+  let deletesDone = 0;
+  for (let i = 0; i < deletions.length; i += chunkSize) {
+    const chunk = deletions.slice(i, i + chunkSize).map(x => x.barcode);
+    const { error } = await sb
+      .from("tbl_beholdning")
+      .delete()
+      .eq("owner_bibliotek_id", ownerId)
+      .in("barcode", chunk);
+    if (error) {
+      showMsg("#msg", "Fejl ved sletning: " + error.message);
+      return;
+    }
+    deletesDone += chunk.length;
+  }
+
+  const parts = [];
+  if (upsertsDone) parts.push(`opdaterede ${upsertsDone} eksemplar${upsertsDone === 1 ? "" : "er"}`);
+  if (deletesDone) parts.push(`slettede ${deletesDone}`);
+  showMsg("#msg", parts.length ? `Import gennemført: ${parts.join(", ")}.` : "Import gennemført.", true);
+  if (failures.length) {
+    alert("Følgende rækker blev sprunget over:\n" + failures.join("\n"));
+  }
+  await eksPull();
 }
 
 async function eksPull() {
@@ -1042,6 +1285,20 @@ function bindEksControls() {
     if (st.eks.page < totalPages - 1) {
       st.eks.page++;
       eksPull();
+    }
+  });
+  $("#btnEksExport")?.addEventListener("click", () => {
+    exportEksToExcel();
+  });
+  $("#btnEksImport")?.addEventListener("click", () => {
+    $("#eksImportFile")?.click();
+  });
+  $("#eksImportFile")?.addEventListener("change", e => {
+    const file = e.target.files?.[0];
+    if (file) {
+      importEksFromExcel(file).finally(() => {
+        e.target.value = "";
+      });
     }
   });
   updateEksSaveButton();
