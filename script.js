@@ -2599,6 +2599,7 @@ async function toggleSuperAdmin(bibId, makeSuper) {
   }
   await loadLibraries();
   accessUpdating = false;
+  renderAccessTable();
   const lib = st.libs.byId[bibId];
   const label = fmtLibLabel(lib) || bibId;
   showMsg("#accessMsg", makeSuper ? `${label} er nu super admin.` : `${label} er ikke længere super admin.`, true);
