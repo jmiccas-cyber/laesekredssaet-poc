@@ -361,6 +361,7 @@ td {
       <button data-tab="tab-access">Adgang</button>
       <button data-tab="tab-calendar">Kalender</button>
       <button data-tab="tab-booking">Booking Regler</button>
+      <button data-tab="tab-requests">Anmodninger</button>
     </nav>
 
     <!-- ADMIN: Eksemplarer -->
@@ -699,6 +700,29 @@ td {
       </div>
     </section>
 
+    <!-- ADMIN: Anmodninger -->
+    <section id="tab-requests" class="panel">
+      <div class="card">
+        <p class="hint">
+          Anmodninger for <span id="bookingRequestsOwner">–</span>. Godkend for at låse perioden eller afvis for at frigive sættet.
+        </p>
+        <div id="bookingRequestsMsg" class="msg" style="display:none;"></div>
+        <table id="tblBookingRequests">
+          <thead>
+          <tr>
+            <th>Sæt</th>
+            <th>Anmoder</th>
+            <th>Start</th>
+            <th>Slut</th>
+            <th>Status</th>
+            <th>Handling</th>
+          </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
     <!-- ADMIN: Kalender -->
     <section id="tab-calendar" class="panel">
       <div id="calendarGlobalSection">
@@ -832,18 +856,22 @@ td {
     <div id="bMsg" class="msg" style="display:none;"></div>
 
     <div class="card">
-      <table id="bTbl">
-        <thead>
-        <tr>
-          <th>Titel</th>
-          <th>Forfatter</th>
-          <th>ISBN</th>
-          <th>FAUST</th>
-          <th>Synlighed</th>
-          <th>Centralbibliotek</th>
-          <th>Handling</th>
-        </tr>
-        </thead>
+        <table id="bTbl">
+          <thead>
+          <tr>
+            <th>Titel</th>
+            <th>Forfatter</th>
+            <th>ISBN</th>
+            <th>FAUST</th>
+            <th>Synlighed</th>
+            <th>Centralbibliotek</th>
+            <th>Bookingregel</th>
+            <th>Låneuger</th>
+            <th>Eksemplarer</th>
+            <th>Næste mulighed</th>
+            <th>Handling</th>
+          </tr>
+          </thead>
         <tbody></tbody>
       </table>
       <div style="margin-top:6px; display:flex; justify-content:space-between; align-items:center;">
