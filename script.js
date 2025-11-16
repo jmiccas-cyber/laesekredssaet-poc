@@ -297,10 +297,10 @@ function renderRegionDetails() {
   }
 
   if (fields.name) fields.name.value = lib.bibliotek_navn || "";
-  if (fields.address) fields.address.value = lib.address || "";
+  if (fields.address) fields.address.value = lib.addr_line1 || "";
   if (fields.postal) fields.postal.value = lib.postal_code || "";
   if (fields.city) fields.city.value = lib.city || "";
-  if (fields.notes) fields.notes.value = lib.notes || "";
+  if (fields.notes) fields.notes.value = lib.shipping_notes || "";
   if (fields.active) fields.active.value = lib.active !== false ? "true" : "false";
   setDisabled(false);
   if (info) info.textContent = "V�lg et regionsbibliotek for at se detaljer.";
@@ -315,10 +315,10 @@ async function saveRegionDetails() {
     return;
   }
   const name = $("#relDetailName")?.value?.trim() || "";
-  const address = $("#relDetailAddress")?.value?.trim() || "";
+  const addr_line1 = $("#relDetailAddress")?.value?.trim() || "";
   const postal_code = $("#relDetailPostal")?.value?.trim() || "";
   const city = $("#relDetailCity")?.value?.trim() || "";
-  const notes = $("#relDetailNotes")?.value?.trim() || "";
+  const shipping_notes = $("#relDetailNotes")?.value?.trim() || "";
   const activeStr = $("#relDetailActive")?.value || "true";
   const active = activeStr === "true";
 
@@ -327,7 +327,7 @@ async function saveRegionDetails() {
     return;
   }
 
-  const payload = { bibliotek_navn: name, address, postal_code, city, notes, active };
+  const payload = { bibliotek_navn: name, addr_line1, postal_code, city, shipping_notes, active };
   const { error } = await sb.from("tbl_bibliotek").update(payload).eq("bibliotek_id", id);
   if (error) {
     if (info) info.textContent = "Fejl ved opdatering: " + error.message;
@@ -1852,10 +1852,10 @@ async function relCreateLocal() {
   }
   const id = $("#newLocalId")?.value.trim();
   const name = $("#newLocalName")?.value.trim();
-  const address = $("#newLocalAddress")?.value.trim() || "";
+  const addr_line1 = $("#newLocalAddress")?.value.trim() || "";
   const postal_code = $("#newLocalPostal")?.value.trim() || "";
   const city = $("#newLocalCity")?.value.trim() || "";
-  const notes = $("#newLocalNotes")?.value.trim() || "";
+  const shipping_notes = $("#newLocalNotes")?.value.trim() || "";
   const activeStr = $("#newLocalActive")?.value || "true";
   const active = activeStr === "true";
 
@@ -1873,10 +1873,10 @@ async function relCreateLocal() {
     bibliotek_navn: name,
     is_central: false,
     active,
-    address,
+    addr_line1,
     postal_code,
     city,
-    notes
+    shipping_notes
   });
   if (e1) {
     showMsg("#msgRel", "Fejl ved oprettelse af bibliotek: " + e1.message);
