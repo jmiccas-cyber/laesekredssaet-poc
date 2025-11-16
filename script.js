@@ -707,10 +707,10 @@ function updateEksSaveButton() {
   const dirtyCount = eksDirtyRows().length;
   btn.disabled = dirtyCount === 0;
   if (dirtyCount > 0) {
-    const suffix = dirtyCount > 1 ? "�ndringer" : "�ndring";
+    const suffix = dirtyCount > 1 ? "ændringer" : "ændring";
     btn.textContent = `Gem ${dirtyCount} ${suffix}`;
   } else {
-    btn.textContent = "Gem alle �ndringer";
+    btn.textContent = "Gem alle ændringer";
   }
 }
 
@@ -2109,7 +2109,7 @@ function updateSaetSaveButton() {
   if (!btn) return;
   const count = saetDirtyRows().length;
   btn.disabled = count === 0;
-  btn.textContent = count ? `Gem ${count} s�t` : "Gem �ndringer";
+  btn.textContent = count ? `Gem ${count} sæt` : "Gem ændringer";
 }
 
 function saetAttachRowListeners(tr) {
