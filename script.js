@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 // Læsekredssæt v4.1 (clean drop-in)
+=======
+﻿// LÃ¦sekredssÃ¦t â€“ v4.1 (clean drop-in)
+>>>>>>> parent of 1897d9d (Update script.js)
 // Bevarer funktionalitet fra v4.0, men med ryddet struktur.
 
 // ----------------------------------------------------------
@@ -302,7 +306,11 @@ function renderRegionDetails() {
 
   resetFields();
   setDisabled(true);
+<<<<<<< HEAD
   if (info) info.textContent = "Vælg et regionsbibliotek for at se detaljer.";
+=======
+  if (info) info.textContent = "Vǟ��lg et regionsbibliotek for at se detaljer.";
+>>>>>>> parent of 1897d9d (Update script.js)
 
   if (!id) {
     return;
@@ -310,7 +318,11 @@ function renderRegionDetails() {
 
   const lib = st.libs.byId[id];
   if (!lib) {
+<<<<<<< HEAD
     if (info) info.textContent = "Biblioteket findes ikke længere.";
+=======
+    if (info) info.textContent = "Biblioteket findes ikke lǟ��ngere.";
+>>>>>>> parent of 1897d9d (Update script.js)
     return;
   }
 
@@ -329,7 +341,11 @@ async function saveRegionDetails() {
   const info = $("#relDetailInfo");
   const id = $("#relDetailSel")?.value || "";
   if (!id) {
+<<<<<<< HEAD
     if (info) info.textContent = "Vælg et regionsbibliotek først.";
+=======
+    if (info) info.textContent = "Vǟ��lg et regionsbibliotek fǟ��rst.";
+>>>>>>> parent of 1897d9d (Update script.js)
     return;
   }
   const name = $("#relDetailName")?.value?.trim() || "";
@@ -359,6 +375,25 @@ async function saveRegionDetails() {
   await relList();
   if (info) info.textContent = "Detaljer opdateret.";
 }
+<<<<<<< HEAD
+=======
+
+  const lib = st.libs.byId[id];
+  if (!lib) {
+    if (info) info.textContent = \"Biblioteket findes ikke lǟ��ngere.\";
+    return;
+  }
+
+  if (fields.name) fields.name.value = lib.bibliotek_navn || \"\";
+  if (fields.address) fields.address.value = lib.address || \"\";
+  if (fields.postal) fields.postal.value = lib.postal_code || \"\";
+  if (fields.city) fields.city.value = lib.city || \"\";
+  if (fields.notes) fields.notes.value = lib.notes || \"\";
+  if (fields.active) fields.active.value = lib.active !== false ? \"true\" : \"false\";
+  setDisabled(false);
+  if (info) info.textContent = \"Opdater oplysninger og tryk Gem detaljer.\";
+}
+>>>>>>> parent of 1897d9d (Update script.js)
   const lib = st.libs.byId[id];
   if (!lib) {
     info.textContent = "Biblioteket findes ikke lÃ¦ngere.";
