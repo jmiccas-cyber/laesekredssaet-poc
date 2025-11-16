@@ -416,12 +416,23 @@ function renderLayout() {
   const adminTabs = $("#adminTabs");
   const bookerView = $("#bookerView");
   const panels = $$(".panel");
+  const eksTabButton = document.querySelector('nav.tabs button[data-tab="tab-eks"]');
   const relTabButton = document.querySelector('nav.tabs button[data-tab="tab-region"]');
+  const accessTabButton = document.querySelector('nav.tabs button[data-tab="tab-access"]');
   const relPanel = $("#tab-region");
+  const accessPanel = $("#tab-access");
   const adminLib = st.libs.byId[currentAdminId()];
   const isSuper = isSuperLibrary(adminLib);
   if (relTabButton) relTabButton.style.display = isSuper ? "" : "none";
   if (relPanel) relPanel.style.display = isSuper ? "" : "none";
+  if (accessTabButton) accessTabButton.style.display = isSuper ? "" : "none";
+  if (accessPanel) accessPanel.style.display = isSuper ? "" : "none";
+  if (!isSuper) {
+    const restrictedPanels = [relPanel, accessPanel];
+    if (restrictedPanels.some(p => p?.classList.contains("active"))) {
+      eksTabButton?.click();
+    }
+  }
 
   if (!adminTabs || !bookerView) return;
 
@@ -431,8 +442,7 @@ function renderLayout() {
 
     // Aktiver fÃ¸rste admin-tab, hvis ingen valgt
     if (!panels.some(p => p.classList.contains("active"))) {
-      const firstBtn = document.querySelector('nav.tabs button[data-tab="tab-eks"]');
-      if (firstBtn) firstBtn.click();
+      if (eksTabButton) eksTabButton.click();
     }
   } else {
     adminTabs.classList.add("hidden");

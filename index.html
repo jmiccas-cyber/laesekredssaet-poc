@@ -116,6 +116,12 @@
       border-color: #fca5a5;
       color: #b91c1c;
     }
+    nav.tabs button.active[data-tab="tab-access"] {
+      background: #ede9fe;
+      border-color: #c4b5fd;
+      color: #6d28d9;
+    }
+
     .panel {
       display: none;
       border: 1px solid #ccc;
@@ -352,6 +358,7 @@ td {
       <button data-tab="tab-eks" class="active">Eksemplarer</button>
       <button data-tab="tab-saet">Sæt</button>
       <button data-tab="tab-region">Region / relationer</button>
+      <button data-tab="tab-access">Adgang</button>
     </nav>
 
     <!-- ADMIN: Eksemplarer -->
@@ -615,6 +622,20 @@ td {
       </table>
     </div>
   </section>
+    <!-- ADMIN: Adgang -->
+    <section id="tab-access" class="panel">
+      <div class="card">
+        <p class="hint">
+          Kun super admin (Gentofte Centralbibliotek) har adgang til denne fane. Her kommer senere funktioner til at vedligeholde roller og adgang.
+        </p>
+        <div style="margin-top:8px;">
+          <p>
+            Brug dette omraade til noter og arbejdsplaner, indtil de egentlige vaerktoejer bliver bygget.
+          </p>
+        </div>
+      </div>
+    </section>
+
   <!-- BOOKER VIEW -->
   <section id="bookerView" class="panel hidden">
     <div class="card">
