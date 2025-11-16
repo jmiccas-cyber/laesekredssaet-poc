@@ -741,6 +741,7 @@ async function loadInventorySummary() {
   });
 
   refreshSaetInventoryControls();
+  refreshSaetAvailabilityIndicators();
 }
 
 async function syncSaetMetadataFromIsbns(isbns) {
@@ -2402,6 +2403,11 @@ function bindSaetControls() {
     }
     evt.target.value = "";
   });
+}
+
+function refreshSaetAvailabilityIndicators() {
+  const rows = document.querySelectorAll("#tblSaet tbody tr");
+  rows.forEach(tr => updateSaetAvailability(tr));
 }
 
 // ----------------------------------------------------------
