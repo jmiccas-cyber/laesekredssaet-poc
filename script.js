@@ -1,4 +1,4 @@
-﻿// LÃ¦sekredssÃ¦t â€“ v4.1 (clean drop-in)
+﻿// Læsekredssæt v4.1 (clean drop-in)
 // Bevarer funktionalitet fra v4.0, men med ryddet struktur.
 
 // ----------------------------------------------------------
@@ -285,7 +285,7 @@ function renderRegionDetails() {
 
   resetFields();
   setDisabled(true);
-  if (info) info.textContent = "Vǟ��lg et regionsbibliotek for at se detaljer.";
+  if (info) info.textContent = "Vǟ  lg et regionsbibliotek for at se detaljer.";
 
   if (!id) {
     return;
@@ -293,7 +293,7 @@ function renderRegionDetails() {
 
   const lib = st.libs.byId[id];
   if (!lib) {
-    if (info) info.textContent = "Biblioteket findes ikke lǟ��ngere.";
+    if (info) info.textContent = "Biblioteket findes ikke lǟ  ngere.";
     return;
   }
 
@@ -312,7 +312,7 @@ async function saveRegionDetails() {
   const info = $("#relDetailInfo");
   const id = $("#relDetailSel")?.value || "";
   if (!id) {
-    if (info) info.textContent = "Vǟ��lg et regionsbibliotek fǟ��rst.";
+    if (info) info.textContent = "Vǟ  lg et regionsbibliotek fǟ  rst.";
     return;
   }
   const name = $("#relDetailName")?.value?.trim() || "";
@@ -345,7 +345,7 @@ async function saveRegionDetails() {
 
   const lib = st.libs.byId[id];
   if (!lib) {
-    if (info) info.textContent = \"Biblioteket findes ikke lǟ��ngere.\";
+    if (info) info.textContent = \"Biblioteket findes ikke lǟ  ngere.\";
     return;
   }
 
