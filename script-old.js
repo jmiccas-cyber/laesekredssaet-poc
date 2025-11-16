@@ -1,4 +1,4 @@
-// Laesekredssæt v4.1 (clean drop-in)
+﻿// Laesekredssæt v4.1 (clean drop-in)
 // Bevarer funktionalitet fra v4.0, men med ryddet struktur.
 
 // ----------------------------------------------------------
@@ -2457,3 +2457,13 @@ async function saetSaveAll() {
     alert("Kunne ikke gemme fÃ¸lgende sÃ¦t:\n" + failures.join("\n"));
   }
 }
+
+
+
+
+
+
+
+
+
+
