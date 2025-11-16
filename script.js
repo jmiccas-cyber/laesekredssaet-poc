@@ -285,7 +285,7 @@ function renderRegionDetails() {
 
   resetFields();
   setDisabled(true);
-  if (info) info.textContent = "Vǟ  lg et regionsbibliotek for at se detaljer.";
+  if (info) info.textContent = "Vælg et regionsbibliotek for at se detaljer.";
 
   if (!id) {
     return;
@@ -293,15 +293,15 @@ function renderRegionDetails() {
 
   const lib = st.libs.byId[id];
   if (!lib) {
-    if (info) info.textContent = "Biblioteket findes ikke lǟ  ngere.";
+    if (info) info.textContent = "Biblioteket findes ikke længere.";
     return;
   }
 
   if (fields.name) fields.name.value = lib.bibliotek_navn || "";
-  if (fields.address) fields.address.value = lib.address || "";
+  if (fields.address) fields.address.value = lib.addr_line1 || "";
   if (fields.postal) fields.postal.value = lib.postal_code || "";
   if (fields.city) fields.city.value = lib.city || "";
-  if (fields.notes) fields.notes.value = lib.notes || "";
+  if (fields.notes) fields.notes.value = lib.shipping_notes || "";
   if (fields.active) fields.active.value = lib.active !== false ? "true" : "false";
   setDisabled(false);
   if (info) info.textContent = "Opdater oplysninger og tryk Gem detaljer.";
@@ -312,9 +312,36 @@ async function saveRegionDetails() {
   const info = $("#relDetailInfo");
   const id = $("#relDetailSel")?.value || "";
   if (!id) {
-    if (info) info.textContent = "Vǟ  lg et regionsbibliotek fǟ  rst.";
+    if (info) info.textContent = "Vælg et regionsbibliotek først.";
     return;
   }
+  const name = $("#relDetailName")?.value?.trim() || "";
+  const addr_line1 = $("#relDetailAddress")?.value?.trim() || "";
+  const postal_code = $("#relDetailPostal")?.value?.trim() || "";
+  const city = $("#relDetailCity")?.value?.trim() || "";
+  const shipping_notes = $("#relDetailNotes")?.value?.trim() || "";
+  const activeStr = $("#relDetailActive")?.value || "true";
+  const active = activeStr === "true";
+
+  if (!name) {
+    if (info) info.textContent = "Navn skal udfyldes.";
+    return;
+  }
+
+  const payload = { bibliotek_navn: name, addr_line1, postal_code, city, shipping_notes, active };
+  const { error } = await sb.from("tbl_bibliotek").update(payload).eq("bibliotek_id", id);
+  if (error) {
+    if (info) info.textContent = "Fejl ved opdatering: " + error.message;
+    return;
+  }
+
+  if (st.libs.byId[id]) {
+    Object.assign(st.libs.byId[id], payload);
+  }
+  populateRegionSelects();
+  await relList();
+  if (info) info.textContent = "Detaljer opdateret.";
+}
   const name = $("#relDetailName")?.value?.trim() || "";
   const address = $("#relDetailAddress")?.value?.trim() || "";
   const postal_code = $("#relDetailPostal")?.value?.trim() || "";
@@ -2181,6 +2208,7 @@ async function saetSaveAll() {
     alert("Kunne ikke gemme fÃ¸lgende sÃ¦t:\n" + failures.join("\n"));
   }
 }
+
 
 
 
