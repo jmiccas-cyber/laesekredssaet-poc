@@ -138,8 +138,6 @@ const st = {
 
 const BOOKING_STATUSES = ["Ledig", "Reserveret", "Booket"];
 
-const BOOKING_STATUSES = ["Ledig", "Reserveret", "Booket"];
-
 // ----------------------------------------------------------
 // 3. Supabase & profil
 // ----------------------------------------------------------
