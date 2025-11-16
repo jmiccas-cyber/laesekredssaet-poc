@@ -2558,17 +2558,18 @@ function renderAccessTable() {
   const totalSuper = centrals.filter(lib => lib.is_super_admin).length || 0;
   centrals.forEach(lib => {
     const isSuper = !!lib.is_super_admin;
+    const disabled = accessUpdating || (isSuper && totalSuper <= 1);
     const btn = el("button", {
-      class: "btn btn-small",
+      class: `btn btn-small access-toggle ${isSuper ? "on" : "off"}`,
       "data-action": "toggle-super",
       "data-id": lib.bibliotek_id,
       "data-next": isSuper ? "remove" : "add",
-      disabled: accessUpdating || (isSuper && totalSuper <= 1)
-    }, isSuper ? "Fjern adgang" : "Giv adgang");
-    const status = isSuper ? "Ja" : "Nej";
+      style: `background:${isSuper ? "#2e8540" : "#c32626"};color:#fff;border:0;min-width:70px;`,
+      disabled,
+      title: isSuper ? "Klik for at fjerne super admin" : "Klik for at give super admin"
+    }, isSuper ? "Ja" : "Nej");
     tb.appendChild(el("tr", {},
       el("td", {}, fmtLibLabel(lib)),
-      el("td", {}, status),
       el("td", {}, btn)
     ));
   });
