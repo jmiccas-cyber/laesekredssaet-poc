@@ -611,7 +611,7 @@ async function eksFetch() {
   const to = from + st.eks.pageSize - 1;
 
   let q = sb.from("tbl_beholdning")
-    .select("barcode,title,author,isbn,faust,booking_status")
+    .select("barcode,title,author,isbn,faust,booking_status,aktiv")
     .eq("owner_bibliotek_id", st.profile.adminCentralId);
 
   if (st.eks.status) q = q.eq("booking_status", st.eks.status);
@@ -674,7 +674,7 @@ async function loadInventorySummary() {
 
   const { data, error } = await sb
     .from("tbl_beholdning")
-    .select("owner_bibliotek_id,isbn,title,author,faust")
+    .select("owner_bibliotek_id,isbn,title,author,faust,aktiv")
     .neq("isbn", "")
     .order("title", { ascending: true });
 
@@ -702,8 +702,14 @@ async function loadInventorySummary() {
         faust: row.faust,
         count: 0
       };
+    } else {
+      if (!aggregates[key].title && row.title) aggregates[key].title = row.title;
+      if (!aggregates[key].author && row.author) aggregates[key].author = row.author;
+      if (!aggregates[key].faust && row.faust) aggregates[key].faust = row.faust;
     }
-    aggregates[key].count++;
+    if (row.aktiv !== false) {
+      aggregates[key].count++;
+    }
   });
 
   st.stock.list = Object.values(aggregates);
@@ -1328,7 +1334,8 @@ async function eksDeleteRow(tr) {
       .from("tbl_beholdning")
       .select("barcode", { count: "exact", head: true })
       .eq("owner_bibliotek_id", ownerId)
-      .eq("isbn", isbn);
+      .eq("isbn", isbn)
+      .eq("aktiv", true);
     if (countError) {
       showMsg("#msg", "Kunne ikke verificere beholdning: " + countError.message);
       return;
