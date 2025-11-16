@@ -170,7 +170,9 @@ const st = {
     start: null,
     weeks: 8,
     results: [],
-    centralIds: [] // relationer for booker
+    centralIds: [], // relationer for booker
+    sortBy: "title",
+    sortDir: "asc"
   }
 };
 
@@ -3467,6 +3469,51 @@ async function fetchBookingsForSetIds(setIds) {
   return map;
 }
 
+function compareBookerRows(a, b) {
+  const dir = st.b.sortDir === "desc" ? -1 : 1;
+  const field = st.b.sortBy;
+  const getString = val => (val || "").toString().toLowerCase();
+  const getNumber = val => Number(val) || 0;
+  if (field === "title") return dir * getString(a.title).localeCompare(getString(b.title));
+  if (field === "author") return dir * getString(a.author).localeCompare(getString(b.author));
+  if (field === "isbn") return dir * getString(a.isbn).localeCompare(getString(b.isbn));
+  if (field === "faust") return dir * getString(a.faust).localeCompare(getString(b.faust));
+  if (field === "visibility") return dir * getString(a.visibility).localeCompare(getString(b.visibility));
+  if (field === "owner") {
+    const aOwner = st.libs.byId[a.owner_bibliotek_id];
+    const bOwner = st.libs.byId[b.owner_bibliotek_id];
+    return dir * (getString(fmtLibLabel(aOwner)).localeCompare(getString(fmtLibLabel(bOwner))));
+  }
+  if (field === "rule") return dir * getString(bookingRuleLabel(a.bookingRule)).localeCompare(getString(bookingRuleLabel(b.bookingRule)));
+  if (field === "loan_weeks") return dir * (getNumber(a.loan_weeks) - getNumber(b.loan_weeks));
+  if (field === "requested_count") return dir * (getNumber(a.requested_count) - getNumber(b.requested_count));
+  if (field === "next") {
+    const aTime = a.nextBooking ? new Date(a.nextBooking.start).getTime() : Infinity;
+    const bTime = b.nextBooking ? new Date(b.nextBooking.start).getTime() : Infinity;
+    return dir * (aTime - bTime);
+  }
+  return dir * getString(a.title).localeCompare(getString(b.title));
+}
+
+function setBookerSort(field) {
+  if (!field) return;
+  if (st.b.sortBy === field) {
+    st.b.sortDir = st.b.sortDir === "asc" ? "desc" : "asc";
+  } else {
+    st.b.sortBy = field;
+    st.b.sortDir = "asc";
+  }
+  renderBookerResults();
+}
+
+function updateBookerSortIndicators() {
+  document.querySelectorAll("#bTbl thead th[data-sort]").forEach(th => {
+    const field = th.dataset.sort;
+    th.classList.toggle("sorted-asc", st.b.sortBy === field && st.b.sortDir === "asc");
+    th.classList.toggle("sorted-desc", st.b.sortBy === field && st.b.sortDir === "desc");
+  });
+}
+
 async function loadBookingRules() {
   if (!sb) return {};
   const { data, error } = await sb
@@ -3819,7 +3866,8 @@ function renderBookerResults() {
 
   const from = st.b.page * st.b.pageSize;
   const to = from + st.b.pageSize;
-  const slice = st.b.results.slice(from, to);
+  const sorted = [...st.b.results].sort(compareBookerRows);
+  const slice = sorted.slice(from, to);
 
   tb.innerHTML = "";
   slice.forEach(r => {
@@ -3854,8 +3902,9 @@ function renderBookerResults() {
 
   const totalPages = Math.ceil((st.b.total || 0) / st.b.pageSize);
   $("#bInfo").textContent = st.b.total
-    ? `Side ${st.b.page + 1}/${totalPages} â€“ ${st.b.total} sÃ¦t`
-    : "Ingen sÃ¦t fundet";
+    ? `Side ${st.b.page + 1}/${totalPages} - ${st.b.total} sæt`
+    : "Ingen sæt fundet";
+  updateBookerSortIndicators();
 }
 
 async function bookerSearch() {
@@ -3883,8 +3932,10 @@ async function bookerSearch() {
     r.bookingRule = rule;
     r.nextBooking = computeNextBookingWindow(r, rule, holidaySet, bookings, baseDate);
   }));
-  st.b.results = results;
-  st.b.total = results.length;
+  const minWeeks = Number(st.b.weeks) || 0;
+  const filtered = minWeeks ? results.filter(r => (Number(r.loan_weeks) || 0) >= minWeeks) : results;
+  st.b.results = filtered;
+  st.b.total = filtered.length;
   renderBookerResults();
 }
 
@@ -3937,6 +3988,12 @@ function bindBookerControls() {
       st.b.page++;
       renderBookerResults();
     }
+  });
+  document.querySelectorAll("#bTbl thead th[data-sort]")?.forEach(th => {
+    th.addEventListener("click", () => {
+      const field = th.dataset.sort;
+      if (field) setBookerSort(field);
+    });
   });
 }
 
