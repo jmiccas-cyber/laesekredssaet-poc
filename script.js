@@ -1563,7 +1563,7 @@ function saetNewRow() {
 
   const ownerId = currentAdminId();
   if (!ownerId) {
-    showMsg("#msgSaet", "V�lg f�rst en admin-profil (centralbibliotek) via Skift: Admin ??" Booker.");
+    showMsg("#msgSaet", "Vælg først en admin-profil (centralbibliotek) via Skift: Admin ↔ Booker.");
     return;
   }
 
