@@ -3400,8 +3400,11 @@ function advanceEvery14Rule(date, holidaySet) {
   return firstNextMonth;
 }
 
-function computeNextBookingWindow(setRow, rule, holidaySet, bookings) {
-  const today = new Date();
+function computeNextBookingWindow(setRow, rule, holidaySet, bookings, baseDate) {
+  let today = baseDate ? new Date(baseDate) : new Date();
+  if (Number.isNaN(today.getTime())) {
+    today = new Date();
+  }
   let candidate;
   const maxIterations = 60;
   if (rule === "every_14_days") {
@@ -3870,12 +3873,13 @@ async function bookerSearch() {
   const ownerIds = Array.from(new Set(results.map(r => r.owner_bibliotek_id).filter(Boolean)));
   const bookingMap = await fetchBookingsForSetIds(setIds);
   await Promise.all(ownerIds.map(id => loadOwnerHolidaySet(id)));
+  const baseDate = st.b.start ? new Date(st.b.start) : new Date();
   await Promise.all(results.map(async r => {
     const holidaySet = await loadOwnerHolidaySet(r.owner_bibliotek_id);
     const bookings = bookingMap.get(r.set_id) || [];
     const rule = currentBookingRule(r.owner_bibliotek_id);
     r.bookingRule = rule;
-    r.nextBooking = computeNextBookingWindow(r, rule, holidaySet, bookings);
+    r.nextBooking = computeNextBookingWindow(r, rule, holidaySet, bookings, baseDate);
   }));
   st.b.results = results;
   st.b.total = results.length;
