@@ -670,52 +670,105 @@ td {
 
     <!-- ADMIN: Kalender -->
     <section id="tab-calendar" class="panel">
-      <div class="card">
-        <p class="hint">
-          Nationale ferier og helligdage gælder for alle biblioteker. Kun super admin kan vedligeholde listen.
-        </p>
-        <div class="row" style="gap:12px; flex-wrap:wrap; align-items:flex-end;">
-          <div>
-            <label for="calDate">Dato</label>
-            <input id="calDate" type="date" />
+      <div id="calendarGlobalSection">
+        <div class="card">
+          <p class="hint">
+            Globale ferier og helligdage administreres kun af super admin og synkroniseres ud til lokale kalendere.
+          </p>
+          <div class="row" style="gap:12px; flex-wrap:wrap; align-items:flex-end;">
+            <div>
+              <label for="calDate">Dato</label>
+              <input id="calDate" type="date" />
+            </div>
+            <div style="flex:1; min-width:220px;">
+              <label for="calTitle">Beskrivelse</label>
+              <input id="calTitle" type="text" placeholder="fx. Langfredag" />
+            </div>
+            <div style="flex:1; min-width:220px;">
+              <label for="calNotes">Noter</label>
+              <input id="calNotes" type="text" placeholder="Valgfrit" />
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button id="btnCalAdd" class="btn primary">Tilføj global dag</button>
+              <button id="btnCalRefresh" class="btn">Genindlæs</button>
+            </div>
           </div>
-          <div style="flex:1; min-width:220px;">
-            <label for="calTitle">Beskrivelse</label>
-            <input id="calTitle" type="text" placeholder="fx. Langfredag" />
+          <div class="row" style="margin-top:8px; gap:8px; align-items:center;">
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button id="btnCalExport" class="btn">Download Excel</button>
+              <button id="btnCalImport" class="btn">Upload Excel</button>
+              <input id="calImportFile" type="file" accept=".xlsx,.xls" style="display:none;" />
+            </div>
+            <span class="hint" style="margin-left:auto;">
+              Excel skal have: Handling (Tilføj/Slet), Dato (YYYY-MM-DD), Titel, Noter.
+            </span>
           </div>
-          <div style="flex:1; min-width:220px;">
-            <label for="calNotes">Noter</label>
-            <input id="calNotes" type="text" placeholder="Valgfrit" />
-          </div>
-          <div style="display:flex; gap:6px;">
-            <button id="btnCalAdd" class="btn primary">Tilføj dag</button>
-            <button id="btnCalRefresh" class="btn">Genindlæs</button>
-          </div>
+          <div id="calendarMsg" class="msg" style="display:none; margin-top:8px;"></div>
         </div>
-        <div class="row" style="margin-top:8px; gap:8px; align-items:center;">
-          <div style="display:flex; gap:6px; flex-wrap:wrap;">
-            <button id="btnCalExport" class="btn">Download Excel</button>
-            <button id="btnCalImport" class="btn">Upload Excel</button>
-            <input id="calImportFile" type="file" accept=".xlsx,.xls" style="display:none;" />
-          </div>
-          <span class="hint" style="margin-left:auto;">
-            Excel skal have: Handling (Tilføj/Slet), Dato (YYYY-MM-DD), Titel, Noter.
-          </span>
+        <div class="card">
+          <table id="tblCalendar">
+            <thead>
+            <tr>
+              <th>Dato</th>
+              <th>Beskrivelse</th>
+              <th>Noter</th>
+              <th>Handling</th>
+            </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
         </div>
-        <div id="calendarMsg" class="msg" style="display:none; margin-top:8px;"></div>
       </div>
-      <div class="card">
-        <table id="tblCalendar">
-          <thead>
-          <tr>
-            <th>Dato</th>
-            <th>Beskrivelse</th>
-            <th>Noter</th>
-            <th>Handling</th>
-          </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+
+      <div id="calendarLocalSection">
+        <div class="card">
+          <p class="hint">
+            Lokal kalender for <span id="calendarLocalOwner">–</span>. Brug den til at styre egne lukkedage. Globale dage kan resynkroniseres når som helst.
+          </p>
+          <div class="row" style="gap:12px; flex-wrap:wrap; align-items:flex-end;">
+            <div>
+              <label for="calLocalDate">Dato</label>
+              <input id="calLocalDate" type="date" />
+            </div>
+            <div style="flex:1; min-width:220px;">
+              <label for="calLocalTitle">Beskrivelse</label>
+              <input id="calLocalTitle" type="text" placeholder="fx. Sommerlukket" />
+            </div>
+            <div style="flex:1; min-width:220px;">
+              <label for="calLocalNotes">Noter</label>
+              <input id="calLocalNotes" type="text" placeholder="Valgfrit" />
+            </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button id="btnCalLocalAdd" class="btn primary">Tilføj lokal dag</button>
+              <button id="btnCalLocalRefresh" class="btn">Genindlæs</button>
+              <button id="btnCalLocalResync" class="btn">Genindlæs globale dage</button>
+            </div>
+          </div>
+          <div class="row" style="margin-top:8px; gap:8px; align-items:center;">
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button id="btnCalLocalExport" class="btn">Download Excel</button>
+              <button id="btnCalLocalImport" class="btn">Upload Excel</button>
+              <input id="calLocalImportFile" type="file" accept=".xlsx,.xls" style="display:none;" />
+            </div>
+            <span class="hint" style="margin-left:auto;">
+              Excel skal have: Handling (Tilføj/Slet), Dato (YYYY-MM-DD), Titel, Noter.
+            </span>
+          </div>
+          <div id="calendarLocalMsg" class="msg" style="display:none; margin-top:8px;"></div>
+        </div>
+        <div class="card">
+          <table id="tblCalendarLocal">
+            <thead>
+            <tr>
+              <th>Dato</th>
+              <th>Beskrivelse</th>
+              <th>Noter</th>
+              <th>Handling</th>
+            </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
     </section>
 <!-- BOOKER VIEW -->
