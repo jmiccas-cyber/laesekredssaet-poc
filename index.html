@@ -692,6 +692,16 @@ td {
             <button id="btnCalRefresh" class="btn">Genindlæs</button>
           </div>
         </div>
+        <div class="row" style="margin-top:8px; gap:8px; align-items:center;">
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button id="btnCalExport" class="btn">Download Excel</button>
+            <button id="btnCalImport" class="btn">Upload Excel</button>
+            <input id="calImportFile" type="file" accept=".xlsx,.xls" style="display:none;" />
+          </div>
+          <span class="hint" style="margin-left:auto;">
+            Excel skal have: Handling (Tilføj/Slet), Dato (YYYY-MM-DD), Titel, Noter.
+          </span>
+        </div>
         <div id="calendarMsg" class="msg" style="display:none; margin-top:8px;"></div>
       </div>
       <div class="card">

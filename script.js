@@ -2707,7 +2707,7 @@ function bindAccessControls() {
 // ----------------------------------------------------------
 
 function setCalendarFormEnabled(enabled) {
-  ["#calDate", "#calTitle", "#calNotes", "#btnCalAdd"].forEach(sel => {
+  ["#calDate", "#calTitle", "#calNotes", "#btnCalAdd", "#btnCalExport", "#btnCalImport", "#calImportFile"].forEach(sel => {
     const elRef = $(sel);
     if (elRef) {
       elRef.disabled = !enabled;
@@ -2743,6 +2743,194 @@ function renderCalendarRows(rows) {
       el("td", {}, delBtn)
     ));
   });
+}
+
+function normalizeHolidayDate(value) {
+  if (value == null || value === "") return "";
+  if (value instanceof Date) {
+    return value.toISOString().slice(0, 10);
+  }
+  if (typeof value === "number" && window.XLSX?.SSF) {
+    const parsed = window.XLSX.SSF.parse_date_code(value);
+    if (parsed) {
+      const d = new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d));
+      return d.toISOString().slice(0, 10);
+    }
+  }
+  const str = String(value).trim();
+  if (!str) return "";
+  let match = str.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})$/);
+  if (match) {
+    const [ , y, m, d ] = match;
+    const pad = n => String(n).padStart(2, "0");
+    return `${y}-${pad(m)}-${pad(d)}`;
+  }
+  match = str.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (match) {
+    const [ , d, m, y ] = match;
+    const pad = n => String(n).padStart(2, "0");
+    return `${y}-${pad(m)}-${pad(d)}`;
+  }
+  const parsed = new Date(str);
+  if (!isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+  return "";
+}
+
+async function calendarExportExcel() {
+  if (!sb) return;
+  const adminLib = st.libs.byId[currentAdminId()];
+  if (!isSuperLibrary(adminLib)) {
+    showMsg("#calendarMsg", "Kun super admin kan eksportere kalenderen.");
+    return;
+  }
+  showMsg("#calendarMsg", "Genererer Excel …");
+  const { data, error } = await sb
+    .from(HOLIDAY_TABLE)
+    .select("holiday_date,title,notes")
+    .order("holiday_date", { ascending: true });
+  if (error) {
+    showMsg("#calendarMsg", "Kunne ikke hente kalender: " + error.message);
+    return;
+  }
+  try {
+    await ensureSheetJs();
+  } catch (e) {
+    showMsg("#calendarMsg", e.message);
+    return;
+  }
+  const rows = (data || []).map(row => ({
+    Dato: row.holiday_date || "",
+    Titel: row.title || "",
+    Noter: row.notes || ""
+  }));
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{
+    Dato: "",
+    Titel: "",
+    Noter: ""
+  }]);
+  XLSX.utils.book_append_sheet(wb, ws, "Kalender");
+  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "kalender.xlsx";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showMsg("#calendarMsg", "Excel klar til download.", true);
+}
+
+async function calendarImportExcel(file) {
+  if (!sb || !file) return;
+  const adminLib = st.libs.byId[currentAdminId()];
+  if (!isSuperLibrary(adminLib)) {
+    showMsg("#calendarMsg", "Kun super admin kan importere kalenderen.");
+    return;
+  }
+  try {
+    await ensureSheetJs();
+  } catch (e) {
+    showMsg("#calendarMsg", e.message);
+    return;
+  }
+  showMsg("#calendarMsg", "Indlæser Excel …");
+  let workbook;
+  try {
+    const buffer = await file.arrayBuffer();
+    workbook = XLSX.read(buffer, { type: "array", cellDates: true });
+  } catch (e) {
+    showMsg("#calendarMsg", "Kunne ikke læse filen: " + e.message);
+    return;
+  }
+  const sheetName = workbook.SheetNames?.[0];
+  if (!sheetName) {
+    showMsg("#calendarMsg", "Excel-filen indeholder ingen ark.");
+    return;
+  }
+  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
+  if (!rows.length) {
+    showMsg("#calendarMsg", "Excel-arket er tomt.");
+    return;
+  }
+
+  const additions = [];
+  const deletions = [];
+  const failures = [];
+  const getValue = (row, ...keys) => {
+    for (const key of keys) {
+      if (row[key] != null && row[key] !== "") return row[key];
+      const lower = typeof key === "string" ? key.toLowerCase() : key;
+      if (row[lower] != null && row[lower] !== "") return row[lower];
+    }
+    return "";
+  };
+
+  rows.forEach((row, idx) => {
+    const line = idx + 2;
+    const actionRaw = String(getValue(row, "Handling", "handling", "Action")).trim().toLowerCase();
+    const action = actionRaw || "tilføj";
+    const isoDate = normalizeHolidayDate(getValue(row, "Dato", "date"));
+    if (!isoDate) {
+      failures.push(`Række ${line}: dato mangler eller er ugyldig.`);
+      return;
+    }
+    if (action === "slet" || action === "delete") {
+      deletions.push(isoDate);
+      return;
+    }
+    const title = String(getValue(row, "Titel", "title", "Beskrivelse")).trim();
+    if (!title) {
+      failures.push(`Række ${line}: titel skal udfyldes.`);
+      return;
+    }
+    const notes = String(getValue(row, "Noter", "notes", "Note")).trim();
+    additions.push({ holiday_date: isoDate, title, notes });
+  });
+
+  if (!additions.length && !deletions.length) {
+    showMsg("#calendarMsg", failures[0] || "Ingen gyldige rækker fundet.");
+    return;
+  }
+
+  const chunkSize = 100;
+  let upsertsDone = 0;
+  for (let i = 0; i < additions.length; i += chunkSize) {
+    const chunk = additions.slice(i, i + chunkSize);
+    const { error } = await sb.from(HOLIDAY_TABLE).upsert(chunk, { onConflict: "holiday_date" });
+    if (error) {
+      showMsg("#calendarMsg", "Fejl ved import: " + error.message);
+      return;
+    }
+    upsertsDone += chunk.length;
+  }
+
+  let deletesDone = 0;
+  for (let i = 0; i < deletions.length; i += chunkSize) {
+    const chunk = deletions.slice(i, i + chunkSize);
+    const { error } = await sb
+      .from(HOLIDAY_TABLE)
+      .delete()
+      .in("holiday_date", chunk);
+    if (error) {
+      showMsg("#calendarMsg", "Fejl ved sletning: " + error.message);
+      return;
+    }
+    deletesDone += chunk.length;
+  }
+
+  const parts = [];
+  if (upsertsDone) parts.push(`opdaterede ${upsertsDone} dag(e)`);
+  if (deletesDone) parts.push(`slettede ${deletesDone}`);
+  showMsg("#calendarMsg", parts.length ? `Import gennemført: ${parts.join(", ")}.` : "Import gennemført.", true);
+  if (failures.length) {
+    alert("Følgende rækker blev sprunget over:\n" + failures.join("\n"));
+  }
+  await calendarPull();
 }
 
 async function calendarPull() {
@@ -2812,6 +3000,15 @@ async function calendarDelete(id) {
 function bindCalendarControls() {
   $("#btnCalAdd")?.addEventListener("click", calendarAdd);
   $("#btnCalRefresh")?.addEventListener("click", () => calendarPull());
+  $("#btnCalExport")?.addEventListener("click", () => calendarExportExcel());
+  $("#btnCalImport")?.addEventListener("click", () => $("#calImportFile")?.click());
+  $("#calImportFile")?.addEventListener("change", evt => {
+    const file = evt.target?.files?.[0];
+    if (file) {
+      calendarImportExcel(file);
+    }
+    evt.target.value = "";
+  });
   $("#tblCalendar")?.addEventListener("click", evt => {
     const btn = evt.target.closest("button[data-cal-delete]");
     if (!btn) return;
