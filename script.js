@@ -1,4 +1,4 @@
-// Læsekredssæt v4.1 (clean drop-in)
+﻿// Læsekredssæt v4.1 (clean drop-in)
 // Bevarer funktionalitet fra v4.0, men med ryddet struktur.
 
 // ----------------------------------------------------------
@@ -31,6 +31,21 @@ function el(tag, attrs = {}, ...kids) {
 
 function show(node) { if (node) node.style.display = ""; }
 function hide(node) { if (node) node.style.display = "none"; }
+
+let sheetJsPromise = null;
+function ensureSheetJs() {
+  if (window.XLSX) return Promise.resolve();
+  if (!sheetJsPromise) {
+    sheetJsPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Kunne ikke indlæse Excel-biblioteket."));
+      document.head.appendChild(script);
+    });
+  }
+  return sheetJsPromise;
+}
 
 let sheetJsPromise = null;
 function ensureSheetJs() {
@@ -135,6 +150,8 @@ const st = {
     centralIds: [] // relationer for booker
   }
 };
+
+const BOOKING_STATUSES = ["Ledig", "Reserveret", "Booket"];
 
 const BOOKING_STATUSES = ["Ledig", "Reserveret", "Booket"];
 
@@ -302,11 +319,7 @@ function renderRegionDetails() {
 
   resetFields();
   setDisabled(true);
-<<<<<<< HEAD
   if (info) info.textContent = "Vælg et regionsbibliotek for at se detaljer.";
-=======
-  if (info) info.textContent = "Vǟ��lg et regionsbibliotek for at se detaljer.";
->>>>>>> parent of 1897d9d (Update script.js)
 
   if (!id) {
     return;
@@ -314,11 +327,7 @@ function renderRegionDetails() {
 
   const lib = st.libs.byId[id];
   if (!lib) {
-<<<<<<< HEAD
     if (info) info.textContent = "Biblioteket findes ikke længere.";
-=======
-    if (info) info.textContent = "Biblioteket findes ikke lǟ��ngere.";
->>>>>>> parent of 1897d9d (Update script.js)
     return;
   }
 
@@ -337,11 +346,7 @@ async function saveRegionDetails() {
   const info = $("#relDetailInfo");
   const id = $("#relDetailSel")?.value || "";
   if (!id) {
-<<<<<<< HEAD
     if (info) info.textContent = "Vælg et regionsbibliotek først.";
-=======
-    if (info) info.textContent = "Vǟ��lg et regionsbibliotek fǟ��rst.";
->>>>>>> parent of 1897d9d (Update script.js)
     return;
   }
   const name = $("#relDetailName")?.value?.trim() || "";
@@ -370,43 +375,6 @@ async function saveRegionDetails() {
   populateRegionSelects();
   await relList();
   if (info) info.textContent = "Detaljer opdateret.";
-}
-<<<<<<< HEAD
-=======
-
-  const lib = st.libs.byId[id];
-  if (!lib) {
-    if (info) info.textContent = \"Biblioteket findes ikke lǟ��ngere.\";
-    return;
-  }
-
-  if (fields.name) fields.name.value = lib.bibliotek_navn || \"\";
-  if (fields.address) fields.address.value = lib.address || \"\";
-  if (fields.postal) fields.postal.value = lib.postal_code || \"\";
-  if (fields.city) fields.city.value = lib.city || \"\";
-  if (fields.notes) fields.notes.value = lib.notes || \"\";
-  if (fields.active) fields.active.value = lib.active !== false ? \"true\" : \"false\";
-  setDisabled(false);
-  if (info) info.textContent = \"Opdater oplysninger og tryk Gem detaljer.\";
-}
->>>>>>> parent of 1897d9d (Update script.js)
-  const lib = st.libs.byId[id];
-  if (!lib) {
-    info.textContent = "Biblioteket findes ikke lÃ¦ngere.";
-    return;
-  }
-  const addr = lib.address || "-";
-  const postal = lib.postal_code || "";
-  const city = lib.city || "";
-  const notes = lib.notes || "-";
-  const active = lib.active !== false ? "Ja" : "Nej";
-  info.innerHTML = `
-    <strong>${fmtLibLabel(lib)}</strong><br>
-    Adresse: ${addr}<br>
-    Postnummer / by: ${postal} ${city}<br>
-    Aktiv: ${active}<br>
-    Kommentarer/pakkenoter: ${notes}
-  `;
 }
 function loadProfileDropdown() {
   const adminSel = document.querySelector("#adminProfileSel");
@@ -801,6 +769,24 @@ async function fetchOwnerBarcodes(ownerId) {
   return map;
 }
 
+async function fetchOwnerSetMap(ownerId) {
+  if (!sb || !ownerId) return new Map();
+  const { data, error } = await sb
+    .from("tbl_saet")
+    .select("set_id,isbn,requested_count")
+    .eq("owner_bibliotek_id", ownerId);
+  if (error) {
+    showMsg("#msgSaet", "Kunne ikke hente eksisterende sæt: " + error.message);
+    return null;
+  }
+  const map = new Map();
+  (data || []).forEach(row => {
+    if (row.set_id != null) {
+      map.set(String(row.set_id), row);
+    }
+  });
+  return map;
+}
 function markEksDirty(tr) {
   if (!tr) return;
   tr.dataset.dirty = "1";
@@ -945,7 +931,7 @@ async function exportEksToExcel() {
     return;
   }
 
-  showMsg("#msg", "Henter eksemplarer til Excel…");
+  showMsg("#msg", "Henter eksemplarer til Excel …");
   const { data, error } = await sb
     .from("tbl_beholdning")
     .select("barcode,title,author,isbn,faust,booking_status")
@@ -971,7 +957,7 @@ async function exportEksToExcel() {
     Forfatter: row.author || "",
     ISBN: row.isbn || "",
     FAUST: row.faust || "",
-    Bookingstatus: row.booking_status || ""
+    Bookingstatus: row.booking_status || "Ledig"
   }));
 
   const wb = XLSX.utils.book_new();
@@ -982,7 +968,7 @@ async function exportEksToExcel() {
     Forfatter: "",
     ISBN: "",
     FAUST: "",
-    Bookingstatus: ""
+    Bookingstatus: "Ledig"
   }]);
   XLSX.utils.book_append_sheet(wb, ws, "Eksemplarer");
   const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
@@ -1006,7 +992,7 @@ async function importEksFromExcel(file) {
     return;
   }
 
-  showMsg("#msg", "Indlæser Excel…");
+  showMsg("#msg", "Indlæser Excel …");
   try {
     await ensureSheetJs();
   } catch (e) {
@@ -1016,8 +1002,8 @@ async function importEksFromExcel(file) {
 
   await loadInventorySummary();
   const usageMap = await fetchSaetUsage();
-  const existingBarcodes = await fetchOwnerBarcodes(ownerId);
-  if (!existingBarcodes) return;
+  st.saet.usage = usageMap;
+  const existing = await fetchOwnerBarcodes(ownerId);
 
   let workbook;
   try {
@@ -1056,7 +1042,7 @@ async function importEksFromExcel(file) {
 
   rows.forEach((row, idx) => {
     const line = idx + 2;
-    const barcode = String(getValue(row, "Barcode", "barcode", "Stregkode", "stregkode")).trim();
+    const barcode = String(getValue(row, "Barcode", "barcode", "Stregkode")).trim();
     if (!barcode) {
       failures.push(`Række ${line}: mangler stregkode.`);
       return;
@@ -1067,34 +1053,24 @@ async function importEksFromExcel(file) {
     }
     seen.add(barcode);
 
-    let actionRaw = String(getValue(row, "Handling", "handling", "Action", "action")).trim().toLowerCase();
-    if (!actionRaw) {
-      if (existingBarcodes.has(barcode)) {
-        failures.push(`Række ${line}: stregkode ${barcode} findes allerede – tilføj Handling=Opdater for at overskrive.`);
-        return;
-      }
-      actionRaw = "opdater";
-    }
+    let action = String(getValue(row, "Handling", "handling", "Action")).trim().toLowerCase();
+    if (!action) action = "opdater";
 
     const bookingRaw = String(getValue(row, "Bookingstatus", "booking_status")).trim();
     const booking_status = BOOKING_STATUSES.find(st => st.toLowerCase() === bookingRaw.toLowerCase()) || "Ledig";
 
-    if (actionRaw === "slet") {
-      const currentIsbn = existingBarcodes.get(barcode) || String(getValue(row, "ISBN", "isbn")).trim();
-      if (!currentIsbn) {
-        failures.push(`Række ${line}: stregkode ${barcode} findes ikke eller mangler ISBN til sletning.`);
-        return;
-      }
-      if (!existingBarcodes.has(barcode)) {
+    if (action === "slet") {
+      const isbn = existing.get(barcode);
+      if (!isbn) {
         failures.push(`Række ${line}: stregkode ${barcode} findes ikke i databasen.`);
         return;
       }
-      deletions.push({ line, barcode, isbn: currentIsbn });
+      deletions.push({ barcode, isbn });
       return;
     }
 
-    if (actionRaw !== "opdater") {
-      failures.push(`Række ${line}: ukendt handling "${actionRaw}". Brug Opdater eller Slet.`);
+    if (action !== "opdater") {
+      failures.push(`Række ${line}: ukendt handling "${action}". Brug Opdater eller Slet.`);
       return;
     }
 
@@ -1107,6 +1083,7 @@ async function importEksFromExcel(file) {
       booking_status,
       owner_bibliotek_id: ownerId
     };
+
     const validation = eksValidate(record);
     if (validation) {
       failures.push(`Række ${line}: ${validation}`);
@@ -1122,17 +1099,18 @@ async function importEksFromExcel(file) {
 
   if (deletions.length) {
     const deleteByIsbn = {};
-    deletions.forEach(del => {
-      deleteByIsbn[del.isbn] = (deleteByIsbn[del.isbn] || 0) + 1;
+    deletions.forEach(({ isbn }) => {
+      deleteByIsbn[isbn] = (deleteByIsbn[isbn] || 0) + 1;
     });
-    const usageForOwner = usageMap[ownerId] || {};
     const blocking = Object.entries(deleteByIsbn).filter(([isbn, count]) => {
       const available = getInventoryCount(ownerId, isbn);
-      const reserved = Number(usageForOwner[isbn]) || 0;
+      const reserved = Number(usageMap?.[ownerId]?.[isbn]) || 0;
       return available - count < reserved;
     });
     if (blocking.length) {
-      const sample = blocking.slice(0, 5).map(([isbn, count]) => `${isbn} (krævet: ${usageForOwner[isbn] || 0}, efter sletning: ${Math.max(0, getInventoryCount(ownerId, isbn) - count)})`);
+      const sample = blocking.slice(0, 5).map(([isbn, count]) =>
+        `${isbn} (krævet: ${Number(usageMap?.[ownerId]?.[isbn]) || 0}, tilbage efter sletning: ${Math.max(0, getInventoryCount(ownerId, isbn) - count)})`
+      );
       showMsg("#msg", "Eksemplarer kan ikke slettes før tilhørende sæt er nedtaget: " + sample.join(", "));
       return;
     }
@@ -1144,7 +1122,7 @@ async function importEksFromExcel(file) {
   }
 
   const chunkSize = 100;
-  let upsertsDone = 0;
+  let updatesDone = 0;
   for (let i = 0; i < updates.length; i += chunkSize) {
     const chunk = updates.slice(i, i + chunkSize);
     const { error } = await sb.from("tbl_beholdning").upsert(chunk, { onConflict: "barcode" });
@@ -1152,7 +1130,7 @@ async function importEksFromExcel(file) {
       showMsg("#msg", "Fejl ved import: " + error.message);
       return;
     }
-    upsertsDone += chunk.length;
+    updatesDone += chunk.length;
   }
 
   let deletesDone = 0;
@@ -1171,7 +1149,7 @@ async function importEksFromExcel(file) {
   }
 
   const parts = [];
-  if (upsertsDone) parts.push(`opdaterede ${upsertsDone} eksemplar${upsertsDone === 1 ? "" : "er"}`);
+  if (updatesDone) parts.push(`opdaterede ${updatesDone} eksemplarer`);
   if (deletesDone) parts.push(`slettede ${deletesDone}`);
   showMsg("#msg", parts.length ? `Import gennemført: ${parts.join(", ")}.` : "Import gennemført.", true);
   if (failures.length) {
@@ -1337,20 +1315,6 @@ function bindEksControls() {
       eksPull();
     }
   });
-  $("#btnEksExport")?.addEventListener("click", () => {
-    exportEksToExcel();
-  });
-  $("#btnEksImport")?.addEventListener("click", () => {
-    $("#eksImportFile")?.click();
-  });
-  $("#eksImportFile")?.addEventListener("change", e => {
-    const file = e.target.files?.[0];
-    if (file) {
-      importEksFromExcel(file).finally(() => {
-        e.target.value = "";
-      });
-    }
-  });
   updateEksSaveButton();
 }
 
@@ -1384,21 +1348,324 @@ function saetUsageFor(ownerId, isbn) {
   return Number(st.saet.usage?.[ownerId]?.[isbn]) || 0;
 }
 
-function saetValidate(r) {
+function saetValidate(r, opts = {}) {
   if (!r.title) return "Titel skal udfyldes";
   if (!r.visibility || !["national", "regional"].includes(r.visibility.toLowerCase())) {
-    return "Synlighed skal vÃ¦re national eller regional";
+    return "Synlighed skal være national eller regional";
   }
   if (!r.owner_bibliotek_id) return "Ejer (centralbibliotek) skal udfyldes";
-  if (!r.isbn) return "VÃ¦lg et ISBN fra beholdningen";
-  if (r.requested_count <= 0) return "Et sÃ¦t skal indeholde mindst 1 eksemplar";
+  if (!r.isbn) return "Vælg et ISBN fra beholdningen";
+  if (r.requested_count <= 0) return "Et sæt skal indeholde mindst 1 eksemplar";
   if (r.loan_weeks < 1 || r.loan_weeks > 12) {
-    return "Bookingperioden skal vÃ¦re mellem 1 og 12 uger";
+    return "Bookingperioden skal være mellem 1 og 12 uger";
   }
   if (r.buffer_days < 0 || r.min_delivery < 0) {
-    return "TalvÃ¦rdier mÃ¥ ikke vÃ¦re negative";
+    return "Talværdier må ikke være negative";
+  }
+  if (opts.ownerId && opts.desiredCount != null) {
+    const available = getInventoryCount(opts.ownerId, r.isbn);
+    const source = opts.usageOverride?.[opts.ownerId]?.[r.isbn];
+    const used = source != null ? source : saetUsageFor(opts.ownerId, r.isbn);
+    const savedCount = opts.savedCount || 0;
+    const otherUsed = Math.max(0, used - savedCount);
+    const remaining = available - otherUsed;
+    if (opts.desiredCount > remaining) {
+      return `Der er kun ${Math.max(0, remaining)} eksemplarer tilbage af ISBN ${r.isbn}. (${available} i alt, ${otherUsed} bruges i andre sæt)`;
+    }
   }
   return null;
+}
+
+async function exportSaetToExcel() {
+  if (!sb) return;
+  const ownerId = st.saet.owner || currentAdminId();
+  if (!ownerId) {
+    showMsg("#msgSaet", "Vælg først en admin-profil (centralbibliotek).");
+    return;
+  }
+
+  showMsg("#msgSaet", "Henter sæt til Excel …");
+  const { data, error } = await sb
+    .from("tbl_saet")
+    .select("set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes")
+    .eq("owner_bibliotek_id", ownerId)
+    .order("set_id");
+
+  if (error) {
+    showMsg("#msgSaet", "Kunne ikke hente sæt: " + error.message);
+    return;
+  }
+
+  try {
+    await ensureSheetJs();
+  } catch (e) {
+    showMsg("#msgSaet", e.message);
+    return;
+  }
+
+  const rows = (data || []).map(row => ({
+    Handling: "Opdater",
+    ID: row.set_id || "",
+    Titel: row.title || "",
+    Forfatter: row.author || "",
+    ISBN: row.isbn || "",
+    FAUST: row.faust || "",
+    requested_count: row.requested_count ?? "",
+    loan_weeks: row.loan_weeks ?? "",
+    buffer_days: row.buffer_days ?? "",
+    visibility: row.visibility || "national",
+    active: row.active ? "true" : "false",
+    allow_substitution: row.allow_substitution ? "true" : "false",
+    allow_partial: row.allow_partial ? "true" : "false",
+    min_delivery: row.min_delivery ?? "",
+    notes: row.notes || ""
+  }));
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{
+    Handling: "Opdater",
+    ID: "",
+    Titel: "",
+    Forfatter: "",
+    ISBN: "",
+    FAUST: "",
+    requested_count: "",
+    loan_weeks: "",
+    buffer_days: "",
+    visibility: "national",
+    active: "true",
+    allow_substitution: "false",
+    allow_partial: "false",
+    min_delivery: "",
+    notes: ""
+  }]);
+  XLSX.utils.book_append_sheet(wb, ws, "Sæt");
+  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+  const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `saet_${ownerId}.xlsx`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showMsg("#msgSaet", "Excel med sæt er klar.", true);
+}
+
+async function importSaetFromExcel(file) {
+  if (!sb || !file) return;
+  const ownerId = st.saet.owner || currentAdminId();
+  if (!ownerId) {
+    showMsg("#msgSaet", "Vælg først en admin-profil (centralbibliotek).");
+    return;
+  }
+
+  showMsg("#msgSaet", "Indlæser Excel …");
+  try {
+    await ensureSheetJs();
+  } catch (e) {
+    showMsg("#msgSaet", e.message);
+    return;
+  }
+
+  await loadInventorySummary();
+  const latestUsage = await fetchSaetUsage();
+  st.saet.usage = latestUsage;
+  const usageOverride = JSON.parse(JSON.stringify(latestUsage || {}));
+  const existingSets = await fetchOwnerSetMap(ownerId);
+  if (existingSets === null) return;
+
+  let workbook;
+  try {
+    const buffer = await file.arrayBuffer();
+    workbook = XLSX.read(buffer, { type: "array" });
+  } catch (e) {
+    showMsg("#msgSaet", "Kunne ikke læse Excel-filen: " + e.message);
+    return;
+  }
+
+  const sheetName = workbook.SheetNames?.[0];
+  if (!sheetName) {
+    showMsg("#msgSaet", "Excel-filen indeholder ingen ark.");
+    return;
+  }
+
+  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
+  if (!rows.length) {
+    showMsg("#msgSaet", "Excel-arket er tomt.");
+    return;
+  }
+
+  const updates = [];
+  const deletions = [];
+  const failures = [];
+  const seenIds = new Set();
+
+  const getValue = (row, ...keys) => {
+    for (const key of keys) {
+      if (row[key] != null && row[key] !== "") return row[key];
+      const lower = typeof key === "string" ? key.toLowerCase() : key;
+      if (row[lower] != null && row[lower] !== "") return row[lower];
+    }
+    return "";
+  };
+  const toNumber = (val, fallback = 0) => {
+    if (val === "" || val == null) return fallback;
+    const num = Number(val);
+    return Number.isFinite(num) ? num : fallback;
+  };
+  const toBool = (val, fallback = false) => {
+    const str = String(val).trim().toLowerCase();
+    if (!str) return fallback;
+    if (["true", "ja", "1", "x"].includes(str)) return true;
+    if (["false", "nej", "0"].includes(str)) return false;
+    return fallback;
+  };
+
+  rows.forEach((row, idx) => {
+    const line = idx + 2;
+    const idRaw = String(getValue(row, "ID", "set_id")).trim();
+    let setId = null;
+    if (idRaw) {
+      setId = Number(idRaw);
+      if (!Number.isFinite(setId)) {
+        failures.push(`Række ${line}: ID er ikke et tal.`);
+        return;
+      }
+      if (seenIds.has(setId)) {
+        failures.push(`Række ${line}: ID ${setId} er duplikeret i Excel.`);
+        return;
+      }
+      seenIds.add(setId);
+    }
+
+    let action = String(getValue(row, "Handling", "handling", "Action")).trim().toLowerCase();
+    if (!action) action = "opdater";
+
+    if (action === "slet") {
+      if (!setId) {
+        failures.push(`Række ${line}: Handling=Slet kræver et ID.`);
+        return;
+      }
+      if (!existingSets.has(String(setId))) {
+        failures.push(`Række ${line}: Sæt ID ${setId} findes ikke.`);
+        return;
+      }
+      deletions.push(setId);
+      return;
+    }
+
+    if (action !== "opdater") {
+      failures.push(`Række ${line}: ukendt handling "${action}". Brug Opdater eller Slet.`);
+      return;
+    }
+
+    const requested_count = toNumber(getValue(row, "requested_count", "eksemplarer"), 0);
+    const loan_weeks = toNumber(getValue(row, "loan_weeks", "uger"), 8);
+    const buffer_days = toNumber(getValue(row, "buffer_days", "buffer"), 0);
+    const min_delivery = toNumber(getValue(row, "min_delivery", "mindste"), 0);
+    let visibility = String(getValue(row, "visibility", "synlighed")).trim().toLowerCase() || "national";
+    if (!["national", "regional"].includes(visibility)) visibility = "national";
+    const active = toBool(getValue(row, "active", "aktiv"), true);
+    const allow_substitution = toBool(getValue(row, "allow_substitution", "substitution"), false);
+    const allow_partial = toBool(getValue(row, "allow_partial", "partial"), false);
+
+    const record = {
+      set_id: setId || undefined,
+      title: String(getValue(row, "Titel", "title")).trim(),
+      author: String(getValue(row, "Forfatter", "author")).trim(),
+      isbn: String(getValue(row, "ISBN", "isbn")).trim(),
+      faust: String(getValue(row, "FAUST", "faust")).trim(),
+      requested_count,
+      loan_weeks,
+      buffer_days,
+      visibility,
+      owner_bibliotek_id: ownerId,
+      active,
+      allow_substitution,
+      allow_partial,
+      min_delivery,
+      notes: String(getValue(row, "notes", "Noter")).trim()
+    };
+
+    const existing = setId ? existingSets.get(String(setId)) : null;
+    if (setId && !existing) {
+      failures.push(`Række ${line}: Sæt ID ${setId} findes ikke.`);
+      return;
+    }
+    if (existing && existing.isbn && existing.isbn !== record.isbn) {
+      failures.push(`Række ${line}: Sæt ID ${setId} kan ikke ændre ISBN.`);
+      return;
+    }
+
+    const savedCount = existing ? Number(existing.requested_count) || 0 : 0;
+    const validation = saetValidate(record, {
+      ownerId,
+      desiredCount: record.requested_count,
+      savedCount,
+      usageOverride
+    });
+    if (validation) {
+      failures.push(`Række ${line}: ${validation}`);
+      return;
+    }
+
+    if (!usageOverride[ownerId]) usageOverride[ownerId] = {};
+    const currentTotal = usageOverride[ownerId][record.isbn] ?? saetUsageFor(ownerId, record.isbn);
+    usageOverride[ownerId][record.isbn] = (currentTotal - savedCount) + record.requested_count;
+
+    updates.push(record);
+  });
+
+  if (!updates.length && !deletions.length) {
+    showMsg("#msgSaet", failures[0] || "Ingen gyldige rækker fundet.");
+    return;
+  }
+
+  if (deletions.length) {
+    const confirmMsg = `Der er ${deletions.length} sæt markeret til sletning. Handlingen kan ikke fortrydes. Fortsæt?`;
+    if (!confirm(confirmMsg)) {
+      showMsg("#msgSaet", "Import annulleret.");
+      return;
+    }
+  }
+
+  const chunkSize = 100;
+  let upsertsDone = 0;
+  for (let i = 0; i < updates.length; i += chunkSize) {
+    const chunk = updates.slice(i, i + chunkSize);
+    const { error } = await sb.from("tbl_saet").upsert(chunk, { onConflict: "set_id" });
+    if (error) {
+      showMsg("#msgSaet", "Fejl ved import: " + error.message);
+      return;
+    }
+    upsertsDone += chunk.length;
+  }
+
+  let deletesDone = 0;
+  for (let i = 0; i < deletions.length; i += chunkSize) {
+    const chunk = deletions.slice(i, i + chunkSize);
+    const { error } = await sb
+      .from("tbl_saet")
+      .delete()
+      .eq("owner_bibliotek_id", ownerId)
+      .in("set_id", chunk);
+    if (error) {
+      showMsg("#msgSaet", "Fejl ved sletning af sæt: " + error.message);
+      return;
+    }
+    deletesDone += chunk.length;
+  }
+
+  const parts = [];
+  if (upsertsDone) parts.push(`opdaterede ${upsertsDone} sæt`);
+  if (deletesDone) parts.push(`slettede ${deletesDone} sæt`);
+  showMsg("#msgSaet", parts.length ? `Import gennemført: ${parts.join(", ")}.` : "Import gennemført.", true);
+  if (failures.length) {
+    alert("Følgende rækker blev sprunget over:\n" + failures.join("\n"));
+  }
+  await saetPull();
 }
 
 function populateSaetIsbnSelect(selectEl, ownerId, selectedIsbn) {
@@ -2488,3 +2755,12 @@ async function saetSaveAll() {
     alert("Kunne ikke gemme fÃ¸lgende sÃ¦t:\n" + failures.join("\n"));
   }
 }
+
+
+
+
+
+
+
+
+
