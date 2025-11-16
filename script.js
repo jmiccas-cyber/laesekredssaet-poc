@@ -47,21 +47,6 @@ function ensureSheetJs() {
   return sheetJsPromise;
 }
 
-let sheetJsPromise = null;
-function ensureSheetJs() {
-  if (window.XLSX) return Promise.resolve();
-  if (!sheetJsPromise) {
-    sheetJsPromise = new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
-      script.onload = () => resolve();
-      script.onerror = () => reject(new Error("Kunne ikke indlæse Excel-biblioteket."));
-      document.head.appendChild(script);
-    });
-  }
-  return sheetJsPromise;
-}
-
 function showMsg(selectorOrEl, text, ok = false) {
   const box = typeof selectorOrEl === "string" ? $(selectorOrEl) : selectorOrEl;
   if (!box) return;
