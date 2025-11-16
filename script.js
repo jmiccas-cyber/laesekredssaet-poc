@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 // Læsekredssæt v4.1 (clean drop-in)
-=======
-﻿// LÃ¦sekredssÃ¦t â€“ v4.1 (clean drop-in)
->>>>>>> parent of 1897d9d (Update script.js)
 // Bevarer funktionalitet fra v4.0, men med ryddet struktur.
 
 // ----------------------------------------------------------
