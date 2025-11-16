@@ -1370,7 +1370,7 @@ async function saetPull() {
   if (!activeOwner) {
     tb.innerHTML = "";
     $("#saetPinfo").textContent = "";
-    showMsg("#msgSaet", "V�lg f�rst en admin-profil (centralbibliotek) via Skift: Admin ??" Booker.");
+    showMsg("#msgSaet", "Vælg først en admin-profil (centralbibliotek) via Skift: Admin ↔ Booker.");
     return;
   }
   showMsg("#msgSaet", "");
