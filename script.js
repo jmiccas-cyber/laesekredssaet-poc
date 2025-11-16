@@ -867,6 +867,7 @@ function eksCollectRow(tr) {
     isbn: tr.querySelector(".isbn")?.value.trim() || "",
     faust: tr.querySelector(".faust")?.value.trim() || "",
     booking_status: tr.querySelector(".status")?.value || "Ledig",
+    aktiv: (tr.querySelector(".active-flag")?.value || "true") === "true",
     loan_status: "Ukendt",
     owner_bibliotek_id: st.profile.adminCentralId
   };
@@ -891,6 +892,8 @@ function eksRevertRow(tr) {
     tr.querySelector(".faust").value = original.faust || "";
     const stSel = tr.querySelector(".status");
     if (stSel) stSel.value = original.booking_status || "Ledig";
+    const aktSel = tr.querySelector(".active-flag");
+    if (aktSel) aktSel.value = original.aktiv === false ? "false" : "true";
     clearEksDirty(tr);
   } catch (e) {
     console.warn("Kunne ikke fortryde rÃ¦kke", e);
@@ -904,7 +907,8 @@ function setEksSort(field) {
     author: true,
     isbn: true,
     faust: true,
-    booking_status: true
+    booking_status: true,
+    aktiv: true
   };
   if (!valid[field]) return;
   if (st.eks.sortBy === field) {
@@ -968,6 +972,9 @@ function eksValidate(r) {
   if (!BOOKING_STATUSES.includes(r.booking_status)) {
     return "Ugyldig booking-status";
   }
+  if (typeof r.aktiv !== "boolean") {
+    r.aktiv = true;
+  }
   return null;
 }
 
@@ -982,7 +989,7 @@ async function exportEksToExcel() {
   showMsg("#msg", "Henter eksemplarer til Excel …");
   const { data, error } = await sb
     .from("tbl_beholdning")
-    .select("barcode,title,author,isbn,faust,booking_status")
+    .select("barcode,title,author,isbn,faust,booking_status,aktiv")
     .eq("owner_bibliotek_id", ownerId)
     .order("barcode");
 
@@ -1005,7 +1012,8 @@ async function exportEksToExcel() {
     Forfatter: row.author || "",
     ISBN: row.isbn || "",
     FAUST: row.faust || "",
-    Bookingstatus: row.booking_status || "Ledig"
+    Bookingstatus: row.booking_status || "Ledig",
+    Aktiv: row.aktiv === false ? "Inaktiv" : "Aktiv"
   }));
 
   const wb = XLSX.utils.book_new();
@@ -1016,7 +1024,8 @@ async function exportEksToExcel() {
     Forfatter: "",
     ISBN: "",
     FAUST: "",
-    Bookingstatus: "Ledig"
+    Bookingstatus: "Ledig",
+    Aktiv: "Aktiv"
   }]);
   XLSX.utils.book_append_sheet(wb, ws, "Eksemplarer");
   const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
@@ -1122,6 +1131,14 @@ async function importEksFromExcel(file) {
       return;
     }
 
+    const activeRaw = String(getValue(row, "Aktiv", "aktiv", "Active")).trim().toLowerCase();
+    let aktiv = true;
+    if (activeRaw === "inaktiv" || activeRaw === "false" || activeRaw === "nej") {
+      aktiv = false;
+    } else if (activeRaw === "aktiv" || activeRaw === "true" || activeRaw === "ja") {
+      aktiv = true;
+    }
+
     const record = {
       barcode,
       title: String(getValue(row, "Titel", "title")).trim(),
@@ -1129,6 +1146,7 @@ async function importEksFromExcel(file) {
       isbn: String(getValue(row, "ISBN", "isbn")).trim(),
       faust: String(getValue(row, "FAUST", "faust")).trim(),
       booking_status,
+      aktiv,
       owner_bibliotek_id: ownerId
     };
 
@@ -1235,6 +1253,11 @@ async function eksPull() {
     const au = el("input", { class: "author", value: r.author || "" });
     const isb = el("input", { class: "isbn", value: r.isbn || "" });
     const fa = el("input", { class: "faust", value: r.faust || "" });
+    const aktSel = el("select", { class: "active-flag" },
+      el("option", { value: "true" }, "Aktiv"),
+      el("option", { value: "false" }, "Inaktiv")
+    );
+    aktSel.value = r.aktiv === false ? "false" : "true";
 
     const stSel = el("select", { class: "status" },
       el("option", { value: "Ledig" }, "Ledig"),
@@ -1260,6 +1283,7 @@ async function eksPull() {
       el("td", {}, isb),
       el("td", {}, fa),
       el("td", {}, stSel),
+      el("td", {}, aktSel),
       actions
     );
     eksAttachRowListeners(tr);
@@ -1329,6 +1353,11 @@ function eksNewRow() {
     el("option", { value: "Booket" }, "Booket")
   );
   stSel.value = "Ledig";
+  const aktSel = el("select", { class: "active-flag" },
+    el("option", { value: "true" }, "Aktiv"),
+    el("option", { value: "false" }, "Inaktiv")
+  );
+  aktSel.value = "true";
 
   const btnCancel = el("button", {
     class: "btn",
@@ -1346,6 +1375,7 @@ function eksNewRow() {
     el("td", {}, el("input", { class: "isbn" })),
     el("td", {}, el("input", { class: "faust" })),
     el("td", {}, stSel),
+    el("td", {}, aktSel),
     el("td", {}, info, " ", btnCancel)
   );
   tb.prepend(tr);
