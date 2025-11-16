@@ -2565,9 +2565,9 @@ function renderAccessTable() {
       "data-id": lib.bibliotek_id,
       "data-next": isSuper ? "remove" : "add",
       style: `background:${isSuper ? "#2e8540" : "#c32626"};color:#fff;border:0;min-width:70px;`,
-      disabled,
       title: isSuper ? "Klik for at fjerne super admin" : "Klik for at give super admin"
     }, isSuper ? "Ja" : "Nej");
+    btn.disabled = !!disabled;
     tb.appendChild(el("tr", {},
       el("td", {}, fmtLibLabel(lib)),
       el("td", {}, btn)
