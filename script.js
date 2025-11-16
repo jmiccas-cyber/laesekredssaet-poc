@@ -3941,7 +3941,8 @@ async function bookerSearch() {
 
 async function bookerRequestBooking(setId) {
   if (!sb) return;
-  const row = st.b.results.find(r => r.set_id === setId);
+  const sorted = [...st.b.results].sort(compareBookerRows);
+  const row = sorted.find(r => r.set_id === setId);
   if (!row) return;
   const requesterId = st.profile.bookerLocalId;
   if (!requesterId) {
