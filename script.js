@@ -342,33 +342,6 @@ async function saveRegionDetails() {
   await relList();
   if (info) info.textContent = "Detaljer opdateret.";
 }
-  const name = $("#relDetailName")?.value?.trim() || "";
-  const address = $("#relDetailAddress")?.value?.trim() || "";
-  const postal_code = $("#relDetailPostal")?.value?.trim() || "";
-  const city = $("#relDetailCity")?.value?.trim() || "";
-  const notes = $("#relDetailNotes")?.value?.trim() || "";
-  const activeStr = $("#relDetailActive")?.value || "true";
-  const active = activeStr === "true";
-
-  if (!name) {
-    if (info) info.textContent = "Navn skal udfyldes.";
-    return;
-  }
-
-  const payload = { bibliotek_navn: name, address, postal_code, city, notes, active };
-  const { error } = await sb.from("tbl_bibliotek").update(payload).eq("bibliotek_id", id);
-  if (error) {
-    if (info) info.textContent = "Fejl ved opdatering: " + error.message;
-    return;
-  }
-
-  if (st.libs.byId[id]) {
-    Object.assign(st.libs.byId[id], payload);
-  }
-  populateRegionSelects();
-  await relList();
-  if (info) info.textContent = "Detaljer opdateret.";
-}
 
   const lib = st.libs.byId[id];
   if (!lib) {
