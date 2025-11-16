@@ -40,6 +40,7 @@ function safeJsonParse(str) {
 }
 
 let sheetJsPromise = null;
+let accessUpdating = false;
 function ensureSheetJs() {
   if (window.XLSX) return Promise.resolve();
   if (!sheetJsPromise) {
@@ -228,6 +229,7 @@ async function loadLibraries() {
 
   // SÃ¦t-ejer filter
   populateRegionSelects();
+  renderAccessTable();
 
 // Hvis der ikke er valgt admin-central, sÃ¦t default = Gentofte eller fÃ¸rste central
   if (!st.profile.adminCentralId && st.libs.centrals.length) {
@@ -2541,7 +2543,82 @@ function bindRelControls() {
 }
 
 // ----------------------------------------------------------
-// 9. Booker â€“ sÃ¸gning (tbl_saet + relationer)
+// 9. Admin â€“ Adgang (super admin)
+// ----------------------------------------------------------
+
+function renderAccessTable() {
+  const tb = $("#tblSuperAdmin tbody");
+  if (!tb) return;
+  tb.innerHTML = "";
+  const centrals = st.libs.centrals || [];
+  if (!centrals.length) {
+    tb.appendChild(el("tr", {}, el("td", { colspan: 3 }, "Ingen centralbiblioteker fundet.")));
+    return;
+  }
+  const totalSuper = centrals.filter(lib => lib.is_super_admin).length || 0;
+  centrals.forEach(lib => {
+    const isSuper = !!lib.is_super_admin;
+    const btn = el("button", {
+      class: "btn btn-small",
+      "data-action": "toggle-super",
+      "data-id": lib.bibliotek_id,
+      "data-next": isSuper ? "remove" : "add",
+      disabled: accessUpdating || (isSuper && totalSuper <= 1)
+    }, isSuper ? "Fjern adgang" : "Giv adgang");
+    const status = isSuper ? "Ja" : "Nej";
+    tb.appendChild(el("tr", {},
+      el("td", {}, fmtLibLabel(lib)),
+      el("td", {}, status),
+      el("td", {}, btn)
+    ));
+  });
+}
+
+async function toggleSuperAdmin(bibId, makeSuper) {
+  if (!sb || !bibId) return;
+  const centrals = st.libs.centrals || [];
+  const currentSuper = centrals.filter(lib => lib.is_super_admin).length || 0;
+  if (!makeSuper && currentSuper <= 1) {
+    showMsg("#accessMsg", "Der skal altid være mindst én super admin.");
+    return;
+  }
+  if (accessUpdating) return;
+  accessUpdating = true;
+  renderAccessTable();
+  showMsg("#accessMsg", "Opdaterer super admin-adgang …");
+  const { error } = await sb
+    .from("tbl_bibliotek")
+    .update({ is_super_admin: makeSuper })
+    .eq("bibliotek_id", bibId);
+  if (error) {
+    showMsg("#accessMsg", "Kunne ikke opdatere: " + error.message);
+    accessUpdating = false;
+    renderAccessTable();
+    return;
+  }
+  await loadLibraries();
+  accessUpdating = false;
+  const lib = st.libs.byId[bibId];
+  const label = fmtLibLabel(lib) || bibId;
+  showMsg("#accessMsg", makeSuper ? `${label} er nu super admin.` : `${label} er ikke længere super admin.`, true);
+}
+
+function bindAccessControls() {
+  const table = $("#tblSuperAdmin");
+  if (!table) return;
+  table.addEventListener("click", evt => {
+    const btn = evt.target.closest("button[data-action='toggle-super']");
+    if (!btn || accessUpdating) return;
+    const id = btn.dataset.id;
+    if (!id) return;
+    const next = btn.dataset.next === "add";
+    toggleSuperAdmin(id, next);
+  });
+  renderAccessTable();
+}
+
+// ----------------------------------------------------------
+// 10. Booker â€“ sÃ¸gning (tbl_saet + relationer)
 // ----------------------------------------------------------
 
 async function resolveBookerCentrals() {
@@ -2676,7 +2753,7 @@ function bindBookerControls() {
 }
 
 // ----------------------------------------------------------
-// 10. FÃ¦lles refresh pr. rolle & boot
+// 11. FÃ¦lles refresh pr. rolle & boot
 // ----------------------------------------------------------
 
 async function refreshForRole() {
@@ -2700,6 +2777,7 @@ async function boot() {
   bindRoleControls();
   bindEksControls();
   bindSaetControls();
+  bindAccessControls();
   bindRelControls();
   bindBookerControls();
 
