@@ -457,14 +457,25 @@ td {
               <input id="saetQ" type="text" placeholder="Søg i sæt…" style="flex:1;" />
               <button id="btnSaetSearch" class="btn primary">Søg</button>
             </div>
-          </div>
         </div>
       </div>
+    </div>
 
-      <div id="msgSaet" class="msg" style="display:none;"></div>
+    <div class="row" style="margin-top:8px; gap:8px; align-items:center;">
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button id="btnSaetExport" class="btn">Download Excel</button>
+        <button id="btnSaetImport" class="btn">Upload Excel</button>
+        <input id="saetImportFile" type="file" accept=".xlsx,.xls" style="display:none;" />
+      </div>
+      <span class="hint" style="margin-left:auto;">
+        Excel skal have: Handling (Opdater/Slet), ID, ISBN, titel, forfatter, FAUST, requested_count, loan_weeks, buffer_days, visibility, active, allow_substitution, allow_partial, min_delivery, notes.
+      </span>
+    </div>
 
-      <div class="card">
-        <table id="tblSaet">
+    <div id="msgSaet" class="msg" style="display:none;"></div>
+
+    <div class="card">
+      <table id="tblSaet">
           <thead>
           <tr>
             <th data-sort="set_id">ID</th>
