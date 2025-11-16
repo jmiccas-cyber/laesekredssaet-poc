@@ -719,6 +719,61 @@ async function loadInventorySummary() {
   refreshSaetInventoryControls();
 }
 
+async function syncSaetMetadataFromIsbns(isbns) {
+  if (!sb) return;
+  const unique = Array.from(
+    new Set(
+      (isbns || [])
+        .map(isbn => (isbn || "").trim())
+        .filter(Boolean)
+    )
+  );
+  if (!unique.length) return;
+
+  const { data, error } = await sb
+    .from("tbl_beholdning")
+    .select("isbn,title,author,faust")
+    .in("isbn", unique);
+  if (error) {
+    console.error("Fejl ved syncSaetMetadataFromIsbns:", error);
+    return;
+  }
+
+  const metaMap = {};
+  (data || []).forEach(row => {
+    const isbn = (row.isbn || "").trim();
+    if (!isbn || metaMap[isbn]) return;
+    metaMap[isbn] = {
+      title: row.title || "",
+      author: row.author || "",
+      faust: row.faust || ""
+    };
+  });
+  const entries = Object.entries(metaMap);
+  if (!entries.length) return;
+
+  let anyUpdated = false;
+  for (const [isbn, meta] of entries) {
+    const { error: updError } = await sb
+      .from("tbl_saet")
+      .update({
+        title: meta.title,
+        author: meta.author,
+        faust: meta.faust
+      })
+      .eq("isbn", isbn);
+    if (updError) {
+      console.error("Kunne ikke opdatere sæt for ISBN", isbn, updError);
+    } else {
+      anyUpdated = true;
+    }
+  }
+
+  if (anyUpdated && $("#tab-saet")?.classList.contains("active")) {
+    await saetPull();
+  }
+}
+
 function getOwnerInventory(ownerId) {
   if (!ownerId) return [];
   return st.stock.byOwner[ownerId] || [];
@@ -895,6 +950,7 @@ async function eksSaveAll() {
   showMsg("#msg", `Gemte ${payload.length} Ã¦ndring${payload.length > 1 ? "er" : ""}.`, true);
   await eksPull();
   await loadInventorySummary();
+  await syncSaetMetadataFromIsbns(payload.map(r => r.isbn));
 }
 
 function eksValidate(r) {
@@ -1139,6 +1195,8 @@ async function importEksFromExcel(file) {
     alert("Følgende rækker blev sprunget over:\n" + failures.join("\n"));
   }
   await eksPull();
+  await loadInventorySummary();
+  await syncSaetMetadataFromIsbns(updates.map(r => r.isbn));
 }
 
 async function eksPull() {
