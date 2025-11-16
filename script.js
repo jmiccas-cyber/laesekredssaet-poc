@@ -359,6 +359,24 @@ async function saveRegionDetails() {
   await relList();
   if (info) info.textContent = "Detaljer opdateret.";
 }
+  const lib = st.libs.byId[id];
+  if (!lib) {
+    info.textContent = "Biblioteket findes ikke lÃ¦ngere.";
+    return;
+  }
+  const addr = lib.address || "-";
+  const postal = lib.postal_code || "";
+  const city = lib.city || "";
+  const notes = lib.notes || "-";
+  const active = lib.active !== false ? "Ja" : "Nej";
+  info.innerHTML = `
+    <strong>${fmtLibLabel(lib)}</strong><br>
+    Adresse: ${addr}<br>
+    Postnummer / by: ${postal} ${city}<br>
+    Aktiv: ${active}<br>
+    Kommentarer/pakkenoter: ${notes}
+  `;
+}
 function loadProfileDropdown() {
   const adminSel = document.querySelector("#adminProfileSel");
   const bookerSel = document.querySelector("#bookerProfileSel");
