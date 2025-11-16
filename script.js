@@ -1,4 +1,4 @@
-﻿?// Læsekredssæt �?" v4.1 (clean drop-in)
+﻿// Læsekredssæt – v4.1 (clean drop-in)
 // Bevarer funktionalitet fra v4.0, men med ryddet struktur.
 
 // ----------------------------------------------------------
