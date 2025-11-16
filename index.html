@@ -359,6 +359,7 @@ td {
       <button data-tab="tab-saet">Sæt</button>
       <button data-tab="tab-region">Region / relationer</button>
       <button data-tab="tab-access">Adgang</button>
+      <button data-tab="tab-calendar">Kalender</button>
     </nav>
 
     <!-- ADMIN: Eksemplarer -->
@@ -664,6 +665,47 @@ td {
         <p class="hint" style="margin-top:8px;">
           Tilf j eller fjern super admin-adgang via knapperne. Du kan ikke fjerne den sidste super admin.
         </p>
+      </div>
+    </section>
+
+    <!-- ADMIN: Kalender -->
+    <section id="tab-calendar" class="panel">
+      <div class="card">
+        <p class="hint">
+          Nationale ferier og helligdage gælder for alle biblioteker. Kun super admin kan vedligeholde listen.
+        </p>
+        <div class="row" style="gap:12px; flex-wrap:wrap; align-items:flex-end;">
+          <div>
+            <label for="calDate">Dato</label>
+            <input id="calDate" type="date" />
+          </div>
+          <div style="flex:1; min-width:220px;">
+            <label for="calTitle">Beskrivelse</label>
+            <input id="calTitle" type="text" placeholder="fx. Langfredag" />
+          </div>
+          <div style="flex:1; min-width:220px;">
+            <label for="calNotes">Noter</label>
+            <input id="calNotes" type="text" placeholder="Valgfrit" />
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button id="btnCalAdd" class="btn primary">Tilføj dag</button>
+            <button id="btnCalRefresh" class="btn">Genindlæs</button>
+          </div>
+        </div>
+        <div id="calendarMsg" class="msg" style="display:none; margin-top:8px;"></div>
+      </div>
+      <div class="card">
+        <table id="tblCalendar">
+          <thead>
+          <tr>
+            <th>Dato</th>
+            <th>Beskrivelse</th>
+            <th>Noter</th>
+            <th>Handling</th>
+          </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
     </section>
 <!-- BOOKER VIEW -->

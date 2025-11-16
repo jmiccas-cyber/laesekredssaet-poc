@@ -7,6 +7,7 @@
 
 const SUPABASE_URL = "https://qlkrzinyqirnigcwadki.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsa3J6aW55cWlybmlnY3dhZGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NjY2NjgsImV4cCI6MjA3ODM0MjY2OH0.-SV3dn7reKHeYis40I-aF3av0_XmCP-ZqB9KR6JT2so";
+const HOLIDAY_TABLE = "tbl_national_holidays";
 
 let sb = null; // Supabase client
 
@@ -141,6 +142,9 @@ const st = {
     sortBy: "set_id",
     sortDir: "asc",
     usage: {}
+  },
+  calendar: {
+    list: []
   },
   b: {
     page: 0,
@@ -452,12 +456,22 @@ function renderLayout() {
   const adminTabs = $("#adminTabs");
   const bookerView = $("#bookerView");
   const panels = $$(".panel");
-  const relTabButton = document.querySelector('nav.tabs button[data-tab="tab-region"]');
-  const relPanel = $("#tab-region");
   const adminLib = st.libs.byId[currentAdminId()];
   const isSuper = isSuperLibrary(adminLib);
-  if (relTabButton) relTabButton.style.display = isSuper ? "" : "none";
-  if (relPanel) relPanel.style.display = isSuper ? "" : "none";
+  ["tab-region", "tab-access", "tab-calendar"].forEach(tabId => {
+    const btn = document.querySelector(`nav.tabs button[data-tab="${tabId}"]`);
+    const panel = $("#" + tabId);
+    if (btn) btn.style.display = isSuper ? "" : "none";
+    if (panel) panel.style.display = isSuper ? "" : "none";
+    if (!isSuper && panel?.classList.contains("active")) {
+      panel.classList.remove("active");
+      btn?.classList.remove("active");
+    }
+  });
+  const firstTabBtn = document.querySelector('nav.tabs button[data-tab="tab-eks"]');
+  if (firstTabBtn && !firstTabBtn.classList.contains("active") && !document.querySelector('nav.tabs button.active')) {
+    firstTabBtn.click();
+  }
 
   if (!adminTabs || !bookerView) return;
 
@@ -2689,7 +2703,125 @@ function bindAccessControls() {
 }
 
 // ----------------------------------------------------------
-// 10. Booker â€“ sÃ¸gning (tbl_saet + relationer)
+// 10. Admin â€“ Kalender (tbl_national_holidays)
+// ----------------------------------------------------------
+
+function setCalendarFormEnabled(enabled) {
+  ["#calDate", "#calTitle", "#calNotes", "#btnCalAdd"].forEach(sel => {
+    const elRef = $(sel);
+    if (elRef) {
+      elRef.disabled = !enabled;
+    }
+  });
+}
+
+function clearCalendarForm() {
+  ["#calDate", "#calTitle", "#calNotes"].forEach(sel => {
+    const elRef = $(sel);
+    if (elRef) elRef.value = "";
+  });
+}
+
+function renderCalendarRows(rows) {
+  const tb = $("#tblCalendar tbody");
+  if (!tb) return;
+  tb.innerHTML = "";
+  if (!rows || !rows.length) {
+    tb.appendChild(el("tr", {}, el("td", { colspan: 4 }, "Ingen registrerede fridage.")));
+    return;
+  }
+  rows.forEach(row => {
+    const dateStr = row.holiday_date ? new Date(row.holiday_date).toLocaleDateString("da-DK") : "";
+    const delBtn = el("button", {
+      class: "btn btn-small",
+      "data-cal-delete": row.holiday_id
+    }, "Slet");
+    tb.appendChild(el("tr", {},
+      el("td", {}, dateStr),
+      el("td", {}, row.title || ""),
+      el("td", {}, row.notes || ""),
+      el("td", {}, delBtn)
+    ));
+  });
+}
+
+async function calendarPull() {
+  if (!sb) return;
+  const msgSel = "#calendarMsg";
+  const adminLib = st.libs.byId[currentAdminId()];
+  const isSuper = isSuperLibrary(adminLib);
+  setCalendarFormEnabled(isSuper);
+  if (!isSuper) {
+    renderCalendarRows([]);
+    showMsg(msgSel, "Kun super admin kan vedligeholde kalenderen.");
+    return;
+  }
+
+  showMsg(msgSel, "Henter kalender...");
+  const { data, error } = await sb
+    .from(HOLIDAY_TABLE)
+    .select("holiday_id,holiday_date,title,notes")
+    .order("holiday_date", { ascending: true });
+
+  if (error) {
+    showMsg(msgSel, "Kunne ikke hente kalender: " + error.message);
+    return;
+  }
+  st.calendar.list = data || [];
+  renderCalendarRows(st.calendar.list);
+  showMsg(msgSel, st.calendar.list.length ? `Indlæst ${st.calendar.list.length} dag(e).` : "Ingen dage registreret.", true);
+}
+
+async function calendarAdd() {
+  if (!sb) return;
+  const date = $("#calDate")?.value || "";
+  const title = $("#calTitle")?.value.trim() || "";
+  const notes = $("#calNotes")?.value.trim() || "";
+  if (!date) {
+    showMsg("#calendarMsg", "Dato skal udfyldes.");
+    return;
+  }
+  if (!title) {
+    showMsg("#calendarMsg", "Beskrivelse skal udfyldes.");
+    return;
+  }
+  showMsg("#calendarMsg", "Gemmer dag...");
+  const payload = { holiday_date: date, title, notes };
+  const { error } = await sb.from(HOLIDAY_TABLE).insert(payload);
+  if (error) {
+    showMsg("#calendarMsg", "Kunne ikke gemme: " + error.message);
+    return;
+  }
+  clearCalendarForm();
+  showMsg("#calendarMsg", "Dag tilføjet.", true);
+  await calendarPull();
+}
+
+async function calendarDelete(id) {
+  if (!sb || !id) return;
+  if (!confirm("Slet denne dag fra kalenderen?")) return;
+  const { error } = await sb.from(HOLIDAY_TABLE).delete().eq("holiday_id", id);
+  if (error) {
+    showMsg("#calendarMsg", "Kunne ikke slette: " + error.message);
+    return;
+  }
+  showMsg("#calendarMsg", "Dag slettet.", true);
+  await calendarPull();
+}
+
+function bindCalendarControls() {
+  $("#btnCalAdd")?.addEventListener("click", calendarAdd);
+  $("#btnCalRefresh")?.addEventListener("click", () => calendarPull());
+  $("#tblCalendar")?.addEventListener("click", evt => {
+    const btn = evt.target.closest("button[data-cal-delete]");
+    if (!btn) return;
+    const id = Number(btn.getAttribute("data-cal-delete"));
+    if (id) calendarDelete(id);
+  });
+}
+
+// ----------------------------------------------------------
+// 11. Booker â€“ sÃ¸gning (tbl_saet + relationer)
 // ----------------------------------------------------------
 
 async function resolveBookerCentrals() {
@@ -2836,6 +2968,7 @@ async function refreshForRole() {
     await eksPull();
     await saetPull();
     await relList();
+    await calendarPull();
   } else {
     await bookerSearch();
   }
@@ -2849,6 +2982,7 @@ async function boot() {
   bindEksControls();
   bindSaetControls();
   bindAccessControls();
+  bindCalendarControls();
   bindRelControls();
   bindBookerControls();
 
