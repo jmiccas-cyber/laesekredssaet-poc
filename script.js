@@ -3321,7 +3321,9 @@ async function calendarLocalImportExcel(file) {
 }
 
 function toIsoDate(date) {
-  return date.toISOString().slice(0, 10);
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 async function loadOwnerHolidaySet(ownerId) {
