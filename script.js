@@ -1860,7 +1860,7 @@ async function relCreateLocal() {
   const active = activeStr === "true";
 
   if (!id || id.length > 20) {
-    showMsg("#msgRel", "ID skal udfyldes (1??"20 tegn).");
+    showMsg("#msgRel", "ID skal udfyldes (1–20 tegn).");
     return;
   }
   if (!name) {
