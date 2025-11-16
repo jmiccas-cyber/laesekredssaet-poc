@@ -31,6 +31,13 @@ function el(tag, attrs = {}, ...kids) {
 
 function show(node) { if (node) node.style.display = ""; }
 function hide(node) { if (node) node.style.display = "none"; }
+function safeJsonParse(str) {
+  try {
+    return JSON.parse(str);
+  } catch (e) {
+    return null;
+  }
+}
 
 let sheetJsPromise = null;
 function ensureSheetJs() {
@@ -1270,6 +1277,29 @@ async function eksDeleteRow(tr) {
     updateEksSaveButton();
     return;
   }
+  const ownerId = currentAdminId();
+  const original = tr.dataset.original ? safeJsonParse(tr.dataset.original) : null;
+  const isbn = (tr.querySelector(".isbn")?.value || original?.isbn || "").trim();
+
+  if (ownerId && isbn) {
+    const { count: available, error: countError } = await sb
+      .from("tbl_beholdning")
+      .select("barcode", { count: "exact", head: true })
+      .eq("owner_bibliotek_id", ownerId)
+      .eq("isbn", isbn);
+    if (countError) {
+      showMsg("#msg", "Kunne ikke verificere beholdning: " + countError.message);
+      return;
+    }
+    const usageMap = await fetchSaetUsage();
+    st.saet.usage = usageMap;
+    const reserved = Number(usageMap?.[ownerId]?.[isbn]) || 0;
+    if ((available ?? 0) - 1 < reserved) {
+      showMsg("#msg", `Eksemplarer for ISBN ${isbn} kan ikke slettes før tilhørende sæt reduceres (krævet: ${reserved}, tilbage efter sletning: ${(available ?? 0) - 1}).`);
+      return;
+    }
+  }
+
   if (!confirm("Slet eksemplar " + bc + "?")) return;
   const { error } = await sb.from("tbl_beholdning").delete().eq("barcode", bc);
   if (error) {
