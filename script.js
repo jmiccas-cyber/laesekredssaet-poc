@@ -9,6 +9,12 @@ const SUPABASE_URL = "https://qlkrzinyqirnigcwadki.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsa3J6aW55cWlybmlnY3dhZGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NjY2NjgsImV4cCI6MjA3ODM0MjY2OH0.-SV3dn7reKHeYis40I-aF3av0_XmCP-ZqB9KR6JT2so";
 const HOLIDAY_TABLE = "tbl_national_holidays";
 const LOCAL_HOLIDAY_TABLE = "tbl_local_holidays";
+const BOOKING_RULE_TABLE = "tbl_booking_rules";
+const BOOKING_RULE_OPTIONS = [
+  { value: "first_working_day", label: "Kun fra første hverdag i måneden" },
+  { value: "every_14_days", label: "Hver 14. dag (førstkommende hverdag)" }
+];
+const BOOKING_RULE_DEFAULT = "first_working_day";
 
 let sb = null; // Supabase client
 
@@ -148,6 +154,10 @@ const st = {
     list: [],
     local: []
   },
+  bookingRules: {
+    byOwner: {},
+    owner: ""
+  },
   b: {
     page: 0,
     pageSize: 15,
@@ -242,6 +252,7 @@ async function loadLibraries() {
   if (assignSel && !assignSel.value) assignSel.value = defaultCentral;
   if (newCentralSel && !newCentralSel.value) newCentralSel.value = defaultCentral;
   populateSaetOwnerSelect();
+  populateBookingRuleOwnerSelect();
 
   // SÃ¦t-ejer filter
   populateRegionSelects();
@@ -273,6 +284,10 @@ function populateCentralDropdown(select, { includeAll = false, allLabel = "(alle
 
 function populateSaetOwnerSelect() {
   populateCentralDropdown(document.querySelector("#saetOwnerFilterSel"));
+}
+
+function populateBookingRuleOwnerSelect() {
+  populateCentralDropdown(document.querySelector("#bookingRuleOwnerSel"));
 }
 
 function populateRegionSelects() {
@@ -3277,6 +3292,90 @@ async function calendarLocalImportExcel(file) {
   await calendarPullLocal();
 }
 
+async function loadBookingRules() {
+  if (!sb) return {};
+  const { data, error } = await sb
+    .from(BOOKING_RULE_TABLE)
+    .select("owner_bibliotek_id,rule");
+  if (error) {
+    console.error("Kunne ikke hente bookingregler:", error);
+    st.bookingRules.byOwner = {};
+    return {};
+  }
+  const map = {};
+  (data || []).forEach(row => {
+    if (!row.owner_bibliotek_id) return;
+    map[row.owner_bibliotek_id] = row.rule || BOOKING_RULE_DEFAULT;
+  });
+  st.bookingRules.byOwner = map;
+  return map;
+}
+
+function currentBookingRule(ownerId) {
+  return st.bookingRules.byOwner?.[ownerId] || BOOKING_RULE_DEFAULT;
+}
+
+async function bookingRulePull() {
+  const msgSel = "#bookingRuleMsg";
+  if (!sb) {
+    showMsg(msgSel, "Forbindelse til databasen mangler.");
+    return;
+  }
+  if (st.role !== "admin") {
+    showMsg(msgSel, "Bookingregler er kun tilgængelige for admin-profiler.");
+    return;
+  }
+  const adminId = currentAdminId();
+  const adminLib = st.libs.byId[adminId];
+  const isSuper = isSuperLibrary(adminLib);
+  const ownerWrap = $("#bookingRuleOwnerWrap");
+  if (ownerWrap) ownerWrap.style.display = isSuper ? "" : "none";
+  const ownerSel = $("#bookingRuleOwnerSel");
+  if (isSuper && ownerSel && !ownerSel.options.length) {
+    populateBookingRuleOwnerSelect();
+  }
+  let ownerId = st.bookingRules.owner || adminId;
+  if (isSuper && ownerSel) {
+    if (!ownerSel.value && ownerId) ownerSel.value = ownerId;
+    ownerId = ownerSel.value || ownerId || adminId;
+  } else {
+    ownerId = adminId;
+    if (ownerSel) ownerSel.value = ownerId || "";
+  }
+  if (!ownerId) {
+    showMsg(msgSel, "Vælg først et centralbibliotek via Skift: Admin ↔ Booker.");
+    return;
+  }
+  st.bookingRules.owner = ownerId;
+  showMsg(msgSel, "Henter bookingregel …");
+  await loadBookingRules();
+  const selectEl = $("#bookingRuleSelect");
+  if (selectEl) selectEl.value = currentBookingRule(ownerId);
+  showMsg(msgSel, "Regel opdateret.", true);
+}
+
+async function bookingRuleSave() {
+  if (!sb) return;
+  const ownerId = st.bookingRules.owner || currentAdminId();
+  if (!ownerId) {
+    showMsg("#bookingRuleMsg", "Ingen centralbibliotek valgt.");
+    return;
+  }
+  const rule = $("#bookingRuleSelect")?.value || BOOKING_RULE_DEFAULT;
+  showMsg("#bookingRuleMsg", "Gemmer bookingregel …");
+  const payload = { owner_bibliotek_id: ownerId, rule };
+  const { error } = await sb
+    .from(BOOKING_RULE_TABLE)
+    .upsert(payload, { onConflict: "owner_bibliotek_id" });
+  if (error) {
+    showMsg("#bookingRuleMsg", "Kunne ikke gemme: " + error.message);
+    return;
+  }
+  if (!st.bookingRules.byOwner) st.bookingRules.byOwner = {};
+  st.bookingRules.byOwner[ownerId] = rule;
+  showMsg("#bookingRuleMsg", "Bookingregel gemt.", true);
+}
+
 async function calendarAddGlobal() {
   if (!sb) return;
   const date = $("#calDate")?.value || "";
@@ -3351,6 +3450,14 @@ function bindCalendarControls() {
     const id = Number(btn.getAttribute("data-cal-local-delete"));
     if (id) calendarLocalDelete(id);
   });
+}
+
+function bindBookingRuleControls() {
+  $("#bookingRuleOwnerSel")?.addEventListener("change", () => {
+    st.bookingRules.owner = $("#bookingRuleOwnerSel").value || currentAdminId();
+    bookingRulePull();
+  });
+  $("#btnBookingRuleSave")?.addEventListener("click", () => bookingRuleSave());
 }
 
 // ----------------------------------------------------------
@@ -3503,6 +3610,7 @@ async function refreshForRole() {
     await relList();
     await calendarPullGlobal();
     await calendarPullLocal();
+    await bookingRulePull();
   } else {
     await bookerSearch();
   }
@@ -3516,6 +3624,7 @@ async function boot() {
   bindEksControls();
   bindSaetControls();
   bindAccessControls();
+  bindBookingRuleControls();
   bindCalendarControls();
   bindRelControls();
   bindBookerControls();

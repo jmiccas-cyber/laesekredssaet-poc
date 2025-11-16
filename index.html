@@ -360,6 +360,7 @@ td {
       <button data-tab="tab-region">Region / relationer</button>
       <button data-tab="tab-access">Adgang</button>
       <button data-tab="tab-calendar">Kalender</button>
+      <button data-tab="tab-booking">Booking Regler</button>
     </nav>
 
     <!-- ADMIN: Eksemplarer -->
@@ -665,6 +666,34 @@ td {
         <p class="hint" style="margin-top:8px;">
           Tilf j eller fjern super admin-adgang via knapperne. Du kan ikke fjerne den sidste super admin.
         </p>
+      </div>
+    </section>
+
+    <!-- ADMIN: Booking Regler -->
+    <section id="tab-booking" class="panel">
+      <div class="card">
+        <p class="hint">
+          Vælg hvilken bookingregel der skal gælde for alle læsekredssæt under dit centralbibliotek.
+          Super admin kan skifte mellem centralbiblioteker via dropdownen.
+        </p>
+        <div class="row" style="align-items:flex-end; gap:12px; flex-wrap:wrap;">
+          <div id="bookingRuleOwnerWrap" style="min-width:240px; display:none;">
+            <label for="bookingRuleOwnerSel">Centralbibliotek</label>
+            <select id="bookingRuleOwnerSel"></select>
+          </div>
+          <div style="flex:1; min-width:260px;">
+            <label for="bookingRuleSelect">Bookingregel</label>
+            <select id="bookingRuleSelect">
+              <option value="first_working_day">Kun fra første hverdag i måneden</option>
+              <option value="every_14_days">Hver 14. dag (førstkommende hverdag)</option>
+            </select>
+          </div>
+          <div>
+            <label>&nbsp;</label>
+            <button id="btnBookingRuleSave" class="btn primary">Gem regel</button>
+          </div>
+        </div>
+        <div id="bookingRuleMsg" class="msg" style="display:none; margin-top:8px;"></div>
       </div>
     </section>
 
