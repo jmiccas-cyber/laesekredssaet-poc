@@ -2455,3 +2455,201 @@ function refreshSaetAvailabilityIndicators() {
 }
 
 // ----------------------------------------------------------
+
+// ----------------------------------------------------------
+// 8. Admin � Region / relationer (tbl_bibliotek_relation)
+// ----------------------------------------------------------
+
+// 8. Admin ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ Region / relationer (tbl_bibliotek_relation)
+// ----------------------------------------------------------
+
+async function relList() {
+  if (!sb) return;
+  const filter = $("#relFilterSel")?.value || "";
+
+  let query = sb
+    .from("tbl_bibliotek_relation")
+    .select("relation_id,bibliotek_id,central_id,active")
+    .order("relation_id");
+  if (filter) {
+    query = query.eq("central_id", filter);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    showMsg("#msgRel", "Fejl ved hentning af relationer: " + error.message);
+    return;
+  }
+
+  const tb = $("#tblRel tbody");
+  if (!tb) return;
+
+  tb.innerHTML = "";
+  (data || []).forEach(r => {
+    const local = st.libs.byId[r.bibliotek_id];
+    const central = st.libs.byId[r.central_id];
+
+    const activeSel = el("select", { "data-rel-id": r.relation_id, class: "rel-active" },
+      el("option", { value: "true" }, "Ja"),
+      el("option", { value: "false" }, "Nej")
+    );
+    activeSel.value = r.active ? "true" : "false";
+
+    const borrowerActive = local && local.active !== false ? "Ja" : "Nej";
+
+    const btnDel = el("button", {
+      class: "btn",
+      onclick: () => relDelete(r.relation_id)
+    }, "Slet");
+
+    const tr = el("tr", {},
+      el("td", {}, String(r.relation_id)),
+      el("td", {}, local ? fmtLibLabel(local) : r.bibliotek_id),
+      el("td", {}, central ? fmtLibLabel(central) : r.central_id),
+      el("td", {}, activeSel),
+      el("td", {}, borrowerActive),
+      el("td", {}, btnDel)
+    );
+    tb.appendChild(tr);
+  });
+
+  const filterLabel = filter ? (fmtLibLabel(st.libs.byId[filter]) || filter) : "";
+  const msg = data && data.length
+    ? `Antal relationer${filterLabel ? " for " + filterLabel : ""}: ${data.length}`
+    : "Ingen relationer.";
+  showMsg("#msgRel", msg, true);
+}
+
+async function relSaveActives() {
+  if (!sb) return;
+  const selects = $$("#tblRel select.rel-active[data-rel-id]");
+  const updates = selects.map(sel => ({
+    relation_id: Number(sel.getAttribute("data-rel-id")),
+    active: sel.value === "true"
+  }));
+  if (!updates.length) return;
+  const { error } = await sb.from("tbl_bibliotek_relation").upsert(updates, { onConflict: "relation_id" });
+  if (error) {
+    showMsg("#msgRel", "Fejl ved gem af relationer: " + error.message);
+  } else {
+    showMsg("#msgRel", "Relationer opdateret", true);
+    await relList();
+  }
+}
+
+async function relDelete(relationId) {
+  if (!sb) return;
+  if (!confirm(`Slet relation ${relationId}?`)) return;
+  const { error } = await sb.from("tbl_bibliotek_relation").delete().eq("relation_id", relationId);
+  if (error) {
+    showMsg("#msgRel", "Fejl ved sletning: " + error.message);
+  } else {
+    showMsg("#msgRel", "Relation slettet", true);
+    await relList();
+  }
+}
+
+async function relAddExisting() {
+  if (!sb) return;
+  const centralId = $("#relCentralAssign")?.value || currentAdminId();
+  if (!centralId) {
+    showMsg("#msgRel", "VÃƒÆ’Ã‚Â¦lg fÃƒÆ’Ã‚Â¸rst et centralbibliotek.");
+    return;
+  }
+  const local = $("#relLocal")?.value;
+  if (!local) {
+    showMsg("#msgRel", "VÃƒÆ’Ã‚Â¦lg regionsbibliotek.");
+    return;
+  }
+  if (local === centralId) {
+    showMsg("#msgRel", "Et bibliotek kan ikke vÃƒÆ’Ã‚Â¦re sin egen region.");
+    return;
+  }
+
+  const { error } = await sb.from("tbl_bibliotek_relation").insert({
+    bibliotek_id: local,
+    central_id: centralId,
+    active: true
+  });
+  if (error) {
+    showMsg("#msgRel", "Fejl ved oprettelse af relation: " + error.message);
+  } else {
+    showMsg("#msgRel", "Relation oprettet", true);
+    await relList();
+  }
+}
+
+async function relCreateLocal() {
+  if (!sb) return;
+  const centralId = $("#newLocalCentral")?.value || currentAdminId();
+  if (!centralId) {
+    showMsg("#msgRel", "VÃƒÆ’Ã‚Â¦lg hvilket centralbibliotek regionen skal tilknyttes.");
+    return;
+  }
+  const id = $("#newLocalId")?.value.trim();
+  const name = $("#newLocalName")?.value.trim();
+  const address = $("#newLocalAddress")?.value.trim() || "";
+  const postal_code = $("#newLocalPostal")?.value.trim() || "";
+  const city = $("#newLocalCity")?.value.trim() || "";
+  const notes = $("#newLocalNotes")?.value.trim() || "";
+  const activeStr = $("#newLocalActive")?.value || "true";
+  const active = activeStr === "true";
+
+  if (!id || id.length > 20) {
+    showMsg("#msgRel", "ID skal udfyldes (1ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“20 tegn).");
+    return;
+  }
+  if (!name) {
+    showMsg("#msgRel", "Navn skal udfyldes.");
+    return;
+  }
+
+  const { error: e1 } = await sb.from("tbl_bibliotek").insert({
+    bibliotek_id: id,
+    bibliotek_navn: name,
+    is_central: false,
+    active,
+    address,
+    postal_code,
+    city,
+    notes
+  });
+  if (e1) {
+    showMsg("#msgRel", "Fejl ved oprettelse af bibliotek: " + e1.message);
+    return;
+  }
+
+  const { error: e2 } = await sb.from("tbl_bibliotek_relation").insert({
+    bibliotek_id: id,
+    central_id: centralId,
+    active: true
+  });
+  if (e2) {
+    showMsg("#msgRel", "Bibliotek oprettet, men fejl ved relation: " + e2.message);
+  } else {
+    showMsg("#msgRel", "Regionsbibliotek oprettet og relateret", true);
+    ["#newLocalId","#newLocalName","#newLocalAddress","#newLocalPostal","#newLocalCity","#newLocalNotes"].forEach(sel => {
+      const input = $(sel);
+      if (input) input.value = "";
+    });
+    $("#newLocalActive").value = "true";
+  }
+
+  await loadLibraries();
+  await relList();
+}
+
+function bindRelControls() {
+  $("#btnRelAdd")?.addEventListener("click", relAddExisting);
+  $("#btnCreateLocal")?.addEventListener("click", relCreateLocal);
+  $("#btnRelDetailSave")?.addEventListener("click", saveRegionDetails);
+  $("#relFilterSel")?.addEventListener("change", () => {
+    relList();
+  });
+  $("#relDetailSel")?.addEventListener("change", renderRegionDetails);
+  renderRegionDetails();
+  // Auto-gem ÃƒÆ’Ã‚Â¦ndringer i active-dropdowns nÃƒÆ’Ã‚Â¥r man forlader fanen kunne laves her ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ vi holder det manuelt
+}
+
+// ----------------------------------------------------------

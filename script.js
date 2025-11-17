@@ -1,197 +1,4 @@
-// 8. Admin ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ Region / relationer (tbl_bibliotek_relation)
-// ----------------------------------------------------------
-
-async function relList() {
-  if (!sb) return;
-  const filter = $("#relFilterSel")?.value || "";
-
-  let query = sb
-    .from("tbl_bibliotek_relation")
-    .select("relation_id,bibliotek_id,central_id,active")
-    .order("relation_id");
-  if (filter) {
-    query = query.eq("central_id", filter);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    showMsg("#msgRel", "Fejl ved hentning af relationer: " + error.message);
-    return;
-  }
-
-  const tb = $("#tblRel tbody");
-  if (!tb) return;
-
-  tb.innerHTML = "";
-  (data || []).forEach(r => {
-    const local = st.libs.byId[r.bibliotek_id];
-    const central = st.libs.byId[r.central_id];
-
-    const activeSel = el("select", { "data-rel-id": r.relation_id, class: "rel-active" },
-      el("option", { value: "true" }, "Ja"),
-      el("option", { value: "false" }, "Nej")
-    );
-    activeSel.value = r.active ? "true" : "false";
-
-    const borrowerActive = local && local.active !== false ? "Ja" : "Nej";
-
-    const btnDel = el("button", {
-      class: "btn",
-      onclick: () => relDelete(r.relation_id)
-    }, "Slet");
-
-    const tr = el("tr", {},
-      el("td", {}, String(r.relation_id)),
-      el("td", {}, local ? fmtLibLabel(local) : r.bibliotek_id),
-      el("td", {}, central ? fmtLibLabel(central) : r.central_id),
-      el("td", {}, activeSel),
-      el("td", {}, borrowerActive),
-      el("td", {}, btnDel)
-    );
-    tb.appendChild(tr);
-  });
-
-  const filterLabel = filter ? (fmtLibLabel(st.libs.byId[filter]) || filter) : "";
-  const msg = data && data.length
-    ? `Antal relationer${filterLabel ? " for " + filterLabel : ""}: ${data.length}`
-    : "Ingen relationer.";
-  showMsg("#msgRel", msg, true);
-}
-
-async function relSaveActives() {
-  if (!sb) return;
-  const selects = $$("#tblRel select.rel-active[data-rel-id]");
-  const updates = selects.map(sel => ({
-    relation_id: Number(sel.getAttribute("data-rel-id")),
-    active: sel.value === "true"
-  }));
-  if (!updates.length) return;
-  const { error } = await sb.from("tbl_bibliotek_relation").upsert(updates, { onConflict: "relation_id" });
-  if (error) {
-    showMsg("#msgRel", "Fejl ved gem af relationer: " + error.message);
-  } else {
-    showMsg("#msgRel", "Relationer opdateret", true);
-    await relList();
-  }
-}
-
-async function relDelete(relationId) {
-  if (!sb) return;
-  if (!confirm(`Slet relation ${relationId}?`)) return;
-  const { error } = await sb.from("tbl_bibliotek_relation").delete().eq("relation_id", relationId);
-  if (error) {
-    showMsg("#msgRel", "Fejl ved sletning: " + error.message);
-  } else {
-    showMsg("#msgRel", "Relation slettet", true);
-    await relList();
-  }
-}
-
-async function relAddExisting() {
-  if (!sb) return;
-  const centralId = $("#relCentralAssign")?.value || currentAdminId();
-  if (!centralId) {
-    showMsg("#msgRel", "VÃƒÆ’Ã‚Â¦lg fÃƒÆ’Ã‚Â¸rst et centralbibliotek.");
-    return;
-  }
-  const local = $("#relLocal")?.value;
-  if (!local) {
-    showMsg("#msgRel", "VÃƒÆ’Ã‚Â¦lg regionsbibliotek.");
-    return;
-  }
-  if (local === centralId) {
-    showMsg("#msgRel", "Et bibliotek kan ikke vÃƒÆ’Ã‚Â¦re sin egen region.");
-    return;
-  }
-
-  const { error } = await sb.from("tbl_bibliotek_relation").insert({
-    bibliotek_id: local,
-    central_id: centralId,
-    active: true
-  });
-  if (error) {
-    showMsg("#msgRel", "Fejl ved oprettelse af relation: " + error.message);
-  } else {
-    showMsg("#msgRel", "Relation oprettet", true);
-    await relList();
-  }
-}
-
-async function relCreateLocal() {
-  if (!sb) return;
-  const centralId = $("#newLocalCentral")?.value || currentAdminId();
-  if (!centralId) {
-    showMsg("#msgRel", "VÃƒÆ’Ã‚Â¦lg hvilket centralbibliotek regionen skal tilknyttes.");
-    return;
-  }
-  const id = $("#newLocalId")?.value.trim();
-  const name = $("#newLocalName")?.value.trim();
-  const address = $("#newLocalAddress")?.value.trim() || "";
-  const postal_code = $("#newLocalPostal")?.value.trim() || "";
-  const city = $("#newLocalCity")?.value.trim() || "";
-  const notes = $("#newLocalNotes")?.value.trim() || "";
-  const activeStr = $("#newLocalActive")?.value || "true";
-  const active = activeStr === "true";
-
-  if (!id || id.length > 20) {
-    showMsg("#msgRel", "ID skal udfyldes (1ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“20 tegn).");
-    return;
-  }
-  if (!name) {
-    showMsg("#msgRel", "Navn skal udfyldes.");
-    return;
-  }
-
-  const { error: e1 } = await sb.from("tbl_bibliotek").insert({
-    bibliotek_id: id,
-    bibliotek_navn: name,
-    is_central: false,
-    active,
-    address,
-    postal_code,
-    city,
-    notes
-  });
-  if (e1) {
-    showMsg("#msgRel", "Fejl ved oprettelse af bibliotek: " + e1.message);
-    return;
-  }
-
-  const { error: e2 } = await sb.from("tbl_bibliotek_relation").insert({
-    bibliotek_id: id,
-    central_id: centralId,
-    active: true
-  });
-  if (e2) {
-    showMsg("#msgRel", "Bibliotek oprettet, men fejl ved relation: " + e2.message);
-  } else {
-    showMsg("#msgRel", "Regionsbibliotek oprettet og relateret", true);
-    ["#newLocalId","#newLocalName","#newLocalAddress","#newLocalPostal","#newLocalCity","#newLocalNotes"].forEach(sel => {
-      const input = $(sel);
-      if (input) input.value = "";
-    });
-    $("#newLocalActive").value = "true";
-  }
-
-  await loadLibraries();
-  await relList();
-}
-
-function bindRelControls() {
-  $("#btnRelAdd")?.addEventListener("click", relAddExisting);
-  $("#btnCreateLocal")?.addEventListener("click", relCreateLocal);
-  $("#btnRelDetailSave")?.addEventListener("click", saveRegionDetails);
-  $("#relFilterSel")?.addEventListener("change", () => {
-    relList();
-  });
-  $("#relDetailSel")?.addEventListener("change", renderRegionDetails);
-  renderRegionDetails();
-  // Auto-gem ÃƒÆ’Ã‚Â¦ndringer i active-dropdowns nÃƒÆ’Ã‚Â¥r man forlader fanen kunne laves her ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ vi holder det manuelt
-}
-
-// ----------------------------------------------------------
-// 9. Admin ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ Adgang (super admin)
+// 9. Admin ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Adgang (super admin)
 // ----------------------------------------------------------
 
 function renderAccessTable() {
@@ -228,13 +35,13 @@ async function toggleSuperAdmin(bibId, makeSuper) {
   const centrals = st.libs.centrals || [];
   const currentSuper = centrals.filter(lib => lib.is_super_admin).length || 0;
   if (!makeSuper && currentSuper <= 1) {
-    showMsg("#accessMsg", "Der skal altid vÃƒÂ¦re mindst ÃƒÂ©n super admin.");
+    showMsg("#accessMsg", "Der skal altid vÃƒÆ’Ã‚Â¦re mindst ÃƒÆ’Ã‚Â©n super admin.");
     return;
   }
   if (accessUpdating) return;
   accessUpdating = true;
   renderAccessTable();
-  showMsg("#accessMsg", "Opdaterer super admin-adgang Ã¢â‚¬Â¦");
+  showMsg("#accessMsg", "Opdaterer super admin-adgang ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦");
   const { error } = await sb
     .from("tbl_bibliotek")
     .update({ is_super_admin: makeSuper })
@@ -250,7 +57,7 @@ async function toggleSuperAdmin(bibId, makeSuper) {
   renderAccessTable();
   const lib = st.libs.byId[bibId];
   const label = fmtLibLabel(lib) || bibId;
-  showMsg("#accessMsg", makeSuper ? `${label} er nu super admin.` : `${label} er ikke lÃƒÂ¦ngere super admin.`, true);
+  showMsg("#accessMsg", makeSuper ? `${label} er nu super admin.` : `${label} er ikke lÃƒÆ’Ã‚Â¦ngere super admin.`, true);
 }
 
 function bindAccessControls() {
@@ -268,7 +75,7 @@ function bindAccessControls() {
 }
 
 // ----------------------------------------------------------
-// 10. Admin ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ Kalender (tbl_national_holidays)
+// 10. Admin ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ Kalender (tbl_national_holidays)
 // ----------------------------------------------------------
 
 function setCalendarFormEnabledGlobal(enabled) {
@@ -350,7 +157,7 @@ async function calendarExportExcelGlobal() {
     showMsg("#calendarMsg", "Kun super admin kan eksportere kalenderen.");
     return;
   }
-  showMsg("#calendarMsg", "Genererer Excel Ã¢â‚¬Â¦");
+  showMsg("#calendarMsg", "Genererer Excel ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦");
   const { data, error } = await sb
     .from(HOLIDAY_TABLE)
     .select("holiday_date,title,notes")
@@ -403,13 +210,13 @@ async function calendarImportExcelGlobal(file) {
     showMsg("#calendarMsg", e.message);
     return;
   }
-  showMsg("#calendarMsg", "IndlÃƒÂ¦ser Excel Ã¢â‚¬Â¦");
+  showMsg("#calendarMsg", "IndlÃƒÆ’Ã‚Â¦ser Excel ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦");
   let workbook;
   try {
     const buffer = await file.arrayBuffer();
     workbook = XLSX.read(buffer, { type: "array", cellDates: true });
   } catch (e) {
-    showMsg("#calendarMsg", "Kunne ikke lÃƒÂ¦se filen: " + e.message);
+    showMsg("#calendarMsg", "Kunne ikke lÃƒÆ’Ã‚Â¦se filen: " + e.message);
     return;
   }
   const sheetName = workbook.SheetNames?.[0];
@@ -438,10 +245,10 @@ async function calendarImportExcelGlobal(file) {
   rows.forEach((row, idx) => {
     const line = idx + 2;
     const actionRaw = String(getValue(row, "Handling", "handling", "Action")).trim().toLowerCase();
-    const action = actionRaw || "tilfÃƒÂ¸j";
+    const action = actionRaw || "tilfÃƒÆ’Ã‚Â¸j";
     const isoDate = normalizeHolidayDate(getValue(row, "Dato", "date"));
     if (!isoDate) {
-      failures.push(`RÃƒÂ¦kke ${line}: dato mangler eller er ugyldig.`);
+      failures.push(`RÃƒÆ’Ã‚Â¦kke ${line}: dato mangler eller er ugyldig.`);
       return;
     }
     if (action === "slet" || action === "delete") {
@@ -451,7 +258,7 @@ async function calendarImportExcelGlobal(file) {
     }
     const title = String(getValue(row, "Titel", "title", "Beskrivelse")).trim();
     if (!title) {
-      failures.push(`RÃƒÂ¦kke ${line}: titel skal udfyldes.`);
+      failures.push(`RÃƒÆ’Ã‚Â¦kke ${line}: titel skal udfyldes.`);
       return;
     }
     const notes = String(getValue(row, "Noter", "notes", "Note")).trim();
@@ -462,7 +269,7 @@ async function calendarImportExcelGlobal(file) {
   const deletions = Array.from(deletionSet);
 
   if (!additions.length && !deletions.length) {
-    showMsg("#calendarMsg", failures[0] || "Ingen gyldige rÃƒÂ¦kker fundet.");
+    showMsg("#calendarMsg", failures[0] || "Ingen gyldige rÃƒÆ’Ã‚Â¦kker fundet.");
     return;
   }
 
@@ -495,9 +302,9 @@ async function calendarImportExcelGlobal(file) {
   const parts = [];
   if (upsertsDone) parts.push(`opdaterede ${upsertsDone} dag(e)`);
   if (deletesDone) parts.push(`slettede ${deletesDone}`);
-  showMsg("#calendarMsg", parts.length ? `Import gennemfÃƒÂ¸rt: ${parts.join(", ")}.` : "Import gennemfÃƒÂ¸rt.", true);
+  showMsg("#calendarMsg", parts.length ? `Import gennemfÃƒÆ’Ã‚Â¸rt: ${parts.join(", ")}.` : "Import gennemfÃƒÆ’Ã‚Â¸rt.", true);
   if (failures.length) {
-    alert("FÃƒÂ¸lgende rÃƒÂ¦kker blev sprunget over:\n" + failures.join("\n"));
+    alert("FÃƒÆ’Ã‚Â¸lgende rÃƒÆ’Ã‚Â¦kker blev sprunget over:\n" + failures.join("\n"));
   }
   await calendarPullGlobal();
 }
@@ -528,7 +335,7 @@ async function calendarPullGlobal() {
   }
   st.calendar.list = data || [];
   renderCalendarRowsGlobal(st.calendar.list);
-  showMsg(msgSel, st.calendar.list.length ? `IndlÃƒÂ¦st ${st.calendar.list.length} dag(e).` : "Ingen dage registreret.", true);
+  showMsg(msgSel, st.calendar.list.length ? `IndlÃƒÆ’Ã‚Â¦st ${st.calendar.list.length} dag(e).` : "Ingen dage registreret.", true);
 }
 
 function renderCalendarLocalRows(rows) {
@@ -561,7 +368,7 @@ async function calendarPullLocal() {
   if (section) section.style.display = st.role === "admin" ? "" : "none";
   if (!ownerId || st.role !== "admin") {
     renderCalendarLocalRows([]);
-    showMsg(msgSel, st.role === "admin" ? "VÃƒÂ¦lg et centralbibliotek fÃƒÂ¸rst." : "Kalender er kun tilgÃƒÂ¦ngelig for admins.");
+    showMsg(msgSel, st.role === "admin" ? "VÃƒÆ’Ã‚Â¦lg et centralbibliotek fÃƒÆ’Ã‚Â¸rst." : "Kalender er kun tilgÃƒÆ’Ã‚Â¦ngelig for admins.");
     return;
   }
   if (ownerLabel) ownerLabel.textContent = fmtLibLabel(adminLib) || ownerId;
@@ -577,14 +384,14 @@ async function calendarPullLocal() {
   }
   st.calendar.local = data || [];
   renderCalendarLocalRows(st.calendar.local);
-  showMsg(msgSel, st.calendar.local.length ? `IndlÃƒÂ¦st ${st.calendar.local.length} dag(e).` : "Ingen lokale dage registreret.", true);
+  showMsg(msgSel, st.calendar.local.length ? `IndlÃƒÆ’Ã‚Â¦st ${st.calendar.local.length} dag(e).` : "Ingen lokale dage registreret.", true);
 }
 
 async function calendarLocalAdd() {
   if (!sb) return;
   const ownerId = currentAdminId();
   if (!ownerId) {
-    showMsg("#calendarLocalMsg", "VÃƒÂ¦lg fÃƒÂ¸rst et centralbibliotek.");
+    showMsg("#calendarLocalMsg", "VÃƒÆ’Ã‚Â¦lg fÃƒÆ’Ã‚Â¸rst et centralbibliotek.");
     return;
   }
   const date = $("#calLocalDate")?.value || "";
@@ -620,7 +427,7 @@ async function calendarLocalDelete(id) {
   if (!sb || !id) return;
   const ownerId = currentAdminId();
   if (!ownerId) {
-    showMsg("#calendarLocalMsg", "VÃƒÂ¦lg fÃƒÂ¸rst et centralbibliotek.");
+    showMsg("#calendarLocalMsg", "VÃƒÆ’Ã‚Â¦lg fÃƒÆ’Ã‚Â¸rst et centralbibliotek.");
     return;
   }
   if (!confirm("Slet denne lokale dag?")) return;
@@ -644,10 +451,10 @@ async function calendarLocalResync() {
   if (!sb) return;
   const ownerId = currentAdminId();
   if (!ownerId) {
-    showMsg("#calendarLocalMsg", "VÃƒÂ¦lg fÃƒÂ¸rst et centralbibliotek.");
+    showMsg("#calendarLocalMsg", "VÃƒÆ’Ã‚Â¦lg fÃƒÆ’Ã‚Â¸rst et centralbibliotek.");
     return;
   }
-  showMsg("#calendarLocalMsg", "Synkroniserer globale dage Ã¢â‚¬Â¦");
+  showMsg("#calendarLocalMsg", "Synkroniserer globale dage ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦");
   const { data: globalRows, error: globalError } = await sb
     .from(HOLIDAY_TABLE)
     .select("holiday_date,title,notes")
@@ -681,7 +488,7 @@ async function calendarLocalResync() {
       }
     }
   }
-  showMsg("#calendarLocalMsg", toInsert.length ? `TilfÃƒÂ¸jede ${toInsert.length} global(e) dag(e).` : "Alle globale dage var allerede til stede.", true);
+  showMsg("#calendarLocalMsg", toInsert.length ? `TilfÃƒÆ’Ã‚Â¸jede ${toInsert.length} global(e) dag(e).` : "Alle globale dage var allerede til stede.", true);
   if (st.calendar.localSets) {
     delete st.calendar.localSets[ownerId];
   }
@@ -692,10 +499,10 @@ async function calendarLocalExportExcel() {
   if (!sb) return;
   const ownerId = currentAdminId();
   if (!ownerId) {
-    showMsg("#calendarLocalMsg", "VÃƒÂ¦lg fÃƒÂ¸rst et centralbibliotek.");
+    showMsg("#calendarLocalMsg", "VÃƒÆ’Ã‚Â¦lg fÃƒÆ’Ã‚Â¸rst et centralbibliotek.");
     return;
   }
-  showMsg("#calendarLocalMsg", "Genererer Excel Ã¢â‚¬Â¦");
+  showMsg("#calendarLocalMsg", "Genererer Excel ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦");
   const { data, error } = await sb
     .from(LOCAL_HOLIDAY_TABLE)
     .select("holiday_date,title,notes")
@@ -740,7 +547,7 @@ async function calendarLocalImportExcel(file) {
   if (!sb || !file) return;
   const ownerId = currentAdminId();
   if (!ownerId) {
-    showMsg("#calendarLocalMsg", "VÃƒÂ¦lg fÃƒÂ¸rst et centralbibliotek.");
+    showMsg("#calendarLocalMsg", "VÃƒÆ’Ã‚Â¦lg fÃƒÆ’Ã‚Â¸rst et centralbibliotek.");
     return;
   }
   try {
@@ -749,13 +556,13 @@ async function calendarLocalImportExcel(file) {
     showMsg("#calendarLocalMsg", e.message);
     return;
   }
-  showMsg("#calendarLocalMsg", "IndlÃƒÂ¦ser Excel Ã¢â‚¬Â¦");
+  showMsg("#calendarLocalMsg", "IndlÃƒÆ’Ã‚Â¦ser Excel ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦");
   let workbook;
   try {
     const buffer = await file.arrayBuffer();
     workbook = XLSX.read(buffer, { type: "array", cellDates: true });
   } catch (e) {
-    showMsg("#calendarLocalMsg", "Kunne ikke lÃƒÂ¦se filen: " + e.message);
+    showMsg("#calendarLocalMsg", "Kunne ikke lÃƒÆ’Ã‚Â¦se filen: " + e.message);
     return;
   }
   const sheetName = workbook.SheetNames?.[0];
@@ -784,10 +591,10 @@ async function calendarLocalImportExcel(file) {
   rows.forEach((row, idx) => {
     const line = idx + 2;
     const actionRaw = String(getValue(row, "Handling", "handling", "Action")).trim().toLowerCase();
-    const action = actionRaw || "tilfÃƒÂ¸j";
+    const action = actionRaw || "tilfÃƒÆ’Ã‚Â¸j";
     const isoDate = normalizeHolidayDate(getValue(row, "Dato", "date"));
     if (!isoDate) {
-      failures.push(`RÃƒÂ¦kke ${line}: dato mangler eller er ugyldig.`);
+      failures.push(`RÃƒÆ’Ã‚Â¦kke ${line}: dato mangler eller er ugyldig.`);
       return;
     }
     if (action === "slet" || action === "delete") {
@@ -797,7 +604,7 @@ async function calendarLocalImportExcel(file) {
     }
     const title = String(getValue(row, "Titel", "title", "Beskrivelse")).trim();
     if (!title) {
-      failures.push(`RÃƒÂ¦kke ${line}: titel skal udfyldes.`);
+      failures.push(`RÃƒÆ’Ã‚Â¦kke ${line}: titel skal udfyldes.`);
       return;
     }
     const notes = String(getValue(row, "Noter", "notes", "Note")).trim();
@@ -808,7 +615,7 @@ async function calendarLocalImportExcel(file) {
   const deletions = Array.from(deletionSet);
 
   if (!additions.length && !deletions.length) {
-    showMsg("#calendarLocalMsg", failures[0] || "Ingen gyldige rÃƒÂ¦kker fundet.");
+    showMsg("#calendarLocalMsg", failures[0] || "Ingen gyldige rÃƒÆ’Ã‚Â¦kker fundet.");
     return;
   }
 
@@ -842,9 +649,9 @@ async function calendarLocalImportExcel(file) {
   const parts = [];
   if (upsertsDone) parts.push(`opdaterede ${upsertsDone} dag(e)`);
   if (deletesDone) parts.push(`slettede ${deletesDone}`);
-  showMsg("#calendarLocalMsg", parts.length ? `Import gennemfÃƒÂ¸rt: ${parts.join(", ")}.` : "Import gennemfÃƒÂ¸rt.", true);
+  showMsg("#calendarLocalMsg", parts.length ? `Import gennemfÃƒÆ’Ã‚Â¸rt: ${parts.join(", ")}.` : "Import gennemfÃƒÆ’Ã‚Â¸rt.", true);
   if (failures.length) {
-    alert("FÃƒÂ¸lgende rÃƒÂ¦kker blev sprunget over:\n" + failures.join("\n"));
+    alert("FÃƒÆ’Ã‚Â¸lgende rÃƒÆ’Ã‚Â¦kker blev sprunget over:\n" + failures.join("\n"));
   }
   if (st.calendar.localSets) {
     delete st.calendar.localSets[ownerId];
@@ -1091,7 +898,7 @@ async function fetchSetsByOwner(ownerId) {
     .eq("owner_bibliotek_id", ownerId)
     .eq("active", true);
   if (error) {
-    console.error("Kunne ikke hente sÃƒÂ¦t:", error);
+    console.error("Kunne ikke hente sÃƒÆ’Ã‚Â¦t:", error);
     return [];
   }
   return data || [];
@@ -1104,7 +911,7 @@ async function fetchSaetMapByIds(ids) {
     .select("set_id,title,author,isbn")
     .in("set_id", ids);
   if (error) {
-    console.error("Kunne ikke hente sÃƒÂ¦t metadata:", error);
+    console.error("Kunne ikke hente sÃƒÆ’Ã‚Â¦t metadata:", error);
     return {};
   }
   const map = {};
@@ -1209,7 +1016,7 @@ async function bookingRulePull() {
     return;
   }
   if (st.role !== "admin") {
-    showMsg(msgSel, "Bookingregler er kun tilgÃƒÂ¦ngelige for admin-profiler.");
+    showMsg(msgSel, "Bookingregler er kun tilgÃƒÆ’Ã‚Â¦ngelige for admin-profiler.");
     return;
   }
   const adminId = currentAdminId();
@@ -1232,11 +1039,11 @@ async function bookingRulePull() {
     if (ownerSel) ownerSel.value = ownerId || "";
   }
   if (!ownerId) {
-    showMsg(msgSel, "VÃƒÂ¦lg fÃƒÂ¸rst et centralbibliotek via Skift: Admin Ã¢â€ â€ Booker.");
+    showMsg(msgSel, "VÃƒÆ’Ã‚Â¦lg fÃƒÆ’Ã‚Â¸rst et centralbibliotek via Skift: Admin ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Â Booker.");
     return;
   }
   st.bookingRules.owner = ownerId;
-  showMsg(msgSel, "Henter bookingregel Ã¢â‚¬Â¦");
+  showMsg(msgSel, "Henter bookingregel ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦");
   await loadBookingRules();
   const selectEl = $("#bookingRuleSelect");
   if (selectEl) selectEl.value = currentBookingRule(ownerId);
@@ -1251,7 +1058,7 @@ async function bookingRuleSave() {
     return;
   }
   const rule = $("#bookingRuleSelect")?.value || BOOKING_RULE_DEFAULT;
-  showMsg("#bookingRuleMsg", "Gemmer bookingregel Ã¢â‚¬Â¦");
+  showMsg("#bookingRuleMsg", "Gemmer bookingregel ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦");
   const payload = { owner_bibliotek_id: ownerId, rule };
   const { error } = await sb
     .from(BOOKING_RULE_TABLE)
@@ -1270,7 +1077,7 @@ async function bookingRequestsPull() {
   if (!sb) return;
   const ownerId = currentAdminId();
   if (!ownerId) {
-    showMsg("#bookingRequestsMsg", "VÃƒÂ¦lg fÃƒÂ¸rst et centralbibliotek.");
+    showMsg("#bookingRequestsMsg", "VÃƒÆ’Ã‚Â¦lg fÃƒÆ’Ã‚Â¸rst et centralbibliotek.");
     return;
   }
   const { data, error } = await sb
@@ -1315,7 +1122,7 @@ function renderBookingRequests() {
       : r.booking_status === BOOKING_STATUS_AVAILABLE ? "Ledig"
       : "Annulleret";
     const tr = el("tr", {},
-      el("td", {}, set?.title || `SÃƒÂ¦t #${r.set_id}` || ""),
+      el("td", {}, set?.title || `SÃƒÆ’Ã‚Â¦t #${r.set_id}` || ""),
       el("td", {}, set?.author || ""),
       el("td", {}, set?.isbn || ""),
       el("td", {}, requesterLabel),
@@ -1352,7 +1159,7 @@ async function bookingRequestsUpdate(bookingId, action, setId) {
   const bookingIdNum = Number(bookingId);
   if (!bookingIdNum) return;
   const msgSel = "#bookingRequestsMsg";
-  showMsg(msgSel, "Opdaterer anmodning Ã¢â‚¬Â¦");
+  showMsg(msgSel, "Opdaterer anmodning ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦");
   const updates = action === "approve"
     ? { booking_status: BOOKING_STATUS_BOOKED }
     : { booking_status: BOOKING_STATUS_AVAILABLE, requester_bibliotek_id: null };
@@ -1367,7 +1174,7 @@ async function bookingRequestsUpdate(bookingId, action, setId) {
   }
   const { error, data } = await query.select("booking_id").limit(1);
   if (error || !data?.length) {
-    showMsg(msgSel, "Kunne ikke opdatere anmodning: " + (error?.message || "Slot ikke lÃƒÂ¦ngere tilgÃƒÂ¦ngelig."));
+    showMsg(msgSel, "Kunne ikke opdatere anmodning: " + (error?.message || "Slot ikke lÃƒÆ’Ã‚Â¦ngere tilgÃƒÆ’Ã‚Â¦ngelig."));
     return;
   }
   showMsg(msgSel, action === "approve" ? "Anmodning godkendt." : "Anmodning afvist.", true);
@@ -1399,7 +1206,7 @@ async function calendarAddGlobal() {
     return;
   }
   clearCalendarFormGlobal();
-  showMsg("#calendarMsg", "Dag tilfÃƒÂ¸jet.", true);
+  showMsg("#calendarMsg", "Dag tilfÃƒÆ’Ã‚Â¸jet.", true);
   await calendarPullGlobal();
 }
 
@@ -1482,7 +1289,7 @@ function bindBookingRequestControls() {
 }
 
 // ----------------------------------------------------------
-// 11. Booker ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ sÃƒÆ’Ã‚Â¸gning (tbl_saet + relationer)
+// 11. Booker ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ sÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸gning (tbl_saet + relationer)
 // ----------------------------------------------------------
 
 async function resolveBookerCentrals() {
@@ -1538,11 +1345,11 @@ async function bookerSearchInternal() {
   ]);
 
   if (natRes.error) {
-    showMsg("#bMsg", "Fejl ved national sÃƒÆ’Ã‚Â¸gning: " + natRes.error.message);
+    showMsg("#bMsg", "Fejl ved national sÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸gning: " + natRes.error.message);
     return [];
   }
   if (regRes.error) {
-    showMsg("#bMsg", "Fejl ved regional sÃƒÆ’Ã‚Â¸gning: " + regRes.error.message);
+    showMsg("#bMsg", "Fejl ved regional sÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸gning: " + regRes.error.message);
     return [];
   }
 
@@ -1563,7 +1370,7 @@ function renderBookerResults() {
   slice.forEach(r => {
     const owner = st.libs.byId[r.owner_bibliotek_id];
     const ownerLabel = owner ? (owner.bibliotek_navn?.split(" ")[0] || fmtLibLabel(owner)) : r.owner_bibliotek_id || "";
-    const ruleLabel = bookingRuleLabel(r.bookingRule) || "Ã¢â‚¬â€";
+    const ruleLabel = bookingRuleLabel(r.bookingRule) || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â";
     const loanWeeks = r.loan_weeks || "";
     const copies = r.requested_count || "";
     const nextInfo = r.availableSlots?.length
@@ -1598,8 +1405,8 @@ function renderBookerResults() {
 
   const totalPages = Math.ceil((st.b.total || 0) / st.b.pageSize);
   $("#bInfo").textContent = st.b.total
-    ? `Side ${st.b.page + 1}/${totalPages} - ${st.b.total} sÃƒÂ¦t`
-    : "Ingen sÃƒÂ¦t fundet";
+    ? `Side ${st.b.page + 1}/${totalPages} - ${st.b.total} sÃƒÆ’Ã‚Â¦t`
+    : "Ingen sÃƒÆ’Ã‚Â¦t fundet";
   updateBookerSortIndicators();
 }
 
@@ -1612,7 +1419,7 @@ function renderSlotSelect(row) {
     }
   });
   row.availableSlots.slice(0, 50).forEach(slot => {
-    const label = `${formatDateDisplay(slot.start_date)} Ã¢â€ â€™ ${formatDateDisplay(slot.end_date)}`;
+    const label = `${formatDateDisplay(slot.start_date)} ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ ${formatDateDisplay(slot.end_date)}`;
     select.appendChild(el("option", { value: `${slot.booking_id}` }, label));
   });
   if (row.selectedSlotId) {
@@ -1626,7 +1433,7 @@ function renderSlotSelect(row) {
 
 async function bookerSearch() {
   if (!st.profile.bookerLocalId) {
-    showMsg("#bMsg", "VÃƒÆ’Ã‚Â¦lg fÃƒÆ’Ã‚Â¸rst en booker-profil (regionsbibliotek).");
+    showMsg("#bMsg", "VÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦lg fÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸rst en booker-profil (regionsbibliotek).");
     return;
   }
   st.b.q = $("#bQ")?.value || "";
@@ -1673,12 +1480,12 @@ async function bookerRequestBooking(setId) {
   if (!row) return;
   const requesterId = st.profile.bookerLocalId;
   if (!requesterId) {
-    showMsg("#bMsg", "VÃƒÂ¦lg fÃƒÂ¸rst et regionsbibliotek via Skift: Admin Ã¢â€ â€ Booker.");
+    showMsg("#bMsg", "VÃƒÆ’Ã‚Â¦lg fÃƒÆ’Ã‚Â¸rst et regionsbibliotek via Skift: Admin ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬Â Booker.");
     return;
   }
   const bookingId = row.selectedSlotId || row.availableSlots?.[0]?.booking_id;
   if (!bookingId) {
-    showMsg("#bMsg", "VÃƒÂ¦lg en ledig periode fÃƒÂ¸rst.");
+    showMsg("#bMsg", "VÃƒÆ’Ã‚Â¦lg en ledig periode fÃƒÆ’Ã‚Â¸rst.");
     return;
   }
   const targetSlot = row.availableSlots?.find(slot => `${slot.booking_id}` === bookingId);
@@ -1686,7 +1493,7 @@ async function bookerRequestBooking(setId) {
     showMsg("#bMsg", "Kunne ikke finde den valgte periode.");
     return;
   }
-  showMsg("#bMsg", "Sender bookinganmodning Ã¢â‚¬Â¦");
+  showMsg("#bMsg", "Sender bookinganmodning ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦");
   const { data, error } = await sb
     .from("tbl_booking")
     .update({
@@ -1697,7 +1504,7 @@ async function bookerRequestBooking(setId) {
     .eq("booking_status", BOOKING_STATUS_AVAILABLE)
     .select("booking_id");
   if (error || !data?.length) {
-    showMsg("#bMsg", "Kunne ikke sende anmodning: " + (error?.message || "Slot ikke lÃƒÂ¦ngere ledig."));
+    showMsg("#bMsg", "Kunne ikke sende anmodning: " + (error?.message || "Slot ikke lÃƒÆ’Ã‚Â¦ngere ledig."));
     return;
   }
   showMsg("#bMsg", "Anmodning sendt.", true);
@@ -1730,7 +1537,7 @@ function bindBookerControls() {
 }
 
 // ----------------------------------------------------------
-// 11. FÃƒÆ’Ã‚Â¦lles refresh pr. rolle & boot
+// 11. FÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦lles refresh pr. rolle & boot
 // ----------------------------------------------------------
 
 async function refreshForRole() {
@@ -1796,7 +1603,7 @@ function updateSaetSaveButton() {
   if (!btn) return;
   const count = saetDirtyRows().length;
   btn.disabled = count === 0;
-  btn.textContent = count ? `Gem ${count} sÃƒÆ’Ã‚Â¦t` : "Gem ÃƒÆ’Ã‚Â¦ndringer";
+  btn.textContent = count ? `Gem ${count} sÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦t` : "Gem ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ndringer";
 }
 
 function saetAttachRowListeners(tr) {
@@ -1872,7 +1679,7 @@ async function saetPrepareRecord(tr, usageOverride) {
 async function saetSaveAll() {
   const rows = saetDirtyRows();
   if (!rows.length) {
-    showMsg("#msgSaet", "Der er ingen ÃƒÆ’Ã‚Â¦ndringer at gemme.");
+    showMsg("#msgSaet", "Der er ingen ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦ndringer at gemme.");
     return;
   }
   if (!sb) return;
@@ -1906,13 +1713,13 @@ async function saetSaveAll() {
   }
 
   if (successCount) {
-    showMsg("#msgSaet", `Gemte ${successCount} sÃƒÆ’Ã‚Â¦t`, true);
+    showMsg("#msgSaet", `Gemte ${successCount} sÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦t`, true);
     highlightSaveBar();
     await saetPull();
     await regenerateBookingSlotsForOwner(currentAdminId());
   }
   if (failures.length) {
-    alert("Kunne ikke gemme fÃƒÆ’Ã‚Â¸lgende sÃƒÆ’Ã‚Â¦t:\n" + failures.join("\n"));
+    alert("Kunne ikke gemme fÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¸lgende sÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¦t:\n" + failures.join("\n"));
   }
 }
 
