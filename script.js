@@ -133,7 +133,6 @@ const st = {
     page: 0,
     pageSize: 20,
     total: 0,
-    status: "",
     q: "",
     sortBy: "barcode",
     sortDir: "asc"
@@ -170,13 +169,12 @@ const st = {
     start: null,
     weeks: 8,
     results: [],
+    allResults: [],
     centralIds: [], // relationer for booker
     sortBy: "title",
     sortDir: "asc"
   }
 };
-
-const BOOKING_STATUSES = ["Ledig", "Reserveret", "Booket"];
 
 // ----------------------------------------------------------
 // 3. Supabase & profil
@@ -636,7 +634,6 @@ async function eksCount() {
   if (!sb || !st.profile.adminCentralId) return 0;
   let q = sb.from("tbl_beholdning").select("*", { count: "exact", head: true })
     .eq("owner_bibliotek_id", st.profile.adminCentralId);
-  if (st.eks.status) q = q.eq("booking_status", st.eks.status);
   if (st.eks.q) {
     const v = st.eks.q;
     q = q.or([
@@ -661,10 +658,9 @@ async function eksFetch() {
   const to = from + st.eks.pageSize - 1;
 
   let q = sb.from("tbl_beholdning")
-    .select("barcode,title,author,isbn,faust,booking_status,aktiv")
+    .select("barcode,title,author,isbn,faust,aktiv")
     .eq("owner_bibliotek_id", st.profile.adminCentralId);
 
-  if (st.eks.status) q = q.eq("booking_status", st.eks.status);
   if (st.eks.q) {
     const v = st.eks.q;
     q = q.or([
@@ -681,8 +677,7 @@ async function eksFetch() {
     title: "title",
     author: "author",
     isbn: "isbn",
-    faust: "faust",
-    booking_status: "booking_status"
+    faust: "faust"
   };
   const sortKey = sortMap[st.eks.sortBy] || "barcode";
   const ascending = st.eks.sortDir !== "desc";
@@ -932,7 +927,6 @@ function eksCollectRow(tr) {
     author: tr.querySelector(".author")?.value.trim() || "",
     isbn: tr.querySelector(".isbn")?.value.trim() || "",
     faust: tr.querySelector(".faust")?.value.trim() || "",
-    booking_status: tr.querySelector(".status")?.value || "Ledig",
     aktiv: tr.querySelector(".active-flag")?.dataset.value !== "false",
     loan_status: "Ukendt",
     owner_bibliotek_id: st.profile.adminCentralId
@@ -956,8 +950,6 @@ function eksRevertRow(tr) {
     tr.querySelector(".author").value = original.author || "";
     tr.querySelector(".isbn").value = original.isbn || "";
     tr.querySelector(".faust").value = original.faust || "";
-    const stSel = tr.querySelector(".status");
-    if (stSel) stSel.value = original.booking_status || "Ledig";
     const aktBtn = tr.querySelector(".active-flag");
     if (aktBtn) {
       setActiveButtonState(aktBtn, original.aktiv === false ? "false" : "true");
@@ -975,7 +967,6 @@ function setEksSort(field) {
     author: true,
     isbn: true,
     faust: true,
-    booking_status: true,
     aktiv: true
   };
   if (!valid[field]) return;
@@ -1037,9 +1028,6 @@ async function eksSaveAll() {
 function eksValidate(r) {
   if (!r.barcode) return "Stregkode skal udfyldes";
   if (!r.title) return "Titel skal udfyldes";
-  if (!BOOKING_STATUSES.includes(r.booking_status)) {
-    return "Ugyldig booking-status";
-  }
   if (typeof r.aktiv !== "boolean") {
     r.aktiv = true;
   }
@@ -1057,7 +1045,7 @@ async function exportEksToExcel() {
   showMsg("#msg", "Henter eksemplarer til Excel …");
   const { data, error } = await sb
     .from("tbl_beholdning")
-    .select("barcode,title,author,isbn,faust,booking_status,aktiv")
+    .select("barcode,title,author,isbn,faust,aktiv")
     .eq("owner_bibliotek_id", ownerId)
     .order("barcode");
 
@@ -1080,7 +1068,6 @@ async function exportEksToExcel() {
     Forfatter: row.author || "",
     ISBN: row.isbn || "",
     FAUST: row.faust || "",
-    Bookingstatus: row.booking_status || "Ledig",
     Aktiv: row.aktiv === false ? "Inaktiv" : "Aktiv"
   }));
 
@@ -1092,7 +1079,6 @@ async function exportEksToExcel() {
     Forfatter: "",
     ISBN: "",
     FAUST: "",
-    Bookingstatus: "Ledig",
     Aktiv: "Aktiv"
   }]);
   XLSX.utils.book_append_sheet(wb, ws, "Eksemplarer");
@@ -1181,9 +1167,6 @@ async function importEksFromExcel(file) {
     let action = String(getValue(row, "Handling", "handling", "Action")).trim().toLowerCase();
     if (!action) action = "opdater";
 
-    const bookingRaw = String(getValue(row, "Bookingstatus", "booking_status")).trim();
-    const booking_status = BOOKING_STATUSES.find(st => st.toLowerCase() === bookingRaw.toLowerCase()) || "Ledig";
-
     if (action === "slet") {
       const isbn = existing.get(barcode);
       if (!isbn) {
@@ -1213,7 +1196,6 @@ async function importEksFromExcel(file) {
       author: String(getValue(row, "Forfatter", "author")).trim(),
       isbn: String(getValue(row, "ISBN", "isbn")).trim(),
       faust: String(getValue(row, "FAUST", "faust")).trim(),
-      booking_status,
       aktiv,
       owner_bibliotek_id: ownerId
     };
@@ -1332,13 +1314,6 @@ async function eksPull() {
       markEksDirty(tr);
     });
 
-    const stSel = el("select", { class: "status" },
-      el("option", { value: "Ledig" }, "Ledig"),
-      el("option", { value: "Reserveret" }, "Reserveret"),
-      el("option", { value: "Booket" }, "Booket")
-    );
-    stSel.value = r.booking_status || "Ledig";
-
     const btnReset = el("button", {
       class: "btn",
       onclick: () => eksRevertRow(tr)
@@ -1355,7 +1330,6 @@ async function eksPull() {
       el("td", {}, au),
       el("td", {}, isb),
       el("td", {}, fa),
-      el("td", {}, stSel),
       el("td", {}, aktSel),
       actions
     );
@@ -1450,7 +1424,6 @@ function eksNewRow() {
     el("td", {}, el("input", { class: "author" })),
     el("td", {}, el("input", { class: "isbn" })),
     el("td", {}, el("input", { class: "faust" })),
-    el("td", {}, stSel),
     el("td", {}, aktSel),
     el("td", {}, info, " ", btnCancel)
   );
@@ -1460,7 +1433,6 @@ function eksNewRow() {
 
 function bindEksControls() {
   $("#btnSearch")?.addEventListener("click", () => {
-    st.eks.status = $("#statusFilter")?.value || "";
     st.eks.q = $("#q")?.value || "";
     st.eks.page = 0;
     eksPull();
@@ -3935,13 +3907,14 @@ async function bookerSearch() {
   const minWeeks = Number(st.b.weeks) || 0;
   const filtered = minWeeks ? results.filter(r => (Number(r.loan_weeks) || 0) >= minWeeks) : results;
   st.b.results = filtered;
+  st.b.allResults = filtered;
   st.b.total = filtered.length;
   renderBookerResults();
 }
 
 async function bookerRequestBooking(setId) {
   if (!sb) return;
-  const sorted = [...st.b.results].sort(compareBookerRows);
+  const sorted = [...(st.b.allResults || st.b.results)].sort(compareBookerRows);
   const row = sorted.find(r => r.set_id === setId);
   if (!row) return;
   const requesterId = st.profile.bookerLocalId;
