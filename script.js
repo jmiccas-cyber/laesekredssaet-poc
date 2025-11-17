@@ -3912,14 +3912,15 @@ function bindBookingRuleControls() {
 
 function bindBookingRequestControls() {
   $("#tblBookingRequests")?.addEventListener("click", evt => {
-    const approve = evt.target.closest("button[data-booking-approve]");
+    const target = evt.target.nodeType === 1 ? evt.target : evt.target.parentElement;
+    const approve = target?.closest("button[data-booking-approve]");
     if (approve) {
       const bookingId = Number(approve.getAttribute("data-booking-approve"));
       const setId = Number(approve.getAttribute("data-booking-set"));
       bookingRequestsUpdate(bookingId, "approve", setId);
       return;
     }
-    const cancel = evt.target.closest("button[data-booking-cancel]");
+    const cancel = target?.closest("button[data-booking-cancel]");
     if (cancel) {
       const bookingId = Number(cancel.getAttribute("data-booking-cancel"));
       const setId = Number(cancel.getAttribute("data-booking-set"));
