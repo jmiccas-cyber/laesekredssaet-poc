@@ -3586,8 +3586,8 @@ function compareBookerRows(a, b) {
   if (field === "loan_weeks") return dir * (getNumber(a.loan_weeks) - getNumber(b.loan_weeks));
   if (field === "requested_count") return dir * (getNumber(a.requested_count) - getNumber(b.requested_count));
   if (field === "next") {
-    const aTime = a.nextBooking ? new Date(a.nextBooking.start).getTime() : Infinity;
-    const bTime = b.nextBooking ? new Date(b.nextBooking.start).getTime() : Infinity;
+    const aTime = a.availableSlots?.length ? new Date(a.availableSlots[0].start_date).getTime() : Infinity;
+    const bTime = b.availableSlots?.length ? new Date(b.availableSlots[0].start_date).getTime() : Infinity;
     return dir * (aTime - bTime);
   }
   return dir * getString(a.title).localeCompare(getString(b.title));
@@ -3978,12 +3978,12 @@ function renderBookerResults() {
     const ruleLabel = bookingRuleLabel(r.bookingRule) || "—";
     const loanWeeks = r.loan_weeks || "";
     const copies = r.requested_count || "";
-    const nextInfo = r.nextBooking
-      ? `${formatDateDisplay(r.nextBooking.start)} → ${formatDateDisplay(r.nextBooking.end)}`
-      : "Ingen ledige datoer";
+    const nextInfo = r.availableSlots?.length
+      ? renderSlotSelect(r)
+      : el("span", { class: "hint" }, "Ingen ledige datoer");
     const btn = el("button", {
       class: "btn btn-small",
-      disabled: !r.nextBooking,
+      disabled: !r.availableSlots?.length,
       onclick: () => bookerRequestBooking(r.set_id)
     }, "Anmod om booking");
     const tr = el("tr", {},
@@ -4007,6 +4007,19 @@ function renderBookerResults() {
     ? `Side ${st.b.page + 1}/${totalPages} - ${st.b.total} sæt`
     : "Ingen sæt fundet";
   updateBookerSortIndicators();
+}
+
+function renderSlotSelect(row) {
+  const select = el("select", { class: "slot-select", "data-slot-set": row.set_id });
+  row.availableSlots.slice(0, 50).forEach(slot => {
+    const label = `${formatDateDisplay(slot.start_date)} → ${formatDateDisplay(slot.end_date)}`;
+    select.appendChild(el("option", { value: `${slot.booking_id}` }, label));
+  });
+  if (!select.value) {
+    const first = row.availableSlots[0];
+    if (first) select.value = `${first.booking_id}`;
+  }
+  return select;
 }
 
 async function bookerSearch() {
@@ -4059,15 +4072,15 @@ async function bookerRequestBooking(setId) {
     showMsg("#bMsg", "Vælg først et regionsbibliotek via Skift: Admin ↔ Booker.");
     return;
   }
-  const booking = row.nextBooking;
-  if (!booking) {
-    showMsg("#bMsg", "Ingen ledig periode fundet for dette sæt.");
+  const selectEl = document.querySelector(`select[data-slot-set="${setId}"]`);
+  const bookingId = selectEl?.value;
+  if (!bookingId) {
+    showMsg("#bMsg", "Vælg en ledig periode først.");
     return;
   }
-  const targetSlot = row.availableSlots?.find(slot =>
-    slot.start_date === booking.start && slot.end_date === booking.end);
+  const targetSlot = row.availableSlots?.find(slot => `${slot.booking_id}` === bookingId);
   if (!targetSlot) {
-    showMsg("#bMsg", "Kunne ikke finde ledig periode til opdatering.");
+    showMsg("#bMsg", "Kunne ikke finde den valgte periode.");
     return;
   }
   showMsg("#bMsg", "Sender bookinganmodning …");
@@ -4081,7 +4094,7 @@ async function bookerRequestBooking(setId) {
     .eq("booking_status", BOOKING_STATUS_AVAILABLE)
     .select("booking_id");
   if (error || !data?.length) {
-    showMsg("#bMsg", "Kunne ikke sende anmodning: " + error.message);
+    showMsg("#bMsg", "Kunne ikke sende anmodning: " + (error?.message || "Slot ikke længere ledig."));
     return;
   }
   showMsg("#bMsg", "Anmodning sendt.", true);
