@@ -3776,6 +3776,7 @@ function renderBookingRequests() {
       el("td", {},
         el("button", {
           class: "btn btn-small",
+          type: "button",
           disabled: r.booking_status === BOOKING_STATUS_BOOKED,
           "data-booking-approve": r.booking_id,
           "data-booking-set": r.set_id
@@ -3783,6 +3784,7 @@ function renderBookingRequests() {
         " ",
         el("button", {
           class: "btn btn-small",
+          type: "button",
           "data-booking-cancel": r.booking_id,
           "data-booking-set": r.set_id
         }, "Afvis")
