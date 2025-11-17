@@ -214,3 +214,239 @@ function saveProfile() {
     profile: st.profile
   }));
 }
+
+// ----------------------------------------------------------
+// 4. Biblioteker (tbl_bibliotek)
+// ----------------------------------------------------------
+
+async function loadLibraries() {
+  if (!sb) {
+    console.error("loadLibraries: Supabase-klient ikke initialiseret.");
+    st.libs.list = [];
+    st.libs.byId = {};
+    st.libs.centrals = [];
+    st.libs.locals = [];
+    return;
+  }
+
+  // Hent alle kolonner for robusthed (nogle installationer kan have ekstra felter)
+  const { data, error } = await sb
+    .from("tbl_bibliotek")
+    .select("*")
+    .order("is_central", { ascending: false })
+    .order("bibliotek_navn", { ascending: true });
+
+  console.debug("loadLibraries: raw data", data, "error", error);
+
+  if (error) {
+    console.error("Fejl ved loadLibraries:", error);
+    st.libs.list = [];
+    st.libs.byId = {};
+    st.libs.centrals = [];
+    st.libs.locals = [];
+    return;
+  }
+
+  const rows = (data || []).filter(x => x.active !== false);
+  console.log("loadLibraries: hentede", rows.length, "biblioteker");
+
+  st.libs.list = rows;
+  st.libs.byId = Object.fromEntries(rows.map(x => [x.bibliotek_id, x]));
+  st.libs.centrals = rows.filter(x => x.is_central);
+  st.libs.locals = rows.filter(x => !x.is_central);
+  populateCentralDropdown(document.querySelector("#relFilterSel"), { includeAll: true, allLabel: "(alle centralbiblioteker)" });
+  populateCentralDropdown(document.querySelector("#relCentralAssign"));
+  populateCentralDropdown(document.querySelector("#newLocalCentral"));
+  const defaultCentral = st.profile.adminCentralId || st.libs.centrals[0]?.bibliotek_id || "";
+  const assignSel = document.querySelector("#relCentralAssign");
+  const newCentralSel = document.querySelector("#newLocalCentral");
+  if (assignSel && !assignSel.value) assignSel.value = defaultCentral;
+  if (newCentralSel && !newCentralSel.value) newCentralSel.value = defaultCentral;
+  populateSaetOwnerSelect();
+  populateBookingRuleOwnerSelect();
+
+  // Sæt-ejer filter
+  populateRegionSelects();
+  renderAccessTable();
+
+  // Hvis der ikke er valgt admin-central, sæt default = Gentofte eller første central
+  if (!st.profile.adminCentralId && st.libs.centrals.length) {
+    const gent = st.libs.centrals.find(x =>
+      (x.bibliotek_navn || "").toLowerCase().includes("gentofte")
+    );
+    const chosen = gent || st.libs.centrals[0];
+    st.profile.adminCentralId = chosen.bibliotek_id;
+    st.role = "admin";
+    saveProfile();
+  }
+}
+
+// Centraliseret: fyld profil-dropdowns i modal
+function populateCentralDropdown(select, { includeAll = false, allLabel = "(alle)" } = {}) {
+  if (!select) return;
+  select.innerHTML = "";
+  if (includeAll) {
+    select.appendChild(el("option", { value: "" }, allLabel));
+  }
+  st.libs.centrals.forEach(lib => {
+    select.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
+  });
+}
+
+function populateSaetOwnerSelect() {
+  populateCentralDropdown(document.querySelector("#saetOwnerFilterSel"));
+}
+
+function populateBookingRuleOwnerSelect() {
+  populateCentralDropdown(document.querySelector("#bookingRuleOwnerSel"));
+}
+
+function populateRegionSelects() {
+  const locals = st.libs.locals || [];
+  const relLocal = document.querySelector("#relLocal");
+  if (relLocal) {
+    relLocal.innerHTML = "";
+    locals.forEach(lib => {
+      relLocal.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
+    });
+  }
+  const detailSel = document.querySelector("#relDetailSel");
+  if (detailSel) {
+    const current = detailSel.value;
+    detailSel.innerHTML = '<option value="">(vælg regionsbibliotek)</option>';
+    locals.forEach(lib => {
+      detailSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
+    });
+    if (current && locals.some(lib => lib.bibliotek_id === current)) {
+      detailSel.value = current;
+    }
+    renderRegionDetails();
+  }
+}
+
+function renderRegionDetails() {
+  const id = $("#relDetailSel")?.value || "";
+  const info = $("#relDetailInfo");
+  const fields = {
+    name: $("#relDetailName"),
+    address: $("#relDetailAddress"),
+    postal: $("#relDetailPostal"),
+    city: $("#relDetailCity"),
+    notes: $("#relDetailNotes"),
+    active: $("#relDetailActive"),
+    saveBtn: $("#btnRelDetailSave")
+  };
+  const resetFields = () => {
+    if (fields.name) fields.name.value = "";
+    if (fields.address) fields.address.value = "";
+    if (fields.postal) fields.postal.value = "";
+    if (fields.city) fields.city.value = "";
+    if (fields.notes) fields.notes.value = "";
+    if (fields.active) fields.active.value = "true";
+  };
+  const setDisabled = disabled => {
+    Object.values(fields).forEach(ctrl => {
+      if (!ctrl) return;
+      ctrl.disabled = disabled;
+    });
+  };
+
+  resetFields();
+  setDisabled(true);
+  if (info) info.textContent = "Vælg et regionsbibliotek for at se detaljer.";
+
+  if (!id) {
+    return;
+  }
+
+  const lib = st.libs.byId[id];
+  if (!lib) {
+    if (info) info.textContent = "Biblioteket findes ikke længere.";
+    return;
+  }
+
+  if (fields.name) fields.name.value = lib.bibliotek_navn || "";
+  if (fields.address) fields.address.value = lib.addr_line1 || "";
+  if (fields.postal) fields.postal.value = lib.postal_code || "";
+  if (fields.city) fields.city.value = lib.city || "";
+  if (fields.notes) fields.notes.value = lib.shipping_notes || "";
+  if (fields.active) fields.active.value = lib.active !== false ? "true" : "false";
+  setDisabled(false);
+  if (info) info.textContent = "Opdater oplysninger og tryk Gem detaljer.";
+}
+
+async function saveRegionDetails() {
+  if (!sb) return;
+  const info = $("#relDetailInfo");
+  const id = $("#relDetailSel")?.value || "";
+  if (!id) {
+    if (info) info.textContent = "Vælg et regionsbibliotek først.";
+    return;
+  }
+  const name = $("#relDetailName")?.value?.trim() || "";
+  const addr_line1 = $("#relDetailAddress")?.value?.trim() || "";
+  const postal_code = $("#relDetailPostal")?.value?.trim() || "";
+  const city = $("#relDetailCity")?.value?.trim() || "";
+  const shipping_notes = $("#relDetailNotes")?.value?.trim() || "";
+  const activeStr = $("#relDetailActive")?.value || "true";
+  const active = activeStr === "true";
+
+  if (!name) {
+    if (info) info.textContent = "Navn skal udfyldes.";
+    return;
+  }
+
+  const payload = { bibliotek_navn: name, addr_line1, postal_code, city, shipping_notes, active };
+  const { error } = await sb.from("tbl_bibliotek").update(payload).eq("bibliotek_id", id);
+  if (error) {
+    if (info) info.textContent = "Fejl ved opdatering: " + error.message;
+    return;
+  }
+
+  if (st.libs.byId[id]) {
+    Object.assign(st.libs.byId[id], payload);
+  }
+  populateRegionSelects();
+  await relList();
+  if (info) info.textContent = "Detaljer opdateret.";
+}
+
+function loadProfileDropdown() {
+  const adminSel = document.querySelector("#adminProfileSel");
+  const bookerSel = document.querySelector("#bookerProfileSel");
+  if (!adminSel || !bookerSel) return;
+
+  adminSel.innerHTML = "";
+  bookerSel.innerHTML = "";
+
+  const centrals = st.libs.centrals || [];
+  const locals = st.libs.locals || [];
+
+  if (!centrals.length) {
+    adminSel.appendChild(el("option", { value: "" }, "(ingen centralbiblioteker fundet)"));
+  } else {
+    centrals.forEach(lib => {
+      adminSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
+    });
+  }
+
+  if (!locals.length) {
+    bookerSel.appendChild(el("option", { value: "" }, "(ingen regionsbiblioteker fundet)"));
+  } else {
+    locals.forEach(lib => {
+      bookerSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
+    });
+  }
+
+  if (st.profile.adminCentralId && st.libs.byId[st.profile.adminCentralId]) {
+    adminSel.value = st.profile.adminCentralId;
+  } else if (centrals.length) {
+    adminSel.value = centrals[0].bibliotek_id;
+  }
+
+  if (st.profile.bookerLocalId && st.libs.byId[st.profile.bookerLocalId]) {
+    bookerSel.value = st.profile.bookerLocalId;
+  } else if (locals.length) {
+    bookerSel.value = locals[0].bibliotek_id;
+  }
+}
