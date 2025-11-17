@@ -3548,6 +3548,24 @@ async function fetchSetsByOwner(ownerId) {
   return data || [];
 }
 
+async function fetchSaetMapByIds(ids) {
+  if (!sb || !ids || !ids.length) return {};
+  const { data, error } = await sb
+    .from("tbl_saet")
+    .select("set_id,title,author,isbn")
+    .in("set_id", ids);
+  if (error) {
+    console.error("Kunne ikke hente sæt metadata:", error);
+    return {};
+  }
+  const map = {};
+  (data || []).forEach(row => {
+    if (row.set_id == null) return;
+    map[row.set_id] = row;
+  });
+  return map;
+}
+
 async function regenerateBookingSlotsForOwner(ownerId) {
   if (!ownerId || bookingSlotLocks.has(ownerId)) return;
   bookingSlotLocks.add(ownerId);
@@ -3716,7 +3734,11 @@ async function bookingRequestsPull() {
     showMsg("#bookingRequestsMsg", "Kunne ikke hente anmodninger: " + error.message);
     return;
   }
-  st.booking.requests = data || [];
+  const rows = data || [];
+  const setIds = Array.from(new Set(rows.map(r => r.set_id).filter(Boolean)));
+  const setMap = await fetchSaetMapByIds(setIds);
+  st.booking.requests = rows;
+  st.booking.requestSets = setMap;
   renderBookingRequests();
 }
 
@@ -3729,21 +3751,24 @@ function renderBookingRequests() {
   const hint = $("#bookingRequestsOwner");
   if (hint) hint.textContent = ownerLabel;
   const rows = st.booking.requests || [];
+  const setMap = st.booking.requestSets || {};
   if (!rows.length) {
-    tb.appendChild(el("tr", {}, el("td", { colspan: 6 }, "Ingen anmodninger.")));
+    tb.appendChild(el("tr", {}, el("td", { colspan: 8 }, "Ingen anmodninger.")));
     showMsg("#bookingRequestsMsg", "Ingen aktuelle anmodninger.");
     return;
   }
   rows.forEach(r => {
     const requester = st.libs.byId[r.requester_bibliotek_id];
     const requesterLabel = requester ? fmtLibLabel(requester) : r.requester_bibliotek_id || "";
-    const set = st.saet?.list?.find?.(s => s.set_id === r.set_id) || null;
+    const set = setMap[r.set_id] || null;
     const statusLabel = r.booking_status === BOOKING_STATUS_BOOKED ? "Booket"
       : r.booking_status === BOOKING_STATUS_REQUESTED ? "Reserveret"
       : r.booking_status === BOOKING_STATUS_AVAILABLE ? "Ledig"
       : "Annulleret";
     const tr = el("tr", {},
       el("td", {}, set?.title || `Sæt #${r.set_id}` || ""),
+      el("td", {}, set?.author || ""),
+      el("td", {}, set?.isbn || ""),
       el("td", {}, requesterLabel),
       el("td", {}, formatDateDisplay(r.start_date)),
       el("td", {}, formatDateDisplay(r.end_date)),
@@ -3770,6 +3795,8 @@ function renderBookingRequests() {
 
 async function bookingRequestsUpdate(bookingId, action, setId) {
   if (!sb || !bookingId) return;
+  const bookingIdNum = Number(bookingId);
+  if (!bookingIdNum) return;
   const msgSel = "#bookingRequestsMsg";
   showMsg(msgSel, "Opdaterer anmodning …");
   const updates = action === "approve"
@@ -3778,7 +3805,8 @@ async function bookingRequestsUpdate(bookingId, action, setId) {
   const { error } = await sb
     .from("tbl_booking")
     .update(updates)
-    .eq("booking_id", bookingId);
+    .eq("booking_id", bookingIdNum)
+    .eq("booking_status", BOOKING_STATUS_REQUESTED);
   if (error) {
     showMsg(msgSel, "Kunne ikke opdatere anmodning: " + error.message);
     return;
