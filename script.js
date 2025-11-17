@@ -3984,11 +3984,13 @@ function renderBookerResults() {
     const btn = el("button", {
       class: "btn btn-small",
       type: "button",
-      disabled: !r.availableSlots?.length
+      disabled: !r.availableSlots?.length,
+      "data-request-set": r.set_id
     }, "Anmod om booking");
     btn.addEventListener("click", ev => {
       ev.preventDefault();
-      bookerRequestBooking(r.set_id);
+      const setId = Number(ev.currentTarget.getAttribute("data-request-set"));
+      bookerRequestBooking(setId);
     });
     const tr = el("tr", {},
       el("td", {}, r.title || ""),
@@ -4072,13 +4074,14 @@ async function bookerSearch() {
   st.b.results = filtered;
   st.b.allResults = filtered;
   st.b.total = filtered.length;
+  st.b.resultsMap = {};
+  filtered.forEach(r => { st.b.resultsMap[r.set_id] = r; });
   renderBookerResults();
 }
 
 async function bookerRequestBooking(setId) {
   if (!sb) return;
-  const sorted = [...(st.b.allResults || st.b.results)].sort(compareBookerRows);
-  const row = sorted.find(r => r.set_id === setId);
+  const row = st.b.resultsMap?.[setId];
   if (!row) return;
   const requesterId = st.profile.bookerLocalId;
   if (!requesterId) {
