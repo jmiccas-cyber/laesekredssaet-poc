@@ -3804,13 +3804,18 @@ async function bookingRequestsUpdate(bookingId, action, setId) {
   const updates = action === "approve"
     ? { booking_status: BOOKING_STATUS_BOOKED }
     : { booking_status: BOOKING_STATUS_AVAILABLE, requester_bibliotek_id: null };
-  const { error } = await sb
+  const query = sb
     .from("tbl_booking")
     .update(updates)
-    .eq("booking_id", bookingIdNum)
-    .eq("booking_status", BOOKING_STATUS_REQUESTED);
-  if (error) {
-    showMsg(msgSel, "Kunne ikke opdatere anmodning: " + error.message);
+    .eq("booking_id", bookingIdNum);
+  if (action === "approve") {
+    query.eq("booking_status", BOOKING_STATUS_REQUESTED);
+  } else {
+    query.eq("booking_status", BOOKING_STATUS_REQUESTED);
+  }
+  const { error, data } = await query.select("booking_id").limit(1);
+  if (error || !data?.length) {
+    showMsg(msgSel, "Kunne ikke opdatere anmodning: " + (error?.message || "Slot ikke længere tilgængelig."));
     return;
   }
   showMsg(msgSel, action === "approve" ? "Anmodning godkendt." : "Anmodning afvist.", true);
