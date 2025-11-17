@@ -3983,8 +3983,12 @@ function renderBookerResults() {
       : el("span", { class: "hint" }, "Ingen ledige datoer");
     const btn = el("button", {
       class: "btn btn-small",
+      type: "button",
       disabled: !r.availableSlots?.length,
-      onclick: () => bookerRequestBooking(r.set_id)
+      onclick: ev => {
+        ev.preventDefault();
+        bookerRequestBooking(r.set_id);
+      }
     }, "Anmod om booking");
     const tr = el("tr", {},
       el("td", {}, r.title || ""),
