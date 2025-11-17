@@ -3774,18 +3774,23 @@ function renderBookingRequests() {
       el("td", {}, formatDateDisplay(r.end_date)),
       el("td", {}, statusLabel || ""),
       el("td", {},
-        el("button", {
-          class: "btn btn-small",
-          type: "button",
-          disabled: r.booking_status === BOOKING_STATUS_BOOKED,
-          onclick: () => bookingRequestsUpdate(r.booking_id, "approve", r.set_id)
-        }, "Godkend"),
-        " ",
-        el("button", {
-          class: "btn btn-small",
-          type: "button",
-          onclick: () => bookingRequestsUpdate(r.booking_id, "cancel", r.set_id)
-        }, "Afvis")
+        (() => {
+          const approveBtn = el("button", {
+            class: "btn btn-small",
+            type: "button",
+            onclick: () => bookingRequestsUpdate(r.booking_id, "approve", r.set_id)
+          }, "Godkend");
+          const cancelBtn = el("button", {
+            class: "btn btn-small",
+            type: "button",
+            onclick: () => bookingRequestsUpdate(r.booking_id, "cancel", r.set_id)
+          }, "Afvis");
+          approveBtn.style.marginRight = "6px";
+          approveBtn.disabled = r.booking_status !== BOOKING_STATUS_REQUESTED;
+          cancelBtn.disabled = r.booking_status !== BOOKING_STATUS_REQUESTED;
+          const wrapper = el("div", { style: "display:flex; gap:6px;" }, approveBtn, cancelBtn);
+          return wrapper;
+        })()
       )
     );
     tb.appendChild(tr);
