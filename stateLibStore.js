@@ -1,6 +1,8 @@
 ﻿
 // State/lib utilities (config, globals, profile, libraries)
 
+(() => {
+
 const SUPABASE_URL = "https://qlkrzinyqirnigcwadki.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsa3J6aW55cWlybmlnY3dhZGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NjY2NjgsImV4cCI6MjA3ODM0MjY2OH0.-SV3dn7reKHeYis40I-aF3av0_XmCP-ZqB9KR6JT2so";
 const HOLIDAY_TABLE = "tbl_national_holidays";
@@ -208,3 +210,5 @@ window.StateLibStore = Object.freeze({
   safeJsonParse,
   setActiveButtonState
 });
+
+})();
