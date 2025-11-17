@@ -3984,12 +3984,12 @@ function renderBookerResults() {
     const btn = el("button", {
       class: "btn btn-small",
       type: "button",
-      disabled: !r.availableSlots?.length,
-      onclick: ev => {
-        ev.preventDefault();
-        bookerRequestBooking(r.set_id);
-      }
+      disabled: !r.availableSlots?.length
     }, "Anmod om booking");
+    btn.addEventListener("click", ev => {
+      ev.preventDefault();
+      bookerRequestBooking(r.set_id);
+    });
     const tr = el("tr", {},
       el("td", {}, r.title || ""),
       el("td", {}, r.author || ""),
