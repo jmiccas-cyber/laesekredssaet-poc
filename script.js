@@ -3778,15 +3778,13 @@ function renderBookingRequests() {
           class: "btn btn-small",
           type: "button",
           disabled: r.booking_status === BOOKING_STATUS_BOOKED,
-          "data-booking-approve": r.booking_id,
-          "data-booking-set": r.set_id
+          onclick: () => bookingRequestsUpdate(r.booking_id, "approve", r.set_id)
         }, "Godkend"),
         " ",
         el("button", {
           class: "btn btn-small",
           type: "button",
-          "data-booking-cancel": r.booking_id,
-          "data-booking-set": r.set_id
+          onclick: () => bookingRequestsUpdate(r.booking_id, "cancel", r.set_id)
         }, "Afvis")
       )
     );
