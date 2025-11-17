@@ -4010,14 +4010,22 @@ function renderBookerResults() {
 }
 
 function renderSlotSelect(row) {
-  const select = el("select", { class: "slot-select", "data-slot-set": row.set_id });
+  const select = el("select", {
+    class: "slot-select",
+    "data-slot-set": row.set_id,
+    onchange: ev => {
+      row.selectedSlotId = ev.target.value;
+    }
+  });
   row.availableSlots.slice(0, 50).forEach(slot => {
     const label = `${formatDateDisplay(slot.start_date)} → ${formatDateDisplay(slot.end_date)}`;
     select.appendChild(el("option", { value: `${slot.booking_id}` }, label));
   });
-  if (!select.value) {
-    const first = row.availableSlots[0];
-    if (first) select.value = `${first.booking_id}`;
+  if (row.selectedSlotId) {
+    select.value = row.selectedSlotId;
+  } else if (row.availableSlots[0]) {
+    select.value = `${row.availableSlots[0].booking_id}`;
+    row.selectedSlotId = select.value;
   }
   return select;
 }
@@ -4053,6 +4061,7 @@ async function bookerSearch() {
     r.nextBooking = availableSlots.length
       ? { start: availableSlots[0].start_date, end: availableSlots[0].end_date }
       : null;
+    r.selectedSlotId = availableSlots.length ? `${availableSlots[0].booking_id}` : "";
   }));
   const minWeeks = Number(st.b.weeks) || 0;
   const filtered = minWeeks ? results.filter(r => (Number(r.loan_weeks) || 0) >= minWeeks) : results;
@@ -4072,8 +4081,7 @@ async function bookerRequestBooking(setId) {
     showMsg("#bMsg", "Vælg først et regionsbibliotek via Skift: Admin ↔ Booker.");
     return;
   }
-  const selectEl = document.querySelector(`select[data-slot-set="${setId}"]`);
-  const bookingId = selectEl?.value;
+  const bookingId = row.selectedSlotId || row.availableSlots?.[0]?.booking_id;
   if (!bookingId) {
     showMsg("#bMsg", "Vælg en ledig periode først.");
     return;
