@@ -3984,9 +3984,9 @@ function renderBookerResults() {
     const btn = el("button", {
       class: "btn btn-small",
       type: "button",
-      disabled: !r.availableSlots?.length,
       "data-request-set": r.set_id
     }, "Anmod om booking");
+    btn.disabled = !(r.availableSlots?.length);
     btn.addEventListener("click", ev => {
       ev.preventDefault();
       const setId = Number(ev.currentTarget.getAttribute("data-request-set"));
