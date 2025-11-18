@@ -7,6 +7,14 @@
   const showMsg = StateLibStore.showMsg || window.showMsg || (() => {});
   const el = StateLibStore.el || window.el;
   const setActiveButtonState = StateLibStore.setActiveButtonState || window.setActiveButtonState;
+  const callSaetStore = (method, ...args) => {
+    const store = window.SaetStore;
+    const fn = store?.[method] || window[method];
+    if (typeof fn === "function") {
+      return fn(...args);
+    }
+    return undefined;
+  };
 
 // 6. Admin – Eksemplarer (tbl_beholdning)
 // ----------------------------------------------------------
@@ -168,8 +176,8 @@ async function loadInventorySummary() {
     list.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
   });
 
-  refreshSaetInventoryControls();
-  refreshSaetAvailabilityIndicators();
+  callSaetStore("refreshSaetInventoryControls");
+  callSaetStore("refreshSaetAvailabilityIndicators");
 }
 
 async function syncSaetMetadataFromIsbns(isbns) {
@@ -878,13 +886,11 @@ function bindEksControls() {
     loadInventorySummary,
     syncSaetMetadataFromIsbns,
     getOwnerInventory,
+    fetchOwnerSetMap,
     getInventoryMeta,
     getInventoryCount,
     markEksDirty,
-    clearEksDirty,
-    refreshSaetInventoryControls,
-    refreshSaetAvailabilityIndicators,
-    applyInventoryMeta
+    clearEksDirty
   });
 
   window.InventoryStore = InventoryStore;
@@ -894,13 +900,11 @@ function bindEksControls() {
     bindEksControls,
     syncSaetMetadataFromIsbns,
     getOwnerInventory,
+    fetchOwnerSetMap,
     getInventoryMeta,
     getInventoryCount,
     markEksDirty,
-    clearEksDirty,
-    refreshSaetInventoryControls,
-    refreshSaetAvailabilityIndicators,
-    applyInventoryMeta
+    clearEksDirty
   });
 })();
 const InventoryStore = window.InventoryStore || {};

@@ -12,6 +12,7 @@
   const getInventoryCount = InventoryStore.getInventoryCount || window.getInventoryCount || (() => 0);
   const getInventoryMeta = InventoryStore.getInventoryMeta || window.getInventoryMeta || (() => null);
   const getOwnerInventory = InventoryStore.getOwnerInventory || window.getOwnerInventory || (() => []);
+  const fetchOwnerSetMap = InventoryStore.fetchOwnerSetMap || window.fetchOwnerSetMap || (async () => new Map());
   const loadInventorySummary = InventoryStore.loadInventorySummary || window.loadInventorySummary || (async () => {});
   const showMsg = window.showMsg || (() => {});
   const ensureSheetJs = window.ensureSheetJs || (async () => {});
@@ -450,6 +451,160 @@ function updateSaetAvailability(tr) {
   reqInput.max = maxForRow || "";
 }
 
+function saetDirtyRows() {
+  return Array.from(document.querySelectorAll("#tblSaet tbody tr"))
+    .filter(tr => tr.dataset.dirty === "1");
+}
+
+function markSaetDirty(tr) {
+  if (!tr) return;
+  if (tr.dataset.dirty !== "1") {
+    tr.dataset.dirty = "1";
+    tr.classList.add("dirty");
+    highlightSaveBar();
+  }
+  updateSaetSaveButton();
+}
+
+function clearSaetDirty(tr) {
+  if (!tr) return;
+  tr.dataset.dirty = "";
+  tr.classList.remove("dirty");
+  updateSaetSaveButton();
+}
+
+function updateSaetSaveButton() {
+  const btn = document.getElementById("btnSaetSaveAll");
+  if (!btn) return;
+  const dirtyCount = saetDirtyRows().length;
+  btn.disabled = dirtyCount === 0;
+  if (dirtyCount > 0) {
+    const suffix = dirtyCount === 1 ? "ændring" : "ændringer";
+    btn.textContent = `Gem ${dirtyCount} ${suffix}`;
+    btn.title = "";
+  } else {
+    btn.textContent = "Gem alle ændringer";
+    btn.title = "";
+  }
+}
+
+function saetAttachRowListeners(tr) {
+  if (!tr) return;
+  const controls = tr.querySelectorAll("input, select, textarea");
+  controls.forEach(ctrl => {
+    const handler = () => {
+      markSaetDirty(tr);
+      if (ctrl.classList.contains("saet-requested") ||
+        ctrl.classList.contains("saet-isbn") ||
+        ctrl.classList.contains("saet-owner")) {
+        updateSaetAvailability(tr);
+      }
+    };
+    ctrl.addEventListener("input", handler);
+    ctrl.addEventListener("change", handler);
+  });
+}
+
+function saetCollectRow(tr) {
+  if (!tr) return null;
+  const ownerId = tr.querySelector(".saet-owner")?.value || currentAdminId();
+  const getVal = selector => (tr.querySelector(selector)?.value || "").trim();
+  const toNumber = selector => {
+    const raw = tr.querySelector(selector)?.value;
+    const num = Number(raw);
+    return Number.isFinite(num) ? num : 0;
+  };
+  const boolFromSelect = selector => (tr.querySelector(selector)?.value || "true") !== "false";
+  return {
+    set_id: tr.dataset.setId ? Number(tr.dataset.setId) : null,
+    title: getVal(".saet-title"),
+    author: getVal(".saet-author"),
+    isbn: getVal(".saet-isbn"),
+    faust: getVal(".saet-faust"),
+    requested_count: toNumber(".saet-requested"),
+    loan_weeks: toNumber(".saet-weeks"),
+    buffer_days: toNumber(".saet-buffer"),
+    visibility: (getVal(".saet-vis") || "national").toLowerCase(),
+    owner_bibliotek_id: ownerId,
+    active: boolFromSelect(".saet-active"),
+    allow_substitution: boolFromSelect(".saet-sub"),
+    allow_partial: boolFromSelect(".saet-part"),
+    min_delivery: toNumber(".saet-min")
+  };
+}
+
+async function saetSaveAll() {
+  if (!sb) return;
+  const dirtyRows = saetDirtyRows();
+  if (!dirtyRows.length) {
+    showMsg("#msgSaet", "Der er ingen ændringer at gemme.");
+    return;
+  }
+
+  const usageOverride = JSON.parse(JSON.stringify(st.saet.usage || {}));
+  const ownerCache = {};
+  const payload = [];
+
+  for (const tr of dirtyRows) {
+    const record = saetCollectRow(tr);
+    if (!record) continue;
+    if (!record.owner_bibliotek_id) {
+      showMsg("#msgSaet", "Angiv et ejerbibliotek for alle sæt.");
+      return;
+    }
+
+    let ownerSets = ownerCache[record.owner_bibliotek_id];
+    if (!ownerSets) {
+      ownerSets = await fetchOwnerSetMap(record.owner_bibliotek_id);
+      if (ownerSets === null) {
+        showMsg("#msgSaet", "Kunne ikke hente eksisterende sæt for valgte ejer.");
+        return;
+      }
+      ownerCache[record.owner_bibliotek_id] = ownerSets;
+    }
+
+    const savedCount = Number(tr.dataset.savedCount || ownerSets.get(String(record.set_id))?.requested_count || 0);
+    const validation = saetValidate(record, {
+      ownerId: record.owner_bibliotek_id,
+      desiredCount: record.requested_count,
+      savedCount,
+      usageOverride
+    });
+    if (validation) {
+      showMsg("#msgSaet", validation);
+      tr.scrollIntoView({ block: "center", behavior: "smooth" });
+      tr.classList.add("error");
+      setTimeout(() => tr.classList.remove("error"), 2000);
+      return;
+    }
+
+    if (!usageOverride[record.owner_bibliotek_id]) {
+      usageOverride[record.owner_bibliotek_id] = {};
+    }
+    const currentUsage = usageOverride[record.owner_bibliotek_id][record.isbn] ?? saetUsageFor(record.owner_bibliotek_id, record.isbn);
+    usageOverride[record.owner_bibliotek_id][record.isbn] = (currentUsage - savedCount) + record.requested_count;
+
+    payload.push({
+      ...record,
+      set_id: record.set_id || undefined
+    });
+  }
+
+  if (!payload.length) {
+    showMsg("#msgSaet", "Ingen gyldige ændringer at gemme.");
+    return;
+  }
+
+  showMsg("#msgSaet", "Gemmer ændringer...");
+  const { error } = await sb.from("tbl_saet").upsert(payload, { onConflict: "set_id" });
+  if (error) {
+    showMsg("#msgSaet", "Fejl ved gem: " + error.message);
+    return;
+  }
+  showMsg("#msgSaet", `Gemte ${payload.length} ændring${payload.length > 1 ? "er" : ""}.`, true);
+  await saetPull();
+}
+
 function setSaetSort(field) {
   const valid = {
     set_id: true,
@@ -848,8 +1003,11 @@ function saetNewRow() {
     }
   }, "AnnullÃ©r");
   if (isbnSel.disabled) {
-    btnSave.disabled = true;
-    btnSave.title = "Ingen titler i beholdningen for det valgte centralbibliotek.";
+    const saveBtn = $("#btnSaetSaveAll");
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.title = "Ingen titler i beholdningen for det valgte centralbibliotek.";
+    }
   }
 
   const reqIn = el("input", { type: "number", class: "saet-requested", value: "1", min: "1", style: "width:6ch" });
@@ -983,6 +1141,12 @@ function refreshSaetAvailabilityIndicators() {
     populateSaetIsbnSelect,
     applyInventoryMeta,
     updateSaetAvailability,
+    saetDirtyRows,
+    markSaetDirty,
+    clearSaetDirty,
+    updateSaetSaveButton,
+    saetAttachRowListeners,
+    saetCollectRow,
     setSaetSort,
     updateSaetSortIndicators,
     highlightSaveBar,
@@ -993,6 +1157,7 @@ function refreshSaetAvailabilityIndicators() {
     ensureSaetCapacity,
     saetDeleteRow,
     saetNewRow,
+    saetSaveAll,
     bindSaetControls,
     refreshSaetAvailabilityIndicators
   });
