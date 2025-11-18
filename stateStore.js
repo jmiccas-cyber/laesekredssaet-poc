@@ -840,6 +840,445 @@ function bindBookingRequestControls() {
 }
 
 // ----------------------------------------------------------
+// 10. Booking-regler, slots og anmodninger
+// ----------------------------------------------------------
+
+function toIsoDate(date) {
+  if (!(date instanceof Date)) return "";
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+async function loadOwnerHolidaySet(ownerId) {
+  if (!ownerId) return new Set();
+  if (!st.calendar.localSets) st.calendar.localSets = {};
+  if (st.calendar.localSets[ownerId]) return st.calendar.localSets[ownerId];
+  const { data, error } = await sb
+    .from(LOCAL_HOLIDAY_TABLE)
+    .select("holiday_date")
+    .eq("owner_bibliotek_id", ownerId);
+  if (error) {
+    console.error("Kunne ikke hente lokale helligdage:", error);
+    st.calendar.localSets[ownerId] = new Set();
+    return st.calendar.localSets[ownerId];
+  }
+  const set = new Set((data || []).map(row => row.holiday_date));
+  st.calendar.localSets[ownerId] = set;
+  return set;
+}
+
+function isHolidayDate(date, holidaySet) {
+  const day = date.getDay();
+  if (day === 0 || day === 6) return true;
+  const iso = toIsoDate(date);
+  return holidaySet?.has(iso);
+}
+
+function nextWorkingDay(date, holidaySet) {
+  const d = new Date(date);
+  while (isHolidayDate(d, holidaySet)) {
+    d.setDate(d.getDate() + 1);
+  }
+  return d;
+}
+
+function firstWorkingDayOfMonth(year, month, holidaySet) {
+  const start = new Date(year, month, 1);
+  return nextWorkingDay(start, holidaySet);
+}
+
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function addMonths(date, months) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + months);
+  return d;
+}
+
+function calculateEndDate(startDate, loanWeeks, bufferDays) {
+  const totalDays = Math.max((Number(loanWeeks) || 0) * 7 + (Number(bufferDays) || 0), 0);
+  return addDays(startDate, totalDays);
+}
+
+function slotOverlaps(startA, endA, booking) {
+  const startB = new Date(booking.start_date);
+  const endB = new Date(booking.end_date);
+  return startA <= endB && endA >= startB;
+}
+
+function isSlotFree(start, end, bookings) {
+  return !bookings.some(b => {
+    const status = String(b.booking_status || "").toLowerCase();
+    if (![BOOKING_STATUS_REQUESTED, BOOKING_STATUS_BOOKED].includes(status)) return false;
+    return slotOverlaps(start, end, b);
+  });
+}
+
+function advanceFirstWorkingRule(date, holidaySet) {
+  const nextMonth = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+  return firstWorkingDayOfMonth(nextMonth.getFullYear(), nextMonth.getMonth(), holidaySet);
+}
+
+function advanceEvery14Rule(date, holidaySet) {
+  const next = nextWorkingDay(addDays(date, 14), holidaySet);
+  const nextMonthStart = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+  const firstNextMonth = firstWorkingDayOfMonth(nextMonthStart.getFullYear(), nextMonthStart.getMonth(), holidaySet);
+  if (next < firstNextMonth) return next;
+  return firstNextMonth;
+}
+
+function computeNextBookingWindow(setRow, rule, holidaySet, bookings, baseDate) {
+  let today = baseDate ? new Date(baseDate) : new Date();
+  if (Number.isNaN(today.getTime())) {
+    today = new Date();
+  }
+  let candidate;
+  const maxIterations = 60;
+  if (rule === BOOKING_RULE_EVERY14) {
+    candidate = firstWorkingDayOfMonth(today.getFullYear(), today.getMonth(), holidaySet);
+    while (candidate <= today) {
+      candidate = advanceEvery14Rule(candidate, holidaySet);
+    }
+    for (let i = 0; i < maxIterations; i++) {
+      const end = calculateEndDate(candidate, setRow.loan_weeks, setRow.buffer_days);
+      if (isSlotFree(candidate, end, bookings)) {
+        return { start: toIsoDate(candidate), end: toIsoDate(end) };
+      }
+      candidate = advanceEvery14Rule(candidate, holidaySet);
+    }
+    return null;
+  }
+  candidate = firstWorkingDayOfMonth(today.getFullYear(), today.getMonth(), holidaySet);
+  if (candidate <= today) {
+    candidate = advanceFirstWorkingRule(candidate, holidaySet);
+  }
+  for (let i = 0; i < maxIterations; i++) {
+    const end = calculateEndDate(candidate, setRow.loan_weeks, setRow.buffer_days);
+    if (isSlotFree(candidate, end, bookings)) {
+      return { start: toIsoDate(candidate), end: toIsoDate(end) };
+    }
+    candidate = advanceFirstWorkingRule(candidate, holidaySet);
+  }
+  return null;
+}
+
+function bookingRuleLabel(value) {
+  return BOOKING_RULE_OPTIONS.find(opt => opt.value === value)?.label || "";
+}
+
+function formatDateDisplay(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("da-DK");
+}
+
+async function fetchBookingsForSetIds(setIds) {
+  const map = new Map();
+  if (!sb || !setIds.length) return map;
+  const { data, error } = await sb
+    .from("tbl_booking")
+    .select("booking_id,set_id,start_date,end_date,booking_status,requester_bibliotek_id")
+    .in("set_id", setIds);
+  if (error) {
+    console.error("Kunne ikke hente eksisterende bookinger:", error);
+    return map;
+  }
+  (data || []).forEach(row => {
+    if (!map.has(row.set_id)) map.set(row.set_id, []);
+    map.get(row.set_id).push(row);
+  });
+  return map;
+}
+
+function generateSlotsForSet(setRow, rule, holidaySet, minStartDate, horizonDate) {
+  const slots = [];
+  let candidate = firstWorkingDayOfMonth(minStartDate.getFullYear(), minStartDate.getMonth(), holidaySet);
+  if (rule === BOOKING_RULE_EVERY14) {
+    while (candidate < minStartDate) {
+      candidate = advanceEvery14Rule(candidate, holidaySet);
+    }
+    while (candidate < horizonDate) {
+      const end = calculateEndDate(candidate, setRow.loan_weeks, setRow.buffer_days);
+      slots.push({ start: toIsoDate(candidate), end: toIsoDate(end) });
+      candidate = advanceEvery14Rule(candidate, holidaySet);
+    }
+    return slots;
+  }
+  while (candidate < minStartDate) {
+    candidate = advanceFirstWorkingRule(candidate, holidaySet);
+  }
+  while (candidate < horizonDate) {
+    const end = calculateEndDate(candidate, setRow.loan_weeks, setRow.buffer_days);
+    slots.push({ start: toIsoDate(candidate), end: toIsoDate(end) });
+    candidate = advanceFirstWorkingRule(candidate, holidaySet);
+  }
+  return slots;
+}
+
+async function ensureBookingSlotsForSet(setRow, rule, holidaySet, minStartDate = new Date()) {
+  if (!sb || !setRow?.set_id) return;
+  const minStart = new Date(minStartDate);
+  minStart.setHours(0, 0, 0, 0);
+  const horizon = addMonths(minStart, BOOKING_SLOT_HORIZON_MONTHS);
+  const { data, error } = await sb
+    .from("tbl_booking")
+    .select("booking_id,start_date,end_date,booking_status")
+    .eq("set_id", setRow.set_id)
+    .order("start_date", { ascending: true });
+  if (error) {
+    console.error("Kunne ikke hente bookinger:", error);
+    return;
+  }
+  const existing = data || [];
+  const planned = generateSlotsForSet(setRow, rule, holidaySet, minStart, horizon);
+  const existingKeys = new Set(existing.map(b => `${b.start_date}::${b.end_date}`));
+  const missing = planned.filter(slot => !existingKeys.has(`${slot.start}::${slot.end}`));
+  if (!missing.length) return;
+  const payload = missing.map(slot => ({
+    owner_bibliotek_id: setRow.owner_bibliotek_id,
+    set_id: setRow.set_id,
+    start_date: slot.start,
+    end_date: slot.end,
+    booking_status: BOOKING_STATUS_AVAILABLE
+  }));
+  const chunkSize = 100;
+  for (let i = 0; i < payload.length; i += chunkSize) {
+    const chunk = payload.slice(i, i + chunkSize);
+    const { error: insertError } = await sb.from("tbl_booking").insert(chunk);
+    if (insertError) {
+      console.error("Kunne ikke oprette slots:", insertError);
+      return;
+    }
+  }
+}
+
+async function regenerateBookingSlotsForOwner(ownerId) {
+  if (!sb || !ownerId) return;
+  if (bookingSlotLocks.has(ownerId)) return;
+  bookingSlotLocks.add(ownerId);
+  try {
+    await loadBookingRules();
+    const rule = currentBookingRule(ownerId);
+    const holidaySet = await loadOwnerHolidaySet(ownerId);
+    const { data, error } = await sb
+      .from("tbl_saet")
+      .select("set_id,loan_weeks,buffer_days,owner_bibliotek_id,active")
+      .eq("owner_bibliotek_id", ownerId)
+      .eq("active", true);
+    if (error) {
+      console.error("Kunne ikke hente sæt til booking slots:", error);
+      return;
+    }
+    await Promise.all((data || []).map(row => ensureBookingSlotsForSet(row, rule, holidaySet)));
+  } finally {
+    bookingSlotLocks.delete(ownerId);
+  }
+}
+
+async function loadBookingRules(force = false) {
+  if (!sb) return st.bookingRules.byOwner || {};
+  if (!force && st.bookingRules.byOwner && Object.keys(st.bookingRules.byOwner).length) {
+    return st.bookingRules.byOwner;
+  }
+  const { data, error } = await sb
+    .from(BOOKING_RULE_TABLE)
+    .select("owner_bibliotek_id,rule");
+  if (error) {
+    console.error("Kunne ikke hente bookingregler:", error);
+    st.bookingRules.byOwner = st.bookingRules.byOwner || {};
+    return st.bookingRules.byOwner;
+  }
+  const map = {};
+  (data || []).forEach(row => {
+    if (row.owner_bibliotek_id) {
+      map[row.owner_bibliotek_id] = {
+        owner_bibliotek_id: row.owner_bibliotek_id,
+        rule: row.rule || BOOKING_RULE_DEFAULT
+      };
+    }
+  });
+  st.bookingRules.byOwner = map;
+  return map;
+}
+
+function currentBookingRule(ownerId) {
+  if (!ownerId) return BOOKING_RULE_DEFAULT;
+  return st.bookingRules.byOwner?.[ownerId]?.rule || BOOKING_RULE_DEFAULT;
+}
+
+async function bookingRulePull() {
+  if (!sb) return;
+  const wrap = $("#bookingRuleOwnerWrap");
+  const sel = $("#bookingRuleOwnerSel");
+  const selectRule = $("#bookingRuleSelect");
+  const msg = "#bookingRuleMsg";
+  const adminLib = st.libs.byId[currentAdminId()];
+  const isSuper = isSuperLibrary(adminLib);
+  if (wrap) wrap.style.display = isSuper ? "" : "none";
+  const superHint = $("#bookingRuleSuperHint");
+  if (superHint) {
+    superHint.style.display = isSuper ? "inline" : "none";
+  }
+  if (!st.bookingRules.owner || !isSuper) {
+    st.bookingRules.owner = currentAdminId();
+  }
+  if (isSuper && sel) {
+    sel.innerHTML = "";
+    st.libs.centrals.forEach(lib => {
+      sel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
+    });
+    sel.value = st.bookingRules.owner || currentAdminId();
+  }
+  await loadBookingRules(true);
+  const currentRule = currentBookingRule(st.bookingRules.owner || currentAdminId());
+  if (selectRule) {
+    selectRule.value = currentRule;
+  }
+  showMsg(msg, "");
+}
+
+async function bookingRuleSave() {
+  if (!sb) return;
+  const ownerId = st.bookingRules.owner || currentAdminId();
+  if (!ownerId) {
+    showMsg("#bookingRuleMsg", "Vælg et centralbibliotek først.");
+    return;
+  }
+  const ruleSel = $("#bookingRuleSelect");
+  const rule = ruleSel?.value || BOOKING_RULE_DEFAULT;
+  showMsg("#bookingRuleMsg", "Gemmer bookingregel …");
+  const payload = { owner_bibliotek_id: ownerId, rule };
+  const { error } = await sb
+    .from(BOOKING_RULE_TABLE)
+    .upsert(payload, { onConflict: "owner_bibliotek_id" });
+  if (error) {
+    showMsg("#bookingRuleMsg", "Kunne ikke gemme: " + error.message);
+    return;
+  }
+  if (!st.bookingRules.byOwner) st.bookingRules.byOwner = {};
+  st.bookingRules.byOwner[ownerId] = payload;
+  showMsg("#bookingRuleMsg", "Regel gemt.", true);
+  await regenerateBookingSlotsForOwner(ownerId);
+}
+
+async function fetchSaetMapByIds(ids) {
+  const map = new Map();
+  if (!sb || !ids?.length) return map;
+  const { data, error } = await sb
+    .from("tbl_saet")
+    .select("set_id,title,owner_bibliotek_id,loan_weeks,buffer_days,requested_count")
+    .in("set_id", ids);
+  if (error) {
+    console.error("Kunne ikke hente sæt:", error);
+    return map;
+  }
+  (data || []).forEach(row => map.set(row.set_id, row));
+  return map;
+}
+
+function renderBookingRequestsTable(rows) {
+  const tb = $("#tblBookingRequests tbody");
+  if (!tb) return;
+  tb.innerHTML = "";
+  if (!rows.length) {
+    tb.appendChild(el("tr", {}, el("td", { colspan: 5 }, "Ingen anmodninger.")));
+    return;
+  }
+  rows.forEach(row => {
+    const setInfo = row.set || {};
+    const requester = st.libs.byId[row.requester_bibliotek_id];
+    const requesterLabel = requester ? fmtLibLabel(requester) : (row.requester_bibliotek_id || "Ukendt");
+    const approveBtn = el("button", {
+      class: "btn btn-small",
+      "data-booking-approve": row.booking_id,
+      "data-booking-set": row.set_id
+    }, "Godkend");
+    const cancelBtn = el("button", {
+      class: "btn btn-small ghost",
+      "data-booking-cancel": row.booking_id,
+      "data-booking-set": row.set_id
+    }, "Afvis");
+    tb.appendChild(el("tr", {},
+      el("td", {}, setInfo.title || `Sæt #${row.set_id}` || "—"),
+      el("td", {}, requesterLabel),
+      el("td", {}, formatDateDisplay(row.start_date)),
+      el("td", {}, formatDateDisplay(row.end_date)),
+      el("td", {}, approveBtn, " ", cancelBtn)
+    ));
+  });
+}
+
+async function bookingRequestsPull() {
+  if (!sb) return;
+  const ownerId = currentAdminId();
+  const ownerLabel = $("#bookingRequestsOwner");
+  if (ownerLabel) {
+    ownerLabel.textContent = fmtLibLabel(st.libs.byId[ownerId]) || ownerId || "—";
+  }
+  if (!ownerId) {
+    renderBookingRequestsTable([]);
+    showMsg("#bookingRequestsMsg", "Vælg først et centralbibliotek.");
+    return;
+  }
+  showMsg("#bookingRequestsMsg", "Henter anmodninger …");
+  const { data, error } = await sb
+    .from("tbl_booking")
+    .select("booking_id,set_id,start_date,end_date,booking_status,requester_bibliotek_id")
+    .eq("owner_bibliotek_id", ownerId)
+    .eq("booking_status", BOOKING_STATUS_REQUESTED)
+    .order("start_date", { ascending: true });
+  if (error) {
+    showMsg("#bookingRequestsMsg", "Kunne ikke hente anmodninger: " + error.message);
+    renderBookingRequestsTable([]);
+    return;
+  }
+  const rows = data || [];
+  const setIds = Array.from(new Set(rows.map(r => r.set_id).filter(Boolean)));
+  const setMap = await fetchSaetMapByIds(setIds);
+  st.booking.requests = rows.map(row => ({
+    ...row,
+    set: setMap.get(row.set_id) || null
+  }));
+  renderBookingRequestsTable(st.booking.requests);
+  showMsg("#bookingRequestsMsg", st.booking.requests.length ? "" : "Ingen anmodninger.", st.booking.requests.length === 0);
+}
+
+async function bookingRequestsUpdate(bookingId, action, setId) {
+  if (!sb || !bookingId) return;
+  const msgSel = "#bookingRequestsMsg";
+  const ownerId = currentAdminId();
+  const target = st.booking.requests?.find(r => r.booking_id === bookingId);
+  if (!target) {
+    showMsg(msgSel, "Kunne ikke finde anmodningen.");
+    return;
+  }
+  const updates = action === "approve"
+    ? { booking_status: BOOKING_STATUS_BOOKED }
+    : { booking_status: BOOKING_STATUS_AVAILABLE, requester_bibliotek_id: null };
+  showMsg(msgSel, action === "approve" ? "Godkender anmodning …" : "Afviser anmodning …");
+  const { error } = await sb
+    .from("tbl_booking")
+    .update(updates)
+    .eq("booking_id", bookingId)
+    .eq("owner_bibliotek_id", ownerId);
+  if (error) {
+    showMsg(msgSel, "Kunne ikke opdatere anmodning: " + error.message);
+    return;
+  }
+  showMsg(msgSel, action === "approve" ? "Anmodning godkendt." : "Anmodning afvist.", true);
+  if (setId) {
+    await regenerateBookingSlotsForOwner(ownerId);
+  }
+  await bookingRequestsPull();
+}
+
+// ----------------------------------------------------------
 
 // ----------------------------------------------------------
 // 11. Booker – søgning (tbl_saet + relationer)

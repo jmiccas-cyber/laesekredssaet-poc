@@ -687,14 +687,12 @@
 })();
 
 const CalendarStore = window.CalendarStore || {};
-const StateLibStoreRef = window.StateLibStore || {};
 CalendarStore.init?.({
-  state: StateLibStoreRef.st,
-  getSupabaseClient: StateLibStoreRef.getSupabaseClient,
+  state: window.StateLibStore?.st,
+  getSupabaseClient: window.StateLibStore?.getSupabaseClient,
   uiHelpers: {
     showMsg: window.showMsg,
-    el: StateLibStoreRef.el || window.el,
-    $: StateLibStoreRef.$ || window.$
+    el: window.StateLibStore?.el || window.el,
+    $: window.StateLibStore?.$ || window.$
   }
 });
-
