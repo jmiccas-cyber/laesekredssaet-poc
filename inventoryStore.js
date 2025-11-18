@@ -1,4 +1,14 @@
-﻿// 6. Admin – Eksemplarer (tbl_beholdning)
+﻿// Inventory module (Admin – Eksemplarer)
+
+(function () {
+  const StateLibStore = window.StateLibStore || {};
+  const st = StateLibStore.st || window.st;
+  const $ = StateLibStore.$ || window.$;
+  const  = StateLibStore. || window.;
+  const el = StateLibStore.el || window.el;
+  const setActiveButtonState = StateLibStore.setActiveButtonState || window.setActiveButtonState;
+
+// 6. Admin – Eksemplarer (tbl_beholdning)
 // ----------------------------------------------------------
 // 6. Admin Ã¢â‚¬â€œ Eksemplarer (tbl_beholdning)
 // ----------------------------------------------------------
@@ -859,3 +869,39 @@ function bindEksControls() {
 
 
 // ----------------------------------------------------------
+
+  const InventoryStore = Object.freeze({
+    eksCount,
+    eksFetch,
+    eksPull,
+    bindEksControls,
+    loadInventorySummary,
+    syncSaetMetadataFromIsbns,
+    getOwnerInventory,
+    getInventoryMeta,
+    getInventoryCount,
+    markEksDirty,
+    clearEksDirty,
+    refreshSaetInventoryControls,
+    refreshSaetAvailabilityIndicators,
+    applyInventoryMeta
+  });
+
+  window.InventoryStore = InventoryStore;
+  Object.assign(window, {
+    loadInventorySummary,
+    eksPull,
+    bindEksControls,
+    syncSaetMetadataFromIsbns,
+    getOwnerInventory,
+    getInventoryMeta,
+    getInventoryCount,
+    markEksDirty,
+    clearEksDirty,
+    refreshSaetInventoryControls,
+    refreshSaetAvailabilityIndicators,
+    applyInventoryMeta
+  });
+})();
+const InventoryStore = window.InventoryStore || {};
+InventoryStore.init?.({ state: StateLibStore.st, getSupabaseClient: StateLibStore.getSupabaseClient, uiHelpers: { showMsg, el, $ } });
