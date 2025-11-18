@@ -4,7 +4,7 @@
   const StateLibStore = window.StateLibStore || {};
   const st = StateLibStore.st || window.st;
   const $ = StateLibStore.$ || window.$;
-  const  = StateLibStore. || window.;
+  const showMsg = StateLibStore.showMsg || window.showMsg || (() => {});
   const el = StateLibStore.el || window.el;
   const setActiveButtonState = StateLibStore.setActiveButtonState || window.setActiveButtonState;
 

@@ -11,6 +11,7 @@
   const InventoryStore = window.InventoryStore || {};
   const getInventoryCount = InventoryStore.getInventoryCount || window.getInventoryCount || (() => 0);
   const getInventoryMeta = InventoryStore.getInventoryMeta || window.getInventoryMeta || (() => null);
+  const getOwnerInventory = InventoryStore.getOwnerInventory || window.getOwnerInventory || (() => []);
   const loadInventorySummary = InventoryStore.loadInventorySummary || window.loadInventorySummary || (async () => {});
   const showMsg = window.showMsg || (() => {});
   const ensureSheetJs = window.ensureSheetJs || (async () => {});
