@@ -1352,6 +1352,80 @@ async function bookerSearchInternal() {
   return all;
 }
 
+function compareBookerRows(a, b) {
+  const sortBy = st.b.sortBy || "title";
+  const dir = st.b.sortDir === "desc" ? -1 : 1;
+  const normalize = (val) => (val == null ? "" : String(val).toLowerCase());
+  const numberize = (val) => (val == null ? -Infinity : Number(val));
+  const getValue = row => {
+    switch (sortBy) {
+      case "title":
+        return normalize(row.title);
+      case "author":
+        return normalize(row.author);
+      case "isbn":
+        return normalize(row.isbn);
+      case "faust":
+        return normalize(row.faust);
+      case "visibility":
+        return normalize(row.visibility);
+      case "owner":
+        return normalize(row.owner_bibliotek_id);
+      case "rule":
+        return normalize(row.bookingRule);
+      case "loan_weeks":
+        return numberize(row.loan_weeks);
+      case "requested_count":
+        return numberize(row.requested_count);
+      case "next":
+        return row.nextBooking?.start
+          ? new Date(row.nextBooking.start).getTime()
+          : Number.MAX_SAFE_INTEGER;
+      default:
+        return normalize(row.title);
+    }
+  };
+  const valA = getValue(a);
+  const valB = getValue(b);
+  if (typeof valA === "number" && typeof valB === "number") {
+    return (valA - valB) * dir;
+  }
+  return valA.localeCompare(valB) * dir;
+}
+
+function setBookerSort(field) {
+  const valid = {
+    title: true,
+    author: true,
+    isbn: true,
+    faust: true,
+    visibility: true,
+    owner: true,
+    rule: true,
+    loan_weeks: true,
+    requested_count: true,
+    next: true
+  };
+  if (!valid[field]) return;
+  if (st.b.sortBy === field) {
+    st.b.sortDir = st.b.sortDir === "asc" ? "desc" : "asc";
+  } else {
+    st.b.sortBy = field;
+    st.b.sortDir = "asc";
+  }
+  st.b.page = 0;
+  renderBookerResults();
+}
+
+function updateBookerSortIndicators() {
+  const headers = document.querySelectorAll("#bTbl thead th[data-sort]");
+  headers.forEach(th => {
+    const field = th.dataset.sort;
+    th.classList.toggle("sorted-asc", field === st.b.sortBy && st.b.sortDir === "asc");
+    th.classList.toggle("sorted-desc", field === st.b.sortBy && st.b.sortDir === "desc");
+  });
+}
+
 function renderBookerResults() {
   const tb = $("#bTbl tbody");
   if (!tb) return;
