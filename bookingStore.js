@@ -1,4 +1,4 @@
-﻿(function () {
+﻿function () {
   const StateLibStore = window.StateLibStore || {};
   const st = StateLibStore.st || window.st;
   const $ = StateLibStore.$ || window.$;
@@ -834,3 +834,4 @@ BookingStore.init?.({
     $: window.StateLibStore?.$ || window.$
   }
 });
+
