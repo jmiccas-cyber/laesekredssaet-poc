@@ -31,45 +31,6 @@
     return sb;
   }
 
-  const BookingStore = Object.freeze({
-    toIsoDate,
-    loadOwnerHolidaySet,
-    regenerateBookingSlotsForOwner,
-    loadBookingRules,
-    currentBookingRule,
-    bookingRulePull,
-    bookingRuleSave,
-    fetchSaetMapByIds,
-    bookingRequestsPull,
-    bookingRequestsUpdate,
-    bookerMyRequestsPull,
-    bookerCancelRequest,
-    renderBookerMyRequests,
-    setMyRequestSort,
-    setBookerTab,
-    renderBookerResults,
-    bookerSearch,
-    bookerRequestBooking,
-    bindBookingRuleControls,
-    bindBookingRequestControls,
-    bindBookerControls
-  });
-
-  window.BookingStore = BookingStore;
-  Object.assign(window, BookingStore);
-})();
-
-const BookingStore = window.BookingStore || {};
-BookingStore.init?.({
-  state: window.StateLibStore?.st,
-  getSupabaseClient: window.StateLibStore?.getSupabaseClient,
-  uiHelpers: {
-    showMsg: window.showMsg,
-    el: window.StateLibStore?.el || window.el,
-    $: window.StateLibStore?.$ || window.$
-  }
-});
-
   function toIsoDate(date) {
     if (!(date instanceof Date)) return "";
     const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -500,6 +461,7 @@ BookingStore.init?.({
       st.booking.mySortDir = "asc";
     }
     const sorted = [...(st.booking.myRequests || [])].sort(compareMyRequests);
+    st.booking.myRequests = sorted;
     renderBookerMyRequests(sorted);
     updateMySortIndicators();
   }
@@ -979,6 +941,43 @@ BookingStore.init?.({
     setBookerTab(st.b.view || "search");
   }
 
+  const BookingStore = Object.freeze({
+    toIsoDate,
+    loadOwnerHolidaySet,
+    regenerateBookingSlotsForOwner,
+    loadBookingRules,
+    currentBookingRule,
+    bookingRulePull,
+    bookingRuleSave,
+    fetchSaetMapByIds,
+    bookingRequestsPull,
+    bookingRequestsUpdate,
+    compareMyRequests,
+    setMyRequestSort,
+    updateMySortIndicators,
+    renderBookerMyRequests,
+    bookerMyRequestsPull,
+    bookerCancelRequest,
+    setBookerTab,
+    renderBookerResults,
+    bookerSearch,
+    bookerRequestBooking,
+    bindBookingRuleControls,
+    bindBookingRequestControls,
+    bindBookerControls
+  });
 
+  window.BookingStore = BookingStore;
+  Object.assign(window, BookingStore);
+})();
 
-*** End Patch
+const BookingStore = window.BookingStore || {};
+BookingStore.init?.({
+  state: window.StateLibStore?.st,
+  getSupabaseClient: window.StateLibStore?.getSupabaseClient,
+  uiHelpers: {
+    showMsg: window.showMsg,
+    el: window.StateLibStore?.el || window.el,
+    $: window.StateLibStore?.$ || window.$
+  }
+});
