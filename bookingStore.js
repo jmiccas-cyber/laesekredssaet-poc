@@ -12,12 +12,14 @@
   const BOOKING_STATUS_AVAILABLE = StateLibStore.BOOKING_STATUS_AVAILABLE || window.BOOKING_STATUS_AVAILABLE || "available";
   const BOOKING_STATUS_REQUESTED = StateLibStore.BOOKING_STATUS_REQUESTED || window.BOOKING_STATUS_REQUESTED || "requested";
   const BOOKING_STATUS_BOOKED = StateLibStore.BOOKING_STATUS_BOOKED || window.BOOKING_STATUS_BOOKED || "booked";
+  const BOOKING_STATUS_CANCELLED = StateLibStore.BOOKING_STATUS_CANCELLED || window.BOOKING_STATUS_CANCELLED || "cancelled";
   const BOOKING_RULE_EVERY14 = StateLibStore.BOOKING_RULE_EVERY14 || window.BOOKING_RULE_EVERY14 || "every_14_days";
   const BOOKING_RULE_OPTIONS = StateLibStore.BOOKING_RULE_OPTIONS || window.BOOKING_RULE_OPTIONS || [];
   const BOOKING_RULE_DEFAULT = StateLibStore.BOOKING_RULE_DEFAULT || window.BOOKING_RULE_DEFAULT || BOOKING_RULE_OPTIONS[0]?.value || "first_working_day";
   const BOOKING_SLOT_HORIZON_MONTHS = StateLibStore.BOOKING_SLOT_HORIZON_MONTHS || window.BOOKING_SLOT_HORIZON_MONTHS || 12;
 
   const bookingSlotLocks = new Set();
+  const CANCELLABLE_STATUSES = new Set([BOOKING_STATUS_REQUESTED, BOOKING_STATUS_BOOKED]);
 
   function toIsoDate(date) {
     if (!(date instanceof Date)) return "";
@@ -447,11 +449,126 @@
       showMsg(msgSel, "Kunne ikke opdatere anmodning: " + error.message);
       return;
     }
-    showMsg(msgSel, action === "approve" ? "Anmodning godkendt." : "Anmodning afvist.", true);
-    if (setId) {
-      await regenerateBookingSlotsForOwner(ownerId);
+  showMsg(msgSel, action === "approve" ? "Anmodning godkendt." : "Anmodning afvist.", true);
+  if (setId) {
+    await regenerateBookingSlotsForOwner(ownerId);
+  }
+  await bookingRequestsPull();
+}
+
+  function renderBookerMyRequests(rows) {
+    const tb = $("#bMyTbl tbody");
+    if (!tb) return;
+    tb.innerHTML = "";
+    if (!rows.length) {
+      tb.appendChild(el("tr", {}, el("td", { colspan: 6 }, "Ingen anmodninger.")));
+      return;
     }
-    await bookingRequestsPull();
+    rows.forEach(row => {
+      const setInfo = row.set || {};
+      const ownerLabel = fmtLibLabel(st.libs.byId[row.owner_bibliotek_id]) || row.owner_bibliotek_id || "";
+      const status = (row.booking_status || "").toLowerCase();
+      const canCancel = CANCELLABLE_STATUSES.has(status);
+      const btn = el("button", {
+        class: "btn btn-small",
+        type: "button",
+        "data-my-cancel": row.booking_id,
+        disabled: canCancel ? undefined : true,
+        title: canCancel ? "" : "Kan ikke annulleres"
+      }, "Annuller");
+      const actionCell = canCancel ? btn : el("span", { class: "hint" }, "—");
+      if (!canCancel) {
+        actionCell.classList.add("hint");
+      }
+      const startText = formatDateDisplay(row.start_date);
+      const endText = formatDateDisplay(row.end_date);
+      tb.appendChild(el("tr", {},
+        el("td", {}, setInfo.title || `Sæt #${row.set_id}` || ""),
+        el("td", {}, ownerLabel),
+        el("td", {}, startText || ""),
+        el("td", {}, endText || ""),
+        el("td", {}, status || ""),
+        el("td", {}, actionCell)
+      ));
+    });
+  }
+
+  async function bookerMyRequestsPull() {
+    if (!sb) return;
+    const requesterId = st.profile.bookerLocalId;
+    if (!requesterId) {
+      renderBookerMyRequests([]);
+      showMsg("#bMyMsg", "Vælg først en booker-profil (regionsbibliotek).");
+      return;
+    }
+    showMsg("#bMyMsg", "Henter anmodninger …");
+    const { data, error } = await sb
+      .from("tbl_booking")
+      .select("booking_id,set_id,start_date,end_date,booking_status,owner_bibliotek_id")
+      .eq("requester_bibliotek_id", requesterId)
+      .order("start_date", { ascending: false });
+    if (error) {
+      showMsg("#bMyMsg", "Kunne ikke hente anmodninger: " + error.message);
+      renderBookerMyRequests([]);
+      return;
+    }
+    const rows = data || [];
+    const setIds = Array.from(new Set(rows.map(r => r.set_id).filter(Boolean)));
+    const setMap = await fetchSaetMapByIds(setIds);
+    const enriched = rows.map(row => ({
+      ...row,
+      set: setMap.get(row.set_id) || null
+    }));
+    st.booking.myRequests = enriched;
+    renderBookerMyRequests(enriched);
+    showMsg("#bMyMsg", enriched.length ? "" : "Ingen anmodninger.", enriched.length === 0);
+  }
+
+  async function bookerCancelRequest(bookingId) {
+    if (!sb || !bookingId) return;
+    const requesterId = st.profile.bookerLocalId;
+    if (!requesterId) {
+      showMsg("#bMyMsg", "Vælg først en booker-profil (regionsbibliotek).");
+      return;
+    }
+    const target = st.booking.myRequests?.find(r => r.booking_id === bookingId);
+    if (!target) return;
+    if (!CANCELLABLE_STATUSES.has((target.booking_status || "").toLowerCase())) {
+      showMsg("#bMyMsg", "Denne anmodning kan ikke annulleres længere.");
+      return;
+    }
+    showMsg("#bMyMsg", "Annullerer anmodning …");
+    const { error } = await sb
+      .from("tbl_booking")
+      .update({
+        booking_status: BOOKING_STATUS_AVAILABLE,
+        requester_bibliotek_id: null
+      })
+      .eq("booking_id", bookingId)
+      .eq("requester_bibliotek_id", requesterId)
+      .in("booking_status", Array.from(CANCELLABLE_STATUSES));
+    if (error) {
+      showMsg("#bMyMsg", "Kunne ikke annullere: " + error.message);
+      return;
+    }
+    showMsg("#bMyMsg", "Anmodning annulleret.", true);
+    await bookerMyRequestsPull();
+  }
+
+  function setBookerTab(tab = "search") {
+    const normalized = tab === "requests" ? "requests" : "search";
+    st.b.view = normalized;
+    document.querySelectorAll("[data-booker-tab]")?.forEach(btn => {
+      const match = (btn.dataset.bookerTab || "search") === normalized;
+      btn.classList.toggle("active", match);
+    });
+    const searchPanel = $("#bookerSearchPanel");
+    const requestsPanel = $("#bookerRequestsPanel");
+    searchPanel?.classList.toggle("hidden", normalized !== "search");
+    requestsPanel?.classList.toggle("hidden", normalized !== "requests");
+    if (normalized === "requests") {
+      bookerMyRequestsPull();
+    }
   }
 
   async function resolveBookerCentrals() {
@@ -668,6 +785,7 @@
       showMsg("#bMsg", "Vælg først en booker-profil (regionsbibliotek).");
       return;
     }
+    setBookerTab("search");
     st.b.q = $("#bQ")?.value || "";
     st.b.weeks = Number($("#bWeeks")?.value || 8);
     st.b.start = $("#bStart")?.value || null;
@@ -793,6 +911,21 @@
         if (field) setBookerSort(field);
       });
     });
+    document.querySelectorAll("[data-booker-tab]")?.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const tab = btn.dataset.bookerTab || "search";
+        setBookerTab(tab);
+      });
+    });
+    $("#bMyTbl")?.addEventListener("click", evt => {
+      const btn = evt.target.closest("button[data-my-cancel]");
+      if (!btn) return;
+      const bookingId = Number(btn.getAttribute("data-my-cancel"));
+      if (bookingId) {
+        bookerCancelRequest(bookingId);
+      }
+    });
+    setBookerTab(st.b.view || "search");
   }
 
   const BookingStore = Object.freeze({
@@ -809,8 +942,12 @@
     bookerSearchInternal,
     bookerSearch,
     bookerRequestBooking,
+    bookerMyRequestsPull,
+    bookerCancelRequest,
     renderBookerResults,
+    renderBookerMyRequests,
     setBookerSort,
+    setBookerTab,
     bindBookingRuleControls,
     bindBookingRequestControls,
     bindBookerControls,

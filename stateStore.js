@@ -426,6 +426,7 @@ function renderLayout() {
     bookerView.classList.remove("hidden");
     panels.forEach(p => p.classList.remove("active"));
     $("#bookerView")?.classList.add("active");
+    callBookingStore("setBookerTab", st.b?.view || "search");
   }
 }
 

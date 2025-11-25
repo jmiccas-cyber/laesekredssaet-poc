@@ -106,7 +106,8 @@ const st = {
     localSets: {}
   },
   booking: {
-    requests: []
+    requests: [],
+    myRequests: []
   },
   bookingRules: {
     byOwner: {},
@@ -123,7 +124,9 @@ const st = {
     allResults: [],
     centralIds: [],
     sortBy: "title",
-    sortDir: "asc"
+    sortDir: "asc",
+    view: "search",
+    myRequests: []
   }
 };
 

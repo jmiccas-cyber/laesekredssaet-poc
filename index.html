@@ -821,58 +821,90 @@ td {
   </div>
 <!-- BOOKER VIEW -->
   <section id="bookerView" class="panel hidden">
-    <div class="card">
-      <p class="hint">
-        Booker-visning for <span id="bookerProfileText">—</span>. Du ser nationalt synlige sæt samt regionale sæt
-        for de centralbiblioteker, som dit bibliotek har aktiv relation til.
-      </p>
-      <div class="row" style="margin-top:6px;">
-        <div style="flex:1; min-width:220px;">
-          <label for="bQ">Søg (titel/forfatter/ISBN/FAUST)</label>
-          <input id="bQ" type="text" placeholder="Søg i tilgængelige sæt…" />
+    <nav class="tabs booker-tabs">
+      <button type="button" data-booker-tab="search" class="active">Søg sæt</button>
+      <button type="button" data-booker-tab="requests">Mine anmodninger</button>
+    </nav>
+
+    <div id="bookerSearchPanel">
+      <div class="card">
+        <p class="hint">
+          Booker-visning for <span id="bookerProfileText">—</span>. Du ser nationalt synlige sæt samt regionale sæt
+          for de centralbiblioteker, som dit bibliotek har aktiv relation til.
+        </p>
+        <div class="row" style="margin-top:6px;">
+          <div style="flex:1; min-width:220px;">
+            <label for="bQ">Søg (titel/forfatter/ISBN/FAUST)</label>
+            <input id="bQ" type="text" placeholder="Søg i tilgængelige sæt…" />
+          </div>
+          <div>
+            <label for="bStart">Startdato (ønsket)</label>
+            <input id="bStart" type="date" />
+          </div>
+          <div>
+            <label for="bWeeks">Låneuger</label>
+            <input id="bWeeks" type="number" value="8" min="1" />
+          </div>
+          <div style="margin-left:auto;">
+            <label>&nbsp;</label>
+            <button id="bSearch" class="btn primary">Søg</button>
+          </div>
         </div>
-        <div>
-          <label for="bStart">Startdato (ønsket)</label>
-          <input id="bStart" type="date" />
-        </div>
-        <div>
-          <label for="bWeeks">Låneuger</label>
-          <input id="bWeeks" type="number" value="8" min="1" />
-        </div>
-        <div style="margin-left:auto;">
-          <label>&nbsp;</label>
-          <button id="bSearch" class="btn primary">Søg</button>
+      </div>
+
+      <div id="bMsg" class="msg" style="display:none;"></div>
+
+      <div class="card">
+          <table id="bTbl">
+            <thead>
+            <tr>
+              <th data-sort="title">Titel</th>
+              <th data-sort="author">Forfatter</th>
+              <th data-sort="isbn">ISBN</th>
+              <th data-sort="faust">FAUST</th>
+              <th data-sort="visibility">Synlighed</th>
+              <th data-sort="owner">Centralbibliotek</th>
+              <th data-sort="rule">Bookingregel</th>
+              <th data-sort="loan_weeks">Låneuger</th>
+              <th data-sort="requested_count">Eksemplarer</th>
+              <th data-sort="next">Ledige perioder</th>
+              <th>Handling</th>
+            </tr>
+            </thead>
+          <tbody></tbody>
+        </table>
+        <div style="margin-top:6px; display:flex; justify-content:space-between; align-items:center;">
+          <span id="bInfo" class="hint"></span>
+          <div>
+            <button id="bPrev" class="btn">◀</button>
+            <button id="bNext" class="btn">▶</button>
+          </div>
         </div>
       </div>
     </div>
 
-    <div id="bMsg" class="msg" style="display:none;"></div>
-
-    <div class="card">
-        <table id="bTbl">
+    <div id="bookerRequestsPanel" class="hidden">
+      <div class="card">
+        <p class="hint">
+          Her kan du se dine indsendte anmodninger og deres aktuelle status. Du kan annullere en anmodning,
+          så længe den ikke er afsluttet.
+        </p>
+      </div>
+      <div id="bMyMsg" class="msg" style="display:none;"></div>
+      <div class="card">
+        <table id="bMyTbl">
           <thead>
           <tr>
-            <th data-sort="title">Titel</th>
-            <th data-sort="author">Forfatter</th>
-            <th data-sort="isbn">ISBN</th>
-            <th data-sort="faust">FAUST</th>
-            <th data-sort="visibility">Synlighed</th>
-            <th data-sort="owner">Centralbibliotek</th>
-            <th data-sort="rule">Bookingregel</th>
-            <th data-sort="loan_weeks">Låneuger</th>
-            <th data-sort="requested_count">Eksemplarer</th>
-            <th data-sort="next">Ledige perioder</th>
+            <th>Titel</th>
+            <th>Centralbibliotek</th>
+            <th>Startdato</th>
+            <th>Slutdato</th>
+            <th>Status</th>
             <th>Handling</th>
           </tr>
           </thead>
-        <tbody></tbody>
-      </table>
-      <div style="margin-top:6px; display:flex; justify-content:space-between; align-items:center;">
-        <span id="bInfo" class="hint"></span>
-        <div>
-          <button id="bPrev" class="btn">◀</button>
-          <button id="bNext" class="btn">▶</button>
-        </div>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
   </section>
