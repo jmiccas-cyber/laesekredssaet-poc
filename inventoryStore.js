@@ -7,6 +7,7 @@
   const showMsg = StateLibStore.showMsg || window.showMsg || (() => {});
   const el = StateLibStore.el || window.el;
   const setActiveButtonState = StateLibStore.setActiveButtonState || window.setActiveButtonState;
+  const ExcelHelper = window.ExcelHelper || null;
   const callSaetStore = (method, ...args) => {
     const store = window.SaetStore;
     const fn = store?.[method] || window[method];
@@ -418,13 +419,6 @@ async function exportEksToExcel() {
     return;
   }
 
-  try {
-    await ensureSheetJs();
-  } catch (e) {
-    showMsg("#msg", e.message);
-    return;
-  }
-
   const rows = (data || []).map(row => ({
     Handling: "Opdater",
     Barcode: row.barcode || "",
@@ -435,28 +429,31 @@ async function exportEksToExcel() {
     Aktiv: row.aktiv === false ? "Inaktiv" : "Aktiv"
   }));
 
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{
-    Handling: "Opdater",
-    Barcode: "",
-    Titel: "",
-    Forfatter: "",
-    ISBN: "",
-    FAUST: "",
-    Aktiv: "Aktiv"
-  }]);
-  XLSX.utils.book_append_sheet(wb, ws, "Eksemplarer");
-  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `eksemplarer_${ownerId}.xlsx`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showMsg("#msg", "Excel klar til download.", true);
+  if (!ExcelHelper) {
+    showMsg("#msg", "Excel-helper mangler. PrÃ¸v at genindlÃ¦se siden.");
+    return;
+  }
+  try {
+    await ExcelHelper.exportRows({
+      rows,
+      sheetName: "Eksemplarer",
+      fileName: `eksemplarer_${ownerId}.xlsx`,
+      emptyRowTemplate: {
+        Handling: "Opdater",
+        Barcode: "",
+        Titel: "",
+        Forfatter: "",
+        ISBN: "",
+        FAUST: "",
+        Aktiv: "Aktiv"
+      },
+      messageSelector: "#msg",
+      beforeText: null,
+      successText: "Excel klar til download."
+    });
+  } catch (err) {
+    showMsg("#msg", err.message || "Kunne ikke generere Excel.");
+  }
 }
 
 async function importEksFromExcel(file) {
@@ -467,11 +464,21 @@ async function importEksFromExcel(file) {
     return;
   }
 
-  showMsg("#msg", "IndlÃ¦ser Excel â€¦");
+  if (!ExcelHelper) {
+    showMsg("#msg", "Excel-helper mangler. PrÃ¸v at genindlÃ¦se siden.");
+    return;
+  }
+  let rows;
   try {
-    await ensureSheetJs();
-  } catch (e) {
-    showMsg("#msg", e.message);
+    rows = await ExcelHelper.readSheetRows(file, {
+      messageSelector: "#msg",
+      loadingText: "IndlÃ¦ser Excel â€¦",
+      emptySheetText: "Excel-arket er tomt."
+    });
+  } catch (err) {
+    return;
+  }
+  if (!rows.length) {
     return;
   }
 
@@ -479,27 +486,6 @@ async function importEksFromExcel(file) {
   const usageMap = await fetchSaetUsage();
   st.saet.usage = usageMap;
   const existing = await fetchOwnerBarcodes(ownerId);
-
-  let workbook;
-  try {
-    const buffer = await file.arrayBuffer();
-    workbook = XLSX.read(buffer, { type: "array" });
-  } catch (e) {
-    showMsg("#msg", "Kunne ikke lÃ¦se Excel-filen: " + e.message);
-    return;
-  }
-
-  const sheetName = workbook.SheetNames?.[0];
-  if (!sheetName) {
-    showMsg("#msg", "Excel-filen indeholder ingen ark.");
-    return;
-  }
-
-  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
-  if (!rows.length) {
-    showMsg("#msg", "Excel-arket er tomt.");
-    return;
-  }
 
   const updates = [];
   const deletions = [];

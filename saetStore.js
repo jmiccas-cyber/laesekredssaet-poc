@@ -15,7 +15,7 @@
   const fetchOwnerSetMap = InventoryStore.fetchOwnerSetMap || window.fetchOwnerSetMap || (async () => new Map());
   const loadInventorySummary = InventoryStore.loadInventorySummary || window.loadInventorySummary || (async () => {});
   const showMsg = window.showMsg || (() => {});
-  const ensureSheetJs = window.ensureSheetJs || (async () => {});
+  const ExcelHelper = window.ExcelHelper || null;
   const currentAdminId = window.currentAdminId || (() => "");
 
 async function fetchSaetUsage() {
@@ -92,13 +92,6 @@ async function exportSaetToExcel() {
     return;
   }
 
-  try {
-    await ensureSheetJs();
-  } catch (e) {
-    showMsg("#msgSaet", e.message);
-    return;
-  }
-
   const rows = (data || []).map(row => ({
     Handling: "Opdater",
     ID: row.set_id || "",
@@ -117,36 +110,39 @@ async function exportSaetToExcel() {
     notes: row.notes || ""
   }));
 
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{
-    Handling: "Opdater",
-    ID: "",
-    Titel: "",
-    Forfatter: "",
-    ISBN: "",
-    FAUST: "",
-    requested_count: "",
-    loan_weeks: "",
-    buffer_days: "",
-    visibility: "national",
-    active: "true",
-    allow_substitution: "false",
-    allow_partial: "false",
-    min_delivery: "",
-    notes: ""
-  }]);
-  XLSX.utils.book_append_sheet(wb, ws, "Sæt");
-  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `saet_${ownerId}.xlsx`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-  showMsg("#msgSaet", "Excel med sæt er klar.", true);
+  if (!ExcelHelper) {
+    showMsg("#msgSaet", "Excel-helper mangler. Prøv at genindlæse siden.");
+    return;
+  }
+  try {
+    await ExcelHelper.exportRows({
+      rows,
+      sheetName: "Sæt",
+      fileName: `saet_${ownerId}.xlsx`,
+      emptyRowTemplate: {
+        Handling: "Opdater",
+        ID: "",
+        Titel: "",
+        Forfatter: "",
+        ISBN: "",
+        FAUST: "",
+        requested_count: "",
+        loan_weeks: "",
+        buffer_days: "",
+        visibility: "national",
+        active: "true",
+        allow_substitution: "false",
+        allow_partial: "false",
+        min_delivery: "",
+        notes: ""
+      },
+      messageSelector: "#msgSaet",
+      beforeText: null,
+      successText: "Excel med sæt er klar."
+    });
+  } catch (err) {
+    showMsg("#msgSaet", err.message || "Kunne ikke generere Excel.");
+  }
 }
 
 async function importSaetFromExcel(file) {
@@ -157,11 +153,21 @@ async function importSaetFromExcel(file) {
     return;
   }
 
-  showMsg("#msgSaet", "Indlæser Excel …");
+  if (!ExcelHelper) {
+    showMsg("#msgSaet", "Excel-helper mangler. Prøv at genindlæse siden.");
+    return;
+  }
+  let rows;
   try {
-    await ensureSheetJs();
-  } catch (e) {
-    showMsg("#msgSaet", e.message);
+    rows = await ExcelHelper.readSheetRows(file, {
+      messageSelector: "#msgSaet",
+      loadingText: "Indlæser Excel …",
+      emptySheetText: "Excel-arket er tomt."
+    });
+  } catch (err) {
+    return;
+  }
+  if (!rows.length) {
     return;
   }
 
@@ -171,27 +177,6 @@ async function importSaetFromExcel(file) {
   const usageOverride = JSON.parse(JSON.stringify(latestUsage || {}));
   const existingSets = await fetchOwnerSetMap(ownerId);
   if (existingSets === null) return;
-
-  let workbook;
-  try {
-    const buffer = await file.arrayBuffer();
-    workbook = XLSX.read(buffer, { type: "array" });
-  } catch (e) {
-    showMsg("#msgSaet", "Kunne ikke læse Excel-filen: " + e.message);
-    return;
-  }
-
-  const sheetName = workbook.SheetNames?.[0];
-  if (!sheetName) {
-    showMsg("#msgSaet", "Excel-filen indeholder ingen ark.");
-    return;
-  }
-
-  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
-  if (!rows.length) {
-    showMsg("#msgSaet", "Excel-arket er tomt.");
-    return;
-  }
 
   const updates = [];
   const deletions = [];

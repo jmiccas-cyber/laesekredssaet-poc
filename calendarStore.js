@@ -8,7 +8,7 @@
   const HOLIDAY_TABLE = StateLibStore.HOLIDAY_TABLE || window.HOLIDAY_TABLE;
   const LOCAL_HOLIDAY_TABLE = StateLibStore.LOCAL_HOLIDAY_TABLE || window.LOCAL_HOLIDAY_TABLE;
   const showMsg = window.showMsg || (() => {});
-  const ensureSheetJs = window.ensureSheetJs || (async () => {});
+  const ExcelHelper = window.ExcelHelper || null;
   const currentAdminId = window.currentAdminId || (() => "");
   const fmtLibLabel = window.fmtLibLabel || (() => "");
   const isSuperLibrary = window.isSuperLibrary || (() => false);
@@ -126,35 +126,28 @@
       showMsg("#calendarMsg", "Kunne ikke hente kalender: " + error.message);
       return;
     }
-    try {
-      await ensureSheetJs();
-    } catch (e) {
-      showMsg("#calendarMsg", e.message);
-      return;
-    }
     const rows = (data || []).map(row => ({
       Dato: row.holiday_date || "",
       Titel: row.title || "",
       Noter: row.notes || ""
     }));
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{
-      Dato: "",
-      Titel: "",
-      Noter: ""
-    }]);
-    XLSX.utils.book_append_sheet(wb, ws, "Kalender");
-    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "kalender.xlsx";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showMsg("#calendarMsg", "Excel klar til download.", true);
+    if (!ExcelHelper) {
+      showMsg("#calendarMsg", "Excel-helper mangler. Prøv at genindlæse siden.");
+      return;
+    }
+    try {
+      await ExcelHelper.exportRows({
+        rows,
+        sheetName: "Kalender",
+        fileName: "kalender.xlsx",
+        emptyRowTemplate: { Dato: "", Titel: "", Noter: "" },
+        messageSelector: "#calendarMsg",
+        beforeText: null,
+        successText: "Excel klar til download."
+      });
+    } catch (err) {
+      showMsg("#calendarMsg", err.message || "Kunne ikke generere Excel.");
+    }
   }
 
   async function calendarImportExcelGlobal(file) {
@@ -164,29 +157,21 @@
       showMsg("#calendarMsg", "Kun super admin kan importere kalenderen.");
       return;
     }
+    if (!ExcelHelper) {
+      showMsg("#calendarMsg", "Excel-helper mangler. Prøv at genindlæse siden.");
+      return;
+    }
+    let rows;
     try {
-      await ensureSheetJs();
-    } catch (e) {
-      showMsg("#calendarMsg", e.message);
+      rows = await ExcelHelper.readSheetRows(file, {
+        messageSelector: "#calendarMsg",
+        loadingText: "Indlæser Excel …",
+        emptySheetText: "Excel-arket er tomt."
+      });
+    } catch (err) {
       return;
     }
-    showMsg("#calendarMsg", "Indlæser Excel …");
-    let workbook;
-    try {
-      const buffer = await file.arrayBuffer();
-      workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-    } catch (e) {
-      showMsg("#calendarMsg", "Kunne ikke læse filen: " + e.message);
-      return;
-    }
-    const sheetName = workbook.SheetNames?.[0];
-    if (!sheetName) {
-      showMsg("#calendarMsg", "Excel-filen indeholder ingen ark.");
-      return;
-    }
-    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
     if (!rows.length) {
-      showMsg("#calendarMsg", "Excel-arket er tomt.");
       return;
     }
 
@@ -491,35 +476,28 @@
       showMsg("#calendarLocalMsg", "Kunne ikke hente kalender: " + error.message);
       return;
     }
-    try {
-      await ensureSheetJs();
-    } catch (e) {
-      showMsg("#calendarLocalMsg", e.message);
-      return;
-    }
     const rows = (data || []).map(row => ({
       Dato: row.holiday_date || "",
       Titel: row.title || "",
       Noter: row.notes || ""
     }));
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{
-      Dato: "",
-      Titel: "",
-      Noter: ""
-    }]);
-    XLSX.utils.book_append_sheet(wb, ws, "Lokal kalender");
-    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `kalender_${ownerId}.xlsx`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showMsg("#calendarLocalMsg", "Excel klar til download.", true);
+    if (!ExcelHelper) {
+      showMsg("#calendarLocalMsg", "Excel-helper mangler. Prøv at genindlæse siden.");
+      return;
+    }
+    try {
+      await ExcelHelper.exportRows({
+        rows,
+        sheetName: "Lokal kalender",
+        fileName: `kalender_${ownerId}.xlsx`,
+        emptyRowTemplate: { Dato: "", Titel: "", Noter: "" },
+        messageSelector: "#calendarLocalMsg",
+        beforeText: null,
+        successText: "Excel klar til download."
+      });
+    } catch (err) {
+      showMsg("#calendarLocalMsg", err.message || "Kunne ikke generere Excel.");
+    }
   }
 
   async function calendarLocalImportExcel(file) {
@@ -529,29 +507,21 @@
       showMsg("#calendarLocalMsg", "Vælg først et centralbibliotek.");
       return;
     }
+    if (!ExcelHelper) {
+      showMsg("#calendarLocalMsg", "Excel-helper mangler. Prøv at genindlæse siden.");
+      return;
+    }
+    let rows;
     try {
-      await ensureSheetJs();
-    } catch (e) {
-      showMsg("#calendarLocalMsg", e.message);
+      rows = await ExcelHelper.readSheetRows(file, {
+        messageSelector: "#calendarLocalMsg",
+        loadingText: "Indlæser Excel …",
+        emptySheetText: "Excel-arket er tomt."
+      });
+    } catch (err) {
       return;
     }
-    showMsg("#calendarLocalMsg", "Indlæser Excel …");
-    let workbook;
-    try {
-      const buffer = await file.arrayBuffer();
-      workbook = XLSX.read(buffer, { type: "array", cellDates: true });
-    } catch (e) {
-      showMsg("#calendarLocalMsg", "Kunne ikke læse filen: " + e.message);
-      return;
-    }
-    const sheetName = workbook.SheetNames?.[0];
-    if (!sheetName) {
-      showMsg("#calendarLocalMsg", "Excel-filen indeholder ingen ark.");
-      return;
-    }
-    const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { defval: "" });
     if (!rows.length) {
-      showMsg("#calendarLocalMsg", "Excel-arket er tomt.");
       return;
     }
 
