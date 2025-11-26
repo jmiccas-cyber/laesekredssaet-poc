@@ -1066,6 +1066,7 @@
 
   window.BookingStore = BookingStore;
   Object.assign(window, BookingStore);
+  window.StoreRegistry?.registerStore?.("BookingStore", BookingStore);
 })();
 
 const BookingStore = window.BookingStore || {};

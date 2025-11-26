@@ -1164,6 +1164,7 @@ function refreshSaetAvailabilityIndicators() {
 
   window.SaetStore = SaetStore;
   Object.assign(window, SaetStore);
+  window.StoreRegistry?.registerStore?.("SaetStore", SaetStore);
 })();
 
 const SaetStore = window.SaetStore || {};

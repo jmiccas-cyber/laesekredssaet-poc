@@ -684,6 +684,7 @@
 
   window.CalendarStore = CalendarStore;
   Object.assign(window, CalendarStore);
+  window.StoreRegistry?.registerStore?.("CalendarStore", CalendarStore);
 })();
 
 const CalendarStore = window.CalendarStore || {};

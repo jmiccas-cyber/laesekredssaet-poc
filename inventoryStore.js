@@ -906,6 +906,7 @@ function bindEksControls() {
     markEksDirty,
     clearEksDirty
   });
+  window.StoreRegistry?.registerStore?.("InventoryStore", InventoryStore);
 })();
 const InventoryStore = window.InventoryStore || {};
 InventoryStore.init?.({ state: StateLibStore.st, getSupabaseClient: StateLibStore.getSupabaseClient, uiHelpers: { showMsg, el, $ } });

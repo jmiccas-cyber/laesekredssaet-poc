@@ -84,44 +84,34 @@ function currentAdminId() {
   return st.profile?.adminCentralId || "";
 }
 
-function callInventoryStore(method, ...args) {
-  const store = window.InventoryStore;
+function resolveStore(name) {
+  return window.StoreRegistry?.getStore?.(name) || window[name];
+}
+
+function callStore(name, method, ...args) {
+  const store = resolveStore(name);
   const fn = store?.[method] || window[method];
   if (typeof fn === "function") {
     return fn(...args);
   }
-  console.warn(`InventoryStore.${method} er ikke tilgængelig.`);
+  console.warn(`${name}.${method} er ikke tilgængelig.`);
   return undefined;
+}
+
+function callInventoryStore(method, ...args) {
+  return callStore("InventoryStore", method, ...args);
 }
 
 function callSaetStore(method, ...args) {
-  const store = window.SaetStore;
-  const fn = store?.[method] || window[method];
-  if (typeof fn === "function") {
-    return fn(...args);
-  }
-  console.warn(`SaetStore.${method} er ikke tilgængelig.`);
-  return undefined;
+  return callStore("SaetStore", method, ...args);
 }
 
 function callBookingStore(method, ...args) {
-  const store = window.BookingStore;
-  const fn = store?.[method] || window[method];
-  if (typeof fn === "function") {
-    return fn(...args);
-  }
-  console.warn(`BookingStore.${method} er ikke tilgængelig.`);
-  return undefined;
+  return callStore("BookingStore", method, ...args);
 }
 
 function callCalendarStore(method, ...args) {
-  const store = window.CalendarStore;
-  const fn = store?.[method] || window[method];
-  if (typeof fn === "function") {
-    return fn(...args);
-  }
-  console.warn(`CalendarStore.${method} er ikke tilgængelig.`);
-  return undefined;
+  return callStore("CalendarStore", method, ...args);
 }
 
 // ----------------------------------------------------------
