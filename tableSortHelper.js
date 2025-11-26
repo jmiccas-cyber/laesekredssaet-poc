@@ -37,11 +37,20 @@
     return String(valA || "").localeCompare(String(valB || "")) * dir;
   }
 
+  function attachSortHandlers(tableSelector, stateRoot, renderFn) {
+    document.querySelectorAll(`${tableSelector} thead th[data-sort]`)?.forEach(th => {
+      th.addEventListener("click", () => {
+        toggleSort(stateRoot, th.dataset.sort);
+        renderFn();
+      });
+    });
+  }
+
   window.TableSortHelper = Object.freeze({
     getSortState,
     toggleSort,
     applySortIndicators,
-    compareRows
+    compareRows,
+    attachSortHandlers
   });
 })();
-

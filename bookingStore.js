@@ -1003,11 +1003,8 @@
         bookingRequestsUpdate(bookingId, "cancel", setId);
       }
     });
-    document.querySelectorAll("#tblBookingRequests thead th[data-sort]")?.forEach(th => {
-      th.addEventListener("click", () => {
-        TableSortHelper.toggleSort(st.booking.requestsSort || (st.booking.requestsSort = {}), th.dataset.sort);
-        renderBookingRequestsTable(st.booking.requests || []);
-      });
+    TableSortHelper.attachSortHandlers("#tblBookingRequests", st.booking.requestsSort || (st.booking.requestsSort = {}), () => {
+      renderBookingRequestsTable(st.booking.requests || []);
     });
   }
 
