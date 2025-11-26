@@ -342,7 +342,7 @@
       tb.appendChild(el("tr", {}, el("td", { colspan: 8 }, "Ingen anmodninger.")));
       return;
     }
-    TableSortHelper.getSortState(st.booking.requestsSort || (st.booking.requestsSort = {}), { sortBy: "start_date", sortDir: "asc" });
+    const sortState = TableSortHelper.getSortState(st.booking.requestsSort || (st.booking.requestsSort = {}), { sortBy: "start_date", sortDir: "asc" });
     const accessor = {
       title: row => (row.set?.title || "").toLowerCase(),
       author: row => (row.set?.author || "").toLowerCase(),
@@ -358,8 +358,8 @@
     const sorted = [...rows].sort((a, b) => TableSortHelper.compareRows(
       a,
       b,
-      st.booking.requestsSort.sortBy,
-      st.booking.requestsSort.sortDir,
+      sortState.sortBy,
+      sortState.sortDir,
       accessor
     ));
     sorted.forEach(row => {
@@ -389,7 +389,7 @@
       );
       tb.appendChild(tr);
     });
-    TableSortHelper.applySortIndicators("#tblBookingRequests", st.booking.requestsSort);
+    TableSortHelper.applySortIndicators("#tblBookingRequests", sortState);
   }
 
   async function bookingRequestsPull() {
@@ -1003,7 +1003,8 @@
         bookingRequestsUpdate(bookingId, "cancel", setId);
       }
     });
-    TableSortHelper.attachSortHandlers("#tblBookingRequests", st.booking.requestsSort || (st.booking.requestsSort = {}), () => {
+    const sortState = TableSortHelper.getSortState(st.booking.requestsSort || (st.booking.requestsSort = {}), { sortBy: "start_date", sortDir: "asc" });
+    TableSortHelper.attachSortHandlers("#tblBookingRequests", sortState, () => {
       renderBookingRequestsTable(st.booking.requests || []);
     });
   }
