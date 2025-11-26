@@ -386,7 +386,7 @@
     showMsg("#bookingRequestsMsg", "Henter anmodninger …");
     const { data, error } = await client
       .from("tbl_booking")
-      .select("booking_id,set_id,start_date,end_date,booking_status,requester_bibliotek_id")
+      .select("booking_id,set_id,start_date,end_date,booking_status,requester_bibliotek_id,owner_bibliotek_id")
       .eq("owner_bibliotek_id", ownerId)
       .eq("booking_status", BOOKING_STATUS_REQUESTED)
       .order("start_date", { ascending: true });
@@ -412,10 +412,12 @@
     const client = refreshClient();
     if (!client) return;
     const msgSel = "#bookingRequestsMsg";
-    const updates = action === "approve"
+    const requestRow = st.booking.requests?.find(r => r.booking_id === bookingId);
+    const isApprove = action === "approve";
+    const updates = isApprove
       ? { booking_status: BOOKING_STATUS_BOOKED }
-      : { booking_status: BOOKING_STATUS_AVAILABLE, requester_bibliotek_id: null };
-    showMsg(msgSel, action === "approve" ? "Godkender anmodning …" : "Afviser anmodning …");
+      : { booking_status: BOOKING_STATUS_CANCELLED };
+    showMsg(msgSel, isApprove ? "Godkender anmodning …" : "Afviser anmodning …");
     const { error } = await client
       .from("tbl_booking")
       .update(updates)
@@ -425,7 +427,20 @@
       showMsg(msgSel, "Kunne ikke opdatere anmodning: " + error.message);
       return;
     }
-    showMsg(msgSel, action === "approve" ? "Anmodning godkendt." : "Anmodning afvist.", true);
+    if (!isApprove && requestRow) {
+      try {
+        await client.from("tbl_booking").insert({
+          owner_bibliotek_id: requestRow.owner_bibliotek_id || ownerId,
+          set_id: requestRow.set_id || setId,
+          start_date: requestRow.start_date,
+          end_date: requestRow.end_date,
+          booking_status: BOOKING_STATUS_AVAILABLE
+        });
+      } catch (insertErr) {
+        console.warn("Kunne ikke indsætte ny booking-slot efter afvisning:", insertErr);
+      }
+    }
+    showMsg(msgSel, isApprove ? "Anmodning godkendt." : "Anmodning afvist.", true);
     if (setId) {
       await regenerateBookingSlotsForOwner(ownerId);
     }
@@ -491,14 +506,22 @@
       const setInfo = row.set || {};
       const ownerLabel = fmtLibLabel(st.libs.byId[row.owner_bibliotek_id]) || row.owner_bibliotek_id || "";
       const status = (row.booking_status || "").toLowerCase();
-      const canCancel = CANCELLABLE_STATUSES.has(status);
-      const btn = el("button", {
+      const canCancel = status === (BOOKING_STATUS_REQUESTED || "").toLowerCase() || status === (BOOKING_STATUS_BOOKED || "").toLowerCase();
+      const buttonProps = {
         class: "btn btn-small",
-        type: "button",
-        "data-my-cancel": row.booking_id
-      }, "Annuller");
-      if (canCancel) {
-        btn.removeAttribute("disabled");
+        type: "button"
+      };
+      let btnLabel = "Annuller";
+      if (status === (BOOKING_STATUS_CANCELLED || "").toLowerCase()) {
+        buttonProps["data-my-dismiss"] = row.booking_id;
+        btnLabel = "Fjern";
+      } else {
+        buttonProps["data-my-cancel"] = row.booking_id;
+      }
+      const btn = el("button", buttonProps, btnLabel);
+      if (status === (BOOKING_STATUS_CANCELLED || "").toLowerCase()) {
+        btn.title = "Fjern beskeden";
+      } else if (canCancel) {
         btn.title = "Annuller anmodning";
       } else {
         btn.setAttribute("disabled", "disabled");
@@ -507,7 +530,10 @@
       }
       const startText = formatDateDisplay(row.start_date);
       const endText = formatDateDisplay(row.end_date);
-      const statusCell = el("td", { "data-sort": status }, status || "");
+      const statusLabel = status === (BOOKING_STATUS_CANCELLED || "").toLowerCase()
+        ? "Afvist"
+        : status || "";
+      const statusCell = el("td", { "data-sort": status }, statusLabel || "");
       if (row.warning) {
         statusCell.appendChild(el("div", { class: "hint warning" }, row.warning));
       }
@@ -571,6 +597,10 @@
           warning = `Sættet er reduceret til ${invCount} eksemplarer (krævet ${desired}).`;
         }
       }
+      const statusLower = (row.booking_status || "").toLowerCase();
+      if (statusLower === (BOOKING_STATUS_CANCELLED || "").toLowerCase()) {
+        warning = warning ? `Afvist – ${warning}` : "Afvist";
+      }
       return {
         ...row,
         set: setInfo,
@@ -613,6 +643,26 @@
       return;
     }
     showMsg("#bMyMsg", "Anmodning annulleret.", true);
+    await bookerMyRequestsPull();
+  }
+
+  async function bookerDismissCancelledRequest(bookingId) {
+    if (!bookingId) return;
+    const requesterId = st.profile.bookerLocalId;
+    if (!requesterId) return;
+    const client = refreshClient();
+    if (!client) return;
+    try {
+      await client
+        .from("tbl_booking")
+        .delete()
+        .eq("booking_id", bookingId)
+        .eq("requester_bibliotek_id", requesterId)
+        .eq("booking_status", BOOKING_STATUS_CANCELLED);
+    } catch (err) {
+      showMsg("#bMyMsg", "Kunne ikke fjerne beskeden: " + err.message);
+      return;
+    }
     await bookerMyRequestsPull();
   }
 
@@ -968,11 +1018,20 @@
       });
     });
     $("#bMyTbl")?.addEventListener("click", evt => {
-      const btn = evt.target.closest("button[data-my-cancel]");
-      if (!btn) return;
-      const bookingId = Number(btn.getAttribute("data-my-cancel"));
-      if (bookingId) {
-        bookerCancelRequest(bookingId);
+      const cancelBtn = evt.target.closest("button[data-my-cancel]");
+      if (cancelBtn) {
+        const bookingId = Number(cancelBtn.getAttribute("data-my-cancel"));
+        if (bookingId) {
+          bookerCancelRequest(bookingId);
+        }
+        return;
+      }
+      const dismissBtn = evt.target.closest("button[data-my-dismiss]");
+      if (dismissBtn) {
+        const bookingId = Number(dismissBtn.getAttribute("data-my-dismiss"));
+        if (bookingId) {
+          bookerDismissCancelledRequest(bookingId);
+        }
       }
     });
     setBookerTab(st.b.view || "search");
@@ -995,6 +1054,7 @@
     renderBookerMyRequests,
     bookerMyRequestsPull,
     bookerCancelRequest,
+    bookerDismissCancelledRequest,
     setBookerTab,
     renderBookerResults,
     bookerSearch,
