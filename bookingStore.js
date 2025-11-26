@@ -324,7 +324,7 @@
     if (!client) return map;
     const { data, error } = await client
       .from("tbl_saet")
-      .select("set_id,title,owner_bibliotek_id,loan_weeks,buffer_days,requested_count")
+      .select("set_id,title,owner_bibliotek_id,loan_weeks,buffer_days,requested_count,isbn,active")
       .in("set_id", ids);
     if (error) {
       console.error("fetchSaetMapByIds:", error);
@@ -503,12 +503,16 @@
       }
       const startText = formatDateDisplay(row.start_date);
       const endText = formatDateDisplay(row.end_date);
+      const statusCell = el("td", { "data-sort": status }, status || "");
+      if (row.warning) {
+        statusCell.appendChild(el("div", { class: "hint warning" }, row.warning));
+      }
       tb.appendChild(el("tr", {},
         el("td", { "data-sort": (setInfo.title || "").toLowerCase() }, setInfo.title || `Sæt #${row.set_id}` || ""),
         el("td", { "data-sort": (ownerLabel || "").toLowerCase() }, ownerLabel),
         el("td", { "data-sort": row.start_date || "" }, startText || ""),
         el("td", { "data-sort": row.end_date || "" }, endText || ""),
-        el("td", { "data-sort": status }, status || ""),
+        statusCell,
         el("td", {}, btn)
       ));
     });
@@ -540,10 +544,35 @@
     const rows = data || [];
     const setIds = Array.from(new Set(rows.map(r => r.set_id).filter(Boolean)));
     const setMap = await fetchSaetMapByIds(setIds);
-    const enriched = rows.map(row => ({
-      ...row,
-      set: setMap.get(row.set_id) || null
-    }));
+    const inventoryStore = window.InventoryStore || {};
+    if (typeof inventoryStore.loadInventorySummary === "function") {
+      try {
+        await inventoryStore.loadInventorySummary();
+      } catch (err) {
+        console.warn("Kunne ikke opdatere beholdningsoversigt:", err);
+      }
+    }
+    const getInventoryCount = inventoryStore.getInventoryCount;
+    const enriched = rows.map(row => {
+      const setInfo = setMap.get(row.set_id) || null;
+      let warning = "";
+      if (!setInfo) {
+        warning = "Sæt er ikke længere tilgængeligt.";
+      } else if (setInfo.active === false) {
+        warning = "Sæt er sat som inaktivt.";
+      } else if (typeof getInventoryCount === "function" && setInfo.isbn) {
+        const invCount = getInventoryCount(setInfo.owner_bibliotek_id || row.owner_bibliotek_id, setInfo.isbn);
+        const desired = Number(setInfo.requested_count) || 0;
+        if (Number.isFinite(invCount) && invCount < desired) {
+          warning = `Sættet er reduceret til ${invCount} eksemplarer (krævet ${desired}).`;
+        }
+      }
+      return {
+        ...row,
+        set: setInfo,
+        warning
+      };
+    });
     st.booking.myRequests = enriched;
     const sorted = [...enriched].sort(compareMyRequests);
     renderBookerMyRequests(sorted);
