@@ -342,7 +342,27 @@
       tb.appendChild(el("tr", {}, el("td", { colspan: 8 }, "Ingen anmodninger.")));
       return;
     }
-    rows.forEach(row => {
+    TableSortHelper.getSortState(st.booking.requestsSort || (st.booking.requestsSort = {}), { sortBy: "start_date", sortDir: "asc" });
+    const accessor = {
+      title: row => (row.set?.title || "").toLowerCase(),
+      author: row => (row.set?.author || "").toLowerCase(),
+      isbn: row => row.set?.isbn || "",
+      requester: row => {
+        const req = st.libs.byId[row.requester_bibliotek_id];
+        return req ? fmtLibLabel(req).toLowerCase() : (row.requester_bibliotek_id || "");
+      },
+      start_date: row => row.start_date || "",
+      end_date: row => row.end_date || "",
+      status: row => (row.booking_status || "").toLowerCase()
+    };
+    const sorted = [...rows].sort((a, b) => TableSortHelper.compareRows(
+      a,
+      b,
+      st.booking.requestsSort.sortBy,
+      st.booking.requestsSort.sortDir,
+      accessor
+    ));
+    sorted.forEach(row => {
       const setInfo = row.set || {};
       const requester = st.libs.byId[row.requester_bibliotek_id];
       const requesterLabel = requester ? fmtLibLabel(requester) : (row.requester_bibliotek_id || "Ukendt");
@@ -357,7 +377,7 @@
         "data-booking-cancel": row.booking_id,
         "data-booking-set": row.set_id
       }, "Afvis");
-      tb.appendChild(el("tr", {},
+      const tr = el("tr", {},
         el("td", {}, setInfo.title || `Sæt #${row.set_id}` || "—"),
         el("td", {}, setInfo.author || "—"),
         el("td", {}, setInfo.isbn || "—"),
@@ -366,8 +386,10 @@
         el("td", {}, formatDateDisplay(row.end_date)),
         el("td", {}, statusLabel || "—"),
         el("td", {}, approveBtn, " ", cancelBtn)
-      ));
+      );
+      tb.appendChild(tr);
     });
+    TableSortHelper.applySortIndicators("#tblBookingRequests", st.booking.requestsSort);
   }
 
   async function bookingRequestsPull() {
@@ -980,6 +1002,12 @@
       } else {
         bookingRequestsUpdate(bookingId, "cancel", setId);
       }
+    });
+    document.querySelectorAll("#tblBookingRequests thead th[data-sort]")?.forEach(th => {
+      th.addEventListener("click", () => {
+        TableSortHelper.toggleSort(st.booking.requestsSort || (st.booking.requestsSort = {}), th.dataset.sort);
+        renderBookingRequestsTable(st.booking.requests || []);
+      });
     });
   }
 
