@@ -351,33 +351,6 @@ function eksRevertRow(tr) {
   }
 }
 
-function setEksSort(field) {
-  const valid = {
-    barcode: true,
-    title: true,
-    author: true,
-    isbn: true,
-    faust: true,
-    aktiv: true
-  };
-  if (!valid[field]) return;
-  if (st.eks.sortBy === field) {
-    st.eks.sortDir = st.eks.sortDir === "asc" ? "desc" : "asc";
-  } else {
-    st.eks.sortBy = field;
-    st.eks.sortDir = "asc";
-  }
-  st.eks.page = 0;
-  eksPull();
-}
-
-function updateEksSortIndicators() {
-  document.querySelectorAll("#tblEks thead th[data-sort]").forEach(th => {
-    const field = th.dataset.sort;
-    th.classList.toggle("sorted-asc", field === st.eks.sortBy && st.eks.sortDir === "asc");
-    th.classList.toggle("sorted-desc", field === st.eks.sortBy && st.eks.sortDir === "desc");
-  });
-}
 
 async function eksSaveAll() {
   if (!sb) return;
@@ -730,7 +703,7 @@ async function eksPull() {
 
   renderEksPagerInfo();
   updateEksSaveButton();
-  updateEksSortIndicators();
+  TableSortHelper.applySortIndicators("#tblEks", TableSortHelper.getSortState(st.eks, { sortBy: "barcode", sortDir: "asc" }));
 }
 
 async function eksDeleteRow(tr) {
@@ -838,11 +811,10 @@ function bindEksControls() {
   $("#btnSaveAll")?.addEventListener("click", () => {
     eksSaveAll();
   });
-  document.querySelectorAll("#tblEks thead th[data-sort]").forEach(th => {
-    th.addEventListener("click", () => {
-      const field = th.dataset.sort;
-      if (field) setEksSort(field);
-    });
+  const eksSortState = TableSortHelper.getSortState(st.eks, { sortBy: "barcode", sortDir: "asc" });
+  TableSortHelper.attachSortHandlers("#tblEks", eksSortState, () => {
+    st.eks.page = 0;
+    eksPull();
   });
   $("#prev")?.addEventListener("click", () => {
     if (st.eks.page > 0) {

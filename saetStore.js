@@ -605,42 +605,6 @@ async function saetSaveAll() {
   await saetPull();
 }
 
-function setSaetSort(field) {
-  const valid = {
-    set_id: true,
-    isbn: true,
-    title: true,
-    author: true,
-    faust: true,
-    requested_count: true,
-    loan_weeks: true,
-    buffer_days: true,
-    visibility: true,
-    owner: true,
-    active: true,
-    substitution: true,
-    partial: true,
-    min_delivery: true
-  };
-  if (!valid[field]) return;
-  if (st.saet.sortBy === field) {
-    st.saet.sortDir = st.saet.sortDir === "asc" ? "desc" : "asc";
-  } else {
-    st.saet.sortBy = field;
-    st.saet.sortDir = "asc";
-  }
-  st.saet.page = 0;
-  saetPull();
-}
-
-function updateSaetSortIndicators() {
-  const headers = document.querySelectorAll("#tblSaet thead th[data-sort]");
-  headers.forEach(th => {
-    const field = th.dataset.sort;
-    th.classList.toggle("sorted-asc", field === st.saet.sortBy && st.saet.sortDir === "asc");
-    th.classList.toggle("sorted-desc", field === st.saet.sortBy && st.saet.sortDir === "desc");
-  });
-}
 
 function highlightSaveBar() {
   const bar = document.getElementById("saveNotice");
@@ -888,7 +852,7 @@ async function saetPull() {
     tb.appendChild(tr);
   });
 
-  updateSaetSortIndicators();
+  TableSortHelper.applySortIndicators("#tblSaet", TableSortHelper.getSortState(st.saet, { sortBy: "set_id", sortDir: "asc" }));
   updateSaetSaveButton();
   const totalPages = Math.ceil((st.saet.total || 0) / st.saet.pageSize);
   $("#saetPinfo").textContent = st.saet.total
@@ -1084,11 +1048,10 @@ function bindSaetControls() {
   $("#btnSaetNew")?.addEventListener("click", () => {
     saetNewRow();
   });
-  document.querySelectorAll("#tblSaet thead th[data-sort]")?.forEach(th => {
-    th.addEventListener("click", () => {
-      const field = th.dataset.sort;
-      if (field) setSaetSort(field);
-    });
+  const saetSortState = TableSortHelper.getSortState(st.saet, { sortBy: "set_id", sortDir: "asc" });
+  TableSortHelper.attachSortHandlers("#tblSaet", saetSortState, () => {
+    st.saet.page = 0;
+    saetPull();
   });
   $("#saetOwnerFilterSel")?.addEventListener("change", () => {
     st.saet.owner = $("#saetOwnerFilterSel").value || currentAdminId();
@@ -1147,8 +1110,6 @@ function refreshSaetAvailabilityIndicators() {
     updateSaetSaveButton,
     saetAttachRowListeners,
     saetCollectRow,
-    setSaetSort,
-    updateSaetSortIndicators,
     highlightSaveBar,
     refreshSaetInventoryControls,
     saetCount,

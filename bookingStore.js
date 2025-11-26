@@ -469,62 +469,31 @@
     await bookingRequestsPull();
   }
 
-  function compareMyRequests(a, b) {
-    const sortBy = st.booking?.mySortBy || "start_date";
-    const dir = st.booking?.mySortDir === "desc" ? -1 : 1;
-    const getVal = row => {
-      switch (sortBy) {
-        case "title":
-          return (row.set?.title || "").toLowerCase();
-        case "owner":
-          return (fmtLibLabel(st.libs.byId[row.owner_bibliotek_id]) || row.owner_bibliotek_id || "").toLowerCase();
-        case "end_date":
-          return row.end_date || "";
-        case "status":
-          return (row.booking_status || "").toLowerCase();
-        case "start_date":
-        default:
-          return row.start_date || "";
-      }
-    };
-    return getVal(a).localeCompare(getVal(b)) * dir;
-  }
-
-  function setMyRequestSort(field) {
-    const valid = { title: true, owner: true, start_date: true, end_date: true, status: true };
-    if (!valid[field]) return;
-    if (!st.booking.mySortBy) st.booking.mySortBy = "start_date";
-    if (!st.booking.mySortDir) st.booking.mySortDir = "asc";
-    if (st.booking.mySortBy === field) {
-      st.booking.mySortDir = st.booking.mySortDir === "asc" ? "desc" : "asc";
-    } else {
-      st.booking.mySortBy = field;
-      st.booking.mySortDir = "asc";
-    }
-    const sorted = [...(st.booking.myRequests || [])].sort(compareMyRequests);
-    st.booking.myRequests = sorted;
-    renderBookerMyRequests(sorted);
-    updateMySortIndicators();
-  }
-
-  function updateMySortIndicators() {
-    document.querySelectorAll("#bMyTbl thead th[data-sort]")?.forEach(th => {
-      const field = th.dataset.sort;
-      th.classList.toggle("sorted-asc", field === st.booking.mySortBy && st.booking.mySortDir === "asc");
-      th.classList.toggle("sorted-desc", field === st.booking.mySortBy && st.booking.mySortDir === "desc");
-    });
-  }
-
   function renderBookerMyRequests(rows) {
     const tb = $("#bMyTbl tbody");
     if (!tb) return;
     tb.innerHTML = "";
+    const sortState = TableSortHelper.getSortState(st.booking.myRequestsSort || (st.booking.myRequestsSort = { sortBy: "start_date", sortDir: "asc" }), { sortBy: "start_date", sortDir: "asc" });
     if (!rows.length) {
       tb.appendChild(el("tr", {}, el("td", { colspan: 6 }, "Ingen anmodninger.")));
-      updateMySortIndicators();
+      TableSortHelper.applySortIndicators("#bMyTbl", sortState);
       return;
     }
-    rows.forEach(row => {
+    const accessors = {
+      title: row => (row.set?.title || "").toLowerCase(),
+      owner: row => (fmtLibLabel(st.libs.byId[row.owner_bibliotek_id]) || row.owner_bibliotek_id || "").toLowerCase(),
+      start_date: row => row.start_date || "",
+      end_date: row => row.end_date || "",
+      status: row => (row.booking_status || "").toLowerCase()
+    };
+    const sortedRows = [...rows].sort((a, b) => TableSortHelper.compareRows(
+      a,
+      b,
+      sortState.sortBy,
+      sortState.sortDir,
+      accessors
+    ));
+    sortedRows.forEach(row => {
       const setInfo = row.set || {};
       const ownerLabel = fmtLibLabel(st.libs.byId[row.owner_bibliotek_id]) || row.owner_bibliotek_id || "";
       const status = (row.booking_status || "").toLowerCase();
@@ -568,7 +537,7 @@
         el("td", {}, btn)
       ));
     });
-    updateMySortIndicators();
+    TableSortHelper.applySortIndicators("#bMyTbl", sortState);
   }
 
   async function bookerMyRequestsPull() {
@@ -630,8 +599,7 @@
       };
     });
     st.booking.myRequests = enriched;
-    const sorted = [...enriched].sort(compareMyRequests);
-    renderBookerMyRequests(sorted);
+    renderBookerMyRequests(enriched);
     showMsg("#bMyMsg", enriched.length ? "" : "Ingen anmodninger.", enriched.length === 0);
   }
 
@@ -764,41 +732,10 @@
     return String(valA).localeCompare(String(valB)) * dir;
   }
 
-  function setBookerSort(field) {
-    const valid = {
-      title: true,
-      author: true,
-      isbn: true,
-      faust: true,
-      visibility: true,
-      owner: true,
-      rule: true,
-      loan_weeks: true,
-      requested_count: true,
-      next: true
-    };
-    if (!valid[field]) return;
-    if (st.b.sortBy === field) {
-      st.b.sortDir = st.b.sortDir === "asc" ? "desc" : "asc";
-    } else {
-      st.b.sortBy = field;
-      st.b.sortDir = "asc";
-    }
-    st.b.page = 0;
-    renderBookerResults();
-  }
-
-  function updateBookerSortIndicators() {
-    document.querySelectorAll("#bTbl thead th[data-sort]")?.forEach(th => {
-      const field = th.dataset.sort;
-      th.classList.toggle("sorted-asc", field === st.b.sortBy && st.b.sortDir === "asc");
-      th.classList.toggle("sorted-desc", field === st.b.sortBy && st.b.sortDir === "desc");
-    });
-  }
-
   function renderBookerResults() {
     const tb = $("#bTbl tbody");
     if (!tb) return;
+    const sortState = TableSortHelper.getSortState(st.b, { sortBy: "title", sortDir: "asc" });
     const from = st.b.page * st.b.pageSize;
     const to = from + st.b.pageSize;
     const sorted = [...st.b.results].sort(compareBookerRows);
@@ -837,7 +774,7 @@
         el("td", {}, btn)
       ));
     });
-    updateBookerSortIndicators();
+    TableSortHelper.applySortIndicators("#bTbl", sortState);
     const info = $("#bInfo");
     if (info) {
       const totalPages = Math.ceil((st.b.total || 0) / st.b.pageSize);
@@ -1026,17 +963,14 @@
         renderBookerResults();
       }
     });
-    document.querySelectorAll("#bTbl thead th[data-sort]")?.forEach(th => {
-      th.addEventListener("click", () => {
-        const field = th.dataset.sort;
-        if (field) setBookerSort(field);
-      });
+    const bookerSortState = TableSortHelper.getSortState(st.b, { sortBy: "title", sortDir: "asc" });
+    TableSortHelper.attachSortHandlers("#bTbl", bookerSortState, () => {
+      st.b.page = 0;
+      renderBookerResults();
     });
-    document.querySelectorAll("#bMyTbl thead th[data-sort]")?.forEach(th => {
-      th.addEventListener("click", () => {
-        const field = th.dataset.sort;
-        if (field) setMyRequestSort(field);
-      });
+    const requestSortState = TableSortHelper.getSortState(st.booking.myRequestsSort || (st.booking.myRequestsSort = { sortBy: "start_date", sortDir: "asc" }), { sortBy: "start_date", sortDir: "asc" });
+    TableSortHelper.attachSortHandlers("#bMyTbl", requestSortState, () => {
+      renderBookerMyRequests(st.booking.myRequests || []);
     });
     document.querySelectorAll("[data-booker-tab]")?.forEach(btn => {
       btn.addEventListener("click", () => {
@@ -1074,9 +1008,6 @@
     fetchSaetMapByIds,
     bookingRequestsPull,
     bookingRequestsUpdate,
-    compareMyRequests,
-    setMyRequestSort,
-    updateMySortIndicators,
     renderBookerMyRequests,
     bookerMyRequestsPull,
     bookerCancelRequest,
