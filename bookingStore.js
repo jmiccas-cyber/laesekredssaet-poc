@@ -491,12 +491,16 @@
       const btn = el("button", {
         class: "btn btn-small",
         type: "button",
-        "data-my-cancel": row.booking_id,
-        disabled: canCancel ? undefined : true,
-        title: canCancel ? "" : "Kan ikke annulleres"
+        "data-my-cancel": row.booking_id
       }, "Annuller");
-      const actionCell = canCancel ? btn : el("span", { class: "hint" }, "—");
-      if (!canCancel) actionCell.classList.add("hint");
+      if (canCancel) {
+        btn.removeAttribute("disabled");
+        btn.title = "Annuller anmodning";
+      } else {
+        btn.setAttribute("disabled", "disabled");
+        btn.title = "Kan ikke annulleres";
+        btn.classList.add("hint");
+      }
       const startText = formatDateDisplay(row.start_date);
       const endText = formatDateDisplay(row.end_date);
       tb.appendChild(el("tr", {},
@@ -505,7 +509,7 @@
         el("td", { "data-sort": row.start_date || "" }, startText || ""),
         el("td", { "data-sort": row.end_date || "" }, endText || ""),
         el("td", { "data-sort": status }, status || ""),
-        el("td", {}, actionCell)
+        el("td", {}, btn)
       ));
     });
     updateMySortIndicators();
