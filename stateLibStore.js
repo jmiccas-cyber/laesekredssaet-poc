@@ -75,6 +75,10 @@ const st = {
     centrals: [],
     locals: []
   },
+  relSort: {
+    sortBy: "relation_id",
+    sortDir: "asc"
+  },
   stock: {
     list: [],
     byOwner: {},
@@ -103,7 +107,15 @@ const st = {
   calendar: {
     list: [],
     local: [],
-    localSets: {}
+    localSets: {},
+    globalSort: {
+      sortBy: "holiday_date",
+      sortDir: "asc"
+    },
+    localSort: {
+      sortBy: "holiday_date",
+      sortDir: "asc"
+    }
   },
   booking: {
     requests: [],

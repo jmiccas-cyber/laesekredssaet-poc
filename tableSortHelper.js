@@ -39,6 +39,8 @@
 
   function attachSortHandlers(tableSelector, stateRoot, renderFn) {
     document.querySelectorAll(`${tableSelector} thead th[data-sort]`)?.forEach(th => {
+      if (th.dataset.sortBound === "1") return;
+      th.dataset.sortBound = "1";
       th.addEventListener("click", () => {
         toggleSort(stateRoot, th.dataset.sort);
         renderFn();

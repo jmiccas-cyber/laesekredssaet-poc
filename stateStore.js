@@ -563,7 +563,31 @@ async function relList() {
   if (!tb) return;
 
   tb.innerHTML = "";
-  (data || []).forEach(r => {
+  const sortState = TableSortHelper.getSortState(st.relSort || (st.relSort = { sortBy: "relation_id", sortDir: "asc" }), { sortBy: "relation_id", sortDir: "asc" });
+  const accessors = {
+    relation_id: row => Number(row.relation_id) || 0,
+    local: row => {
+      const local = st.libs.byId[row.bibliotek_id];
+      return local ? fmtLibLabel(local).toLowerCase() : (row.bibliotek_id || "");
+    },
+    central: row => {
+      const central = st.libs.byId[row.central_id];
+      return central ? fmtLibLabel(central).toLowerCase() : (row.central_id || "");
+    },
+    relation_active: row => (row.active ? "true" : "false"),
+    borrower_active: row => {
+      const local = st.libs.byId[row.bibliotek_id];
+      return local && local.active !== false ? "true" : "false";
+    }
+  };
+  const sorted = [...(data || [])].sort((a, b) => TableSortHelper.compareRows(
+    a,
+    b,
+    sortState.sortBy,
+    sortState.sortDir,
+    accessors
+  ));
+  sorted.forEach(r => {
     const local = st.libs.byId[r.bibliotek_id];
     const central = st.libs.byId[r.central_id];
 
@@ -591,6 +615,7 @@ async function relList() {
     tb.appendChild(tr);
   });
 
+  TableSortHelper.applySortIndicators("#tblRel", sortState);
   const filterLabel = filter ? (fmtLibLabel(st.libs.byId[filter]) || filter) : "";
   const msg = data && data.length
     ? `Antal relationer${filterLabel ? " for " + filterLabel : ""}: ${data.length}`
@@ -725,6 +750,10 @@ function bindRelControls() {
     relList();
   });
   $("#relDetailSel")?.addEventListener("change", renderRegionDetails);
+  const relSortState = st.relSort || (st.relSort = { sortBy: "relation_id", sortDir: "asc" });
+  TableSortHelper.attachSortHandlers("#tblRel", relSortState, () => {
+    relList();
+  });
   renderRegionDetails();
   // Auto-gem Ã¦ndringer i active-dropdowns nÃ¥r man forlader fanen kunne laves her â€“ vi holder det manuelt
 }

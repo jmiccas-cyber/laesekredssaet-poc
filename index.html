@@ -622,14 +622,14 @@ td {
     <div id="msgRel" class="msg" style="display:none;"></div>
 
     <div class="card">
-      <table id="tblRel">
+          <table id="tblRel">
         <thead>
         <tr>
-          <th>relation_id</th>
-          <th>regionsbibliotek</th>
-          <th>Centralbibliotek</th>
-          <th>Relation aktiv</th>
-          <th>L ner aktiv</th>
+          <th data-sort="relation_id">relation_id</th>
+          <th data-sort="local">regionsbibliotek</th>
+          <th data-sort="central">Centralbibliotek</th>
+          <th data-sort="relation_active">Relation aktiv</th>
+          <th data-sort="borrower_active">Låner aktiv</th>
           <th>Handling</th>
         </tr>
         </thead>
@@ -756,9 +756,9 @@ td {
           <table id="tblCalendar">
             <thead>
             <tr>
-              <th>Dato</th>
-              <th>Beskrivelse</th>
-              <th>Noter</th>
+              <th data-sort="holiday_date">Dato</th>
+              <th data-sort="title">Beskrivelse</th>
+              <th data-sort="notes">Noter</th>
               <th>Handling</th>
             </tr>
             </thead>
@@ -807,9 +807,9 @@ td {
           <table id="tblCalendarLocal">
             <thead>
             <tr>
-              <th>Dato</th>
-              <th>Beskrivelse</th>
-              <th>Noter</th>
+              <th data-sort="holiday_date">Dato</th>
+              <th data-sort="title">Beskrivelse</th>
+              <th data-sort="notes">Noter</th>
               <th>Handling</th>
             </tr>
             </thead>

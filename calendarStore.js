@@ -12,6 +12,7 @@
   const currentAdminId = window.currentAdminId || (() => "");
   const fmtLibLabel = window.fmtLibLabel || (() => "");
   const isSuperLibrary = window.isSuperLibrary || (() => false);
+  const TableSortHelper = window.TableSortHelper || null;
 
   function setCalendarFormEnabledGlobal(enabled) {
     ["#calDate", "#calTitle", "#calNotes", "#btnCalAdd", "#btnCalExport", "#btnCalImport", "#calImportFile"].forEach(sel => {
@@ -33,11 +34,32 @@
     const tb = $("#tblCalendar tbody");
     if (!tb) return;
     tb.innerHTML = "";
-    if (!rows || !rows.length) {
+    const list = Array.isArray(rows) ? rows : [];
+    if (!list.length) {
       tb.appendChild(el("tr", {}, el("td", { colspan: 4 }, "Ingen registrerede fridage.")));
+      if (TableSortHelper) {
+        const defaultSort = { sortBy: "holiday_date", sortDir: "asc" };
+        const sortRoot = st.calendar?.globalSort || (st.calendar.globalSort = { ...defaultSort });
+        TableSortHelper.applySortIndicators("#tblCalendar", TableSortHelper.getSortState(sortRoot, defaultSort));
+      }
       return;
     }
-    rows.forEach(row => {
+    const defaultSort = { sortBy: "holiday_date", sortDir: "asc" };
+    const sortRoot = st.calendar?.globalSort || (st.calendar.globalSort = { ...defaultSort });
+    const sortState = TableSortHelper ? TableSortHelper.getSortState(sortRoot, defaultSort) : sortRoot;
+    const toTimestamp = value => {
+      const parsed = value ? Date.parse(value) : NaN;
+      return isNaN(parsed) ? 0 : parsed;
+    };
+    const accessors = {
+      holiday_date: row => toTimestamp(row.holiday_date),
+      title: row => (row.title || "").toLowerCase(),
+      notes: row => (row.notes || "").toLowerCase()
+    };
+    const sortedRows = TableSortHelper
+      ? [...list].sort((a, b) => TableSortHelper.compareRows(a, b, sortState.sortBy, sortState.sortDir, accessors))
+      : list;
+    sortedRows.forEach(row => {
       const dateStr = row.holiday_date ? new Date(row.holiday_date).toLocaleDateString("da-DK") : "";
       const delBtn = el("button", {
         class: "btn btn-small",
@@ -50,6 +72,9 @@
         el("td", {}, delBtn)
       ));
     });
+    if (TableSortHelper) {
+      TableSortHelper.applySortIndicators("#tblCalendar", sortState);
+    }
   }
 
   function normalizeHolidayDate(value) {
@@ -277,11 +302,32 @@
     const tb = $("#tblCalendarLocal tbody");
     if (!tb) return;
     tb.innerHTML = "";
-    if (!rows || !rows.length) {
+    const list = Array.isArray(rows) ? rows : [];
+    if (!list.length) {
       tb.appendChild(el("tr", {}, el("td", { colspan: 4 }, "Ingen lokale lukkedage.")));
+      if (TableSortHelper) {
+        const defaultSort = { sortBy: "holiday_date", sortDir: "asc" };
+        const sortRoot = st.calendar?.localSort || (st.calendar.localSort = { ...defaultSort });
+        TableSortHelper.applySortIndicators("#tblCalendarLocal", TableSortHelper.getSortState(sortRoot, defaultSort));
+      }
       return;
     }
-    rows.forEach(row => {
+    const defaultSort = { sortBy: "holiday_date", sortDir: "asc" };
+    const sortRoot = st.calendar?.localSort || (st.calendar.localSort = { ...defaultSort });
+    const sortState = TableSortHelper ? TableSortHelper.getSortState(sortRoot, defaultSort) : sortRoot;
+    const toTimestamp = value => {
+      const parsed = value ? Date.parse(value) : NaN;
+      return isNaN(parsed) ? 0 : parsed;
+    };
+    const accessors = {
+      holiday_date: row => toTimestamp(row.holiday_date),
+      title: row => (row.title || "").toLowerCase(),
+      notes: row => (row.notes || "").toLowerCase()
+    };
+    const sortedRows = TableSortHelper
+      ? [...list].sort((a, b) => TableSortHelper.compareRows(a, b, sortState.sortBy, sortState.sortDir, accessors))
+      : list;
+    sortedRows.forEach(row => {
       const dateStr = row.holiday_date ? new Date(row.holiday_date).toLocaleDateString("da-DK") : "";
       const delBtn = el("button", { class: "btn btn-small", "data-cal-local-delete": row.local_holiday_id }, "Slet");
       tb.appendChild(el("tr", {},
@@ -291,6 +337,9 @@
         el("td", {}, delBtn)
       ));
     });
+    if (TableSortHelper) {
+      TableSortHelper.applySortIndicators("#tblCalendarLocal", sortState);
+    }
   }
 
   async function calendarPullLocal() {
@@ -644,6 +693,12 @@
       const id = Number(btn.getAttribute("data-cal-delete"));
       if (id) calendarDeleteGlobal(id);
     });
+    if (TableSortHelper) {
+      const globalSortState = st.calendar?.globalSort || (st.calendar.globalSort = { sortBy: "holiday_date", sortDir: "asc" });
+      TableSortHelper.attachSortHandlers("#tblCalendar", globalSortState, () => {
+        renderCalendarRowsGlobal(st.calendar.list || []);
+      });
+    }
 
     $("#btnCalLocalAdd")?.addEventListener("click", calendarLocalAdd);
     $("#btnCalLocalRefresh")?.addEventListener("click", () => calendarPullLocal());
@@ -663,6 +718,12 @@
       const id = Number(btn.getAttribute("data-cal-local-delete"));
       if (id) calendarLocalDelete(id);
     });
+    if (TableSortHelper) {
+      const localSortState = st.calendar?.localSort || (st.calendar.localSort = { sortBy: "holiday_date", sortDir: "asc" });
+      TableSortHelper.attachSortHandlers("#tblCalendarLocal", localSortState, () => {
+        renderCalendarLocalRows(st.calendar.local || []);
+      });
+    }
   }
 
   const CalendarStore = Object.freeze({
