@@ -324,7 +324,7 @@
     if (!client) return map;
     const { data, error } = await client
       .from("tbl_saet")
-      .select("set_id,title,owner_bibliotek_id,loan_weeks,buffer_days,requested_count,isbn,active")
+      .select("set_id,title,author,owner_bibliotek_id,loan_weeks,buffer_days,requested_count,isbn,active")
       .in("set_id", ids);
     if (error) {
       console.error("fetchSaetMapByIds:", error);
@@ -339,13 +339,14 @@
     if (!tb) return;
     tb.innerHTML = "";
     if (!rows.length) {
-      tb.appendChild(el("tr", {}, el("td", { colspan: 5 }, "Ingen anmodninger.")));
+      tb.appendChild(el("tr", {}, el("td", { colspan: 8 }, "Ingen anmodninger.")));
       return;
     }
     rows.forEach(row => {
       const setInfo = row.set || {};
       const requester = st.libs.byId[row.requester_bibliotek_id];
       const requesterLabel = requester ? fmtLibLabel(requester) : (row.requester_bibliotek_id || "Ukendt");
+      const statusLabel = (row.booking_status || "").replace(/^\w/, ch => ch.toUpperCase());
       const approveBtn = el("button", {
         class: "btn btn-small",
         "data-booking-approve": row.booking_id,
@@ -358,9 +359,12 @@
       }, "Afvis");
       tb.appendChild(el("tr", {},
         el("td", {}, setInfo.title || `Sæt #${row.set_id}` || "—"),
+        el("td", {}, setInfo.author || "—"),
+        el("td", {}, setInfo.isbn || "—"),
         el("td", {}, requesterLabel),
         el("td", {}, formatDateDisplay(row.start_date)),
         el("td", {}, formatDateDisplay(row.end_date)),
+        el("td", {}, statusLabel || "—"),
         el("td", {}, approveBtn, " ", cancelBtn)
       ));
     });
