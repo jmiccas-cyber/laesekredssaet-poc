@@ -335,61 +335,70 @@
   }
 
   function renderBookingRequestsTable(rows) {
-    const tb = $("#tblBookingRequests tbody");
-    if (!tb) return;
-    tb.innerHTML = "";
-    if (!rows.length) {
-      tb.appendChild(el("tr", {}, el("td", { colspan: 8 }, "Ingen anmodninger.")));
-      return;
-    }
-    const sortState = TableSortHelper.getSortState(st.booking.requestsSort || (st.booking.requestsSort = {}), { sortBy: "start_date", sortDir: "asc" });
-    const accessor = {
-      title: row => (row.set?.title || "").toLowerCase(),
-      author: row => (row.set?.author || "").toLowerCase(),
-      isbn: row => row.set?.isbn || "",
-      requester: row => {
-        const req = st.libs.byId[row.requester_bibliotek_id];
-        return req ? fmtLibLabel(req).toLowerCase() : (row.requester_bibliotek_id || "");
-      },
-      start_date: row => row.start_date || "",
-      end_date: row => row.end_date || "",
-      status: row => (row.booking_status || "").toLowerCase()
-    };
-    const sorted = [...rows].sort((a, b) => TableSortHelper.compareRows(
-      a,
-      b,
-      sortState.sortBy,
-      sortState.sortDir,
-      accessor
-    ));
-    sorted.forEach(row => {
-      const setInfo = row.set || {};
-      const requester = st.libs.byId[row.requester_bibliotek_id];
-      const requesterLabel = requester ? fmtLibLabel(requester) : (row.requester_bibliotek_id || "Ukendt");
-      const statusLabel = (row.booking_status || "").replace(/^\w/, ch => ch.toUpperCase());
-      const approveBtn = el("button", {
-        class: "btn btn-small",
-        "data-booking-approve": row.booking_id,
-        "data-booking-set": row.set_id
-      }, "Godkend");
-      const cancelBtn = el("button", {
-        class: "btn btn-small ghost",
-        "data-booking-cancel": row.booking_id,
-        "data-booking-set": row.set_id
-      }, "Afvis");
-      const tr = el("tr", {},
-        el("td", {}, setInfo.title || `Sæt #${row.set_id}` || "—"),
-        el("td", {}, setInfo.author || "—"),
-        el("td", {}, setInfo.isbn || "—"),
-        el("td", {}, requesterLabel),
-        el("td", {}, formatDateDisplay(row.start_date)),
-        el("td", {}, formatDateDisplay(row.end_date)),
-        el("td", {}, statusLabel || "—"),
-        el("td", {}, approveBtn, " ", cancelBtn)
-      );
-      tb.appendChild(tr);
+    const sortState = st.booking.requestsSort || (st.booking.requestsSort = {});
+    TableSortHelper.renderTable({
+      tableSelector: "#tblBookingRequests",
+      rows: rows || [],
+      columns: [
+        {
+          id: "title",
+          accessor: row => (row.set?.title || "").toLowerCase(),
+          render: row => row.set?.title || `Sæt #${row.set_id}` || "—"
+        },
+        {
+          id: "author",
+          accessor: row => (row.set?.author || "").toLowerCase(),
+          render: row => row.set?.author || "—"
+        },
+        {
+          id: "isbn",
+          accessor: row => row.set?.isbn || "",
+          render: row => row.set?.isbn || "—"
+        },
+        {
+          id: "requester",
+          accessor: row => {
+            const req = st.libs.byId[row.requester_bibliotek_id];
+            return req ? fmtLibLabel(req).toLowerCase() : (row.requester_bibliotek_id || "");
+          },
+          render: row => {
+            const req = st.libs.byId[row.requester_bibliotek_id];
+            return req ? fmtLibLabel(req) : (row.requester_bibliotek_id || "Ukendt");
+          }
+        },
+        {
+          id: "start_date",
+          accessor: row => row.start_date || "",
+          render: row => formatDateDisplay(row.start_date)
+        },
+        {
+          id: "end_date",
+          accessor: row => row.end_date || "",
+          render: row => formatDateDisplay(row.end_date)
+        },
+        {
+          id: "status",
+          accessor: row => (row.booking_status || "").toLowerCase(),
+          render: row => (row.booking_status || "").replace(/^\w/, ch => ch.toUpperCase()) || "—"
+        }
+      ],
+      stateRoot: sortState,
+      defaultSort: { sortBy: "start_date", sortDir: "asc" },
+      emptyText: "Ingen anmodninger.",
+      rowActions: row => {
+        const approveBtn = el("button", {
+          class: "btn btn-small",
+          "data-booking-approve": row.booking_id,
+          "data-booking-set": row.set_id
+        }, "Godkend");
+        const cancelBtn = el("button", {
+          class: "btn btn-small ghost",
+          "data-booking-cancel": row.booking_id,
+          "data-booking-set": row.set_id
+        }, "Afvis");
+        return el("span", {}, approveBtn, " ", cancelBtn);
+      }
     });
-    TableSortHelper.applySortIndicators("#tblBookingRequests", sortState);
   }
 
   async function bookingRequestsPull() {
@@ -470,74 +479,75 @@
   }
 
   function renderBookerMyRequests(rows) {
-    const tb = $("#bMyTbl tbody");
-    if (!tb) return;
-    tb.innerHTML = "";
-    const sortState = TableSortHelper.getSortState(st.booking.myRequestsSort || (st.booking.myRequestsSort = { sortBy: "start_date", sortDir: "asc" }), { sortBy: "start_date", sortDir: "asc" });
-    if (!rows.length) {
-      tb.appendChild(el("tr", {}, el("td", { colspan: 6 }, "Ingen anmodninger.")));
-      TableSortHelper.applySortIndicators("#bMyTbl", sortState);
-      return;
-    }
-    const accessors = {
-      title: row => (row.set?.title || "").toLowerCase(),
-      owner: row => (fmtLibLabel(st.libs.byId[row.owner_bibliotek_id]) || row.owner_bibliotek_id || "").toLowerCase(),
-      start_date: row => row.start_date || "",
-      end_date: row => row.end_date || "",
-      status: row => (row.booking_status || "").toLowerCase()
-    };
-    const sortedRows = [...rows].sort((a, b) => TableSortHelper.compareRows(
-      a,
-      b,
-      sortState.sortBy,
-      sortState.sortDir,
-      accessors
-    ));
-    sortedRows.forEach(row => {
-      const setInfo = row.set || {};
-      const ownerLabel = fmtLibLabel(st.libs.byId[row.owner_bibliotek_id]) || row.owner_bibliotek_id || "";
-      const status = (row.booking_status || "").toLowerCase();
-      const canCancel = status === (BOOKING_STATUS_REQUESTED || "").toLowerCase() || status === (BOOKING_STATUS_BOOKED || "").toLowerCase();
-      const buttonProps = {
-        class: "btn btn-small",
-        type: "button"
-      };
-      let btnLabel = "Annuller";
-      if (status === (BOOKING_STATUS_CANCELLED || "").toLowerCase()) {
-        buttonProps["data-my-dismiss"] = row.booking_id;
-        btnLabel = "Fjern";
-      } else {
-        buttonProps["data-my-cancel"] = row.booking_id;
+    const sortState = st.booking.myRequestsSort || (st.booking.myRequestsSort = { sortBy: "start_date", sortDir: "asc" });
+    TableSortHelper.renderTable({
+      tableSelector: "#bMyTbl",
+      rows: rows || [],
+      columns: [
+        {
+          id: "title",
+          accessor: row => (row.set?.title || "").toLowerCase(),
+          render: row => row.set?.title || `Sæt #${row.set_id}` || ""
+        },
+        {
+          id: "owner",
+          accessor: row => (fmtLibLabel(st.libs.byId[row.owner_bibliotek_id]) || row.owner_bibliotek_id || "").toLowerCase(),
+          render: row => fmtLibLabel(st.libs.byId[row.owner_bibliotek_id]) || row.owner_bibliotek_id || ""
+        },
+        {
+          id: "start_date",
+          accessor: row => row.start_date || "",
+          render: row => formatDateDisplay(row.start_date) || ""
+        },
+        {
+          id: "end_date",
+          accessor: row => row.end_date || "",
+          render: row => formatDateDisplay(row.end_date) || ""
+        },
+        {
+          id: "status",
+          accessor: row => (row.booking_status || "").toLowerCase(),
+          render: row => {
+            const status = (row.booking_status || "").toLowerCase();
+            const label = status === (BOOKING_STATUS_CANCELLED || "").toLowerCase() ? "Afvist" : status || "";
+            const wrapper = el("span", {}, label || "");
+            if (row.warning) {
+              wrapper.appendChild(el("div", { class: "hint warning" }, row.warning));
+            }
+            return wrapper;
+          }
+        }
+      ],
+      stateRoot: sortState,
+      defaultSort: { sortBy: "start_date", sortDir: "asc" },
+      emptyText: "Ingen anmodninger.",
+      rowActions: row => {
+        const status = (row.booking_status || "").toLowerCase();
+        const canCancel = CANCELLABLE_STATUSES.has(status);
+        const buttonProps = {
+          class: "btn btn-small",
+          type: "button"
+        };
+        let btnLabel = "Annuller";
+        if (status === (BOOKING_STATUS_CANCELLED || "").toLowerCase()) {
+          buttonProps["data-my-dismiss"] = row.booking_id;
+          btnLabel = "Fjern";
+        } else {
+          buttonProps["data-my-cancel"] = row.booking_id;
+        }
+        const btn = el("button", buttonProps, btnLabel);
+        if (status === (BOOKING_STATUS_CANCELLED || "").toLowerCase()) {
+          btn.title = "Fjern beskeden";
+        } else if (canCancel) {
+          btn.title = "Annuller anmodning";
+        } else {
+          btn.setAttribute("disabled", "disabled");
+          btn.title = "Kan ikke annulleres";
+          btn.classList.add("hint");
+        }
+        return btn;
       }
-      const btn = el("button", buttonProps, btnLabel);
-      if (status === (BOOKING_STATUS_CANCELLED || "").toLowerCase()) {
-        btn.title = "Fjern beskeden";
-      } else if (canCancel) {
-        btn.title = "Annuller anmodning";
-      } else {
-        btn.setAttribute("disabled", "disabled");
-        btn.title = "Kan ikke annulleres";
-        btn.classList.add("hint");
-      }
-      const startText = formatDateDisplay(row.start_date);
-      const endText = formatDateDisplay(row.end_date);
-      const statusLabel = status === (BOOKING_STATUS_CANCELLED || "").toLowerCase()
-        ? "Afvist"
-        : status || "";
-      const statusCell = el("td", { "data-sort": status }, statusLabel || "");
-      if (row.warning) {
-        statusCell.appendChild(el("div", { class: "hint warning" }, row.warning));
-      }
-      tb.appendChild(el("tr", {},
-        el("td", { "data-sort": (setInfo.title || "").toLowerCase() }, setInfo.title || `Sæt #${row.set_id}` || ""),
-        el("td", { "data-sort": (ownerLabel || "").toLowerCase() }, ownerLabel),
-        el("td", { "data-sort": row.start_date || "" }, startText || ""),
-        el("td", { "data-sort": row.end_date || "" }, endText || ""),
-        statusCell,
-        el("td", {}, btn)
-      ));
     });
-    TableSortHelper.applySortIndicators("#bMyTbl", sortState);
   }
 
   async function bookerMyRequestsPull() {

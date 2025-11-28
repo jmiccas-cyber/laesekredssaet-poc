@@ -31,50 +31,41 @@
   }
 
   function renderCalendarRowsGlobal(rows) {
-    const tb = $("#tblCalendar tbody");
-    if (!tb) return;
-    tb.innerHTML = "";
-    const list = Array.isArray(rows) ? rows : [];
-    if (!list.length) {
-      tb.appendChild(el("tr", {}, el("td", { colspan: 4 }, "Ingen registrerede fridage.")));
-      if (TableSortHelper) {
-        const defaultSort = { sortBy: "holiday_date", sortDir: "asc" };
-        const sortRoot = st.calendar?.globalSort || (st.calendar.globalSort = { ...defaultSort });
-        TableSortHelper.applySortIndicators("#tblCalendar", TableSortHelper.getSortState(sortRoot, defaultSort));
-      }
-      return;
-    }
+    if (!TableSortHelper) return;
     const defaultSort = { sortBy: "holiday_date", sortDir: "asc" };
     const sortRoot = st.calendar?.globalSort || (st.calendar.globalSort = { ...defaultSort });
-    const sortState = TableSortHelper ? TableSortHelper.getSortState(sortRoot, defaultSort) : sortRoot;
     const toTimestamp = value => {
       const parsed = value ? Date.parse(value) : NaN;
       return isNaN(parsed) ? 0 : parsed;
     };
-    const accessors = {
-      holiday_date: row => toTimestamp(row.holiday_date),
-      title: row => (row.title || "").toLowerCase(),
-      notes: row => (row.notes || "").toLowerCase()
-    };
-    const sortedRows = TableSortHelper
-      ? [...list].sort((a, b) => TableSortHelper.compareRows(a, b, sortState.sortBy, sortState.sortDir, accessors))
-      : list;
-    sortedRows.forEach(row => {
-      const dateStr = row.holiday_date ? new Date(row.holiday_date).toLocaleDateString("da-DK") : "";
-      const delBtn = el("button", {
+    TableSortHelper.renderTable({
+      tableSelector: "#tblCalendar",
+      rows: Array.isArray(rows) ? rows : [],
+      columns: [
+        {
+          id: "holiday_date",
+          accessor: row => toTimestamp(row.holiday_date),
+          render: row => row.holiday_date ? new Date(row.holiday_date).toLocaleDateString("da-DK") : ""
+        },
+        {
+          id: "title",
+          accessor: row => (row.title || "").toLowerCase(),
+          render: row => row.title || ""
+        },
+        {
+          id: "notes",
+          accessor: row => (row.notes || "").toLowerCase(),
+          render: row => row.notes || ""
+        }
+      ],
+      stateRoot: sortRoot,
+      defaultSort,
+      emptyText: "Ingen registrerede fridage.",
+      rowActions: row => el("button", {
         class: "btn btn-small",
         "data-cal-delete": row.holiday_id
-      }, "Slet");
-      tb.appendChild(el("tr", {},
-        el("td", {}, dateStr),
-        el("td", {}, row.title || ""),
-        el("td", {}, row.notes || ""),
-        el("td", {}, delBtn)
-      ));
+      }, "Slet")
     });
-    if (TableSortHelper) {
-      TableSortHelper.applySortIndicators("#tblCalendar", sortState);
-    }
   }
 
   function normalizeHolidayDate(value) {
@@ -282,47 +273,38 @@
   }
 
   function renderCalendarLocalRows(rows) {
-    const tb = $("#tblCalendarLocal tbody");
-    if (!tb) return;
-    tb.innerHTML = "";
-    const list = Array.isArray(rows) ? rows : [];
-    if (!list.length) {
-      tb.appendChild(el("tr", {}, el("td", { colspan: 4 }, "Ingen lokale lukkedage.")));
-      if (TableSortHelper) {
-        const defaultSort = { sortBy: "holiday_date", sortDir: "asc" };
-        const sortRoot = st.calendar?.localSort || (st.calendar.localSort = { ...defaultSort });
-        TableSortHelper.applySortIndicators("#tblCalendarLocal", TableSortHelper.getSortState(sortRoot, defaultSort));
-      }
-      return;
-    }
+    if (!TableSortHelper) return;
     const defaultSort = { sortBy: "holiday_date", sortDir: "asc" };
     const sortRoot = st.calendar?.localSort || (st.calendar.localSort = { ...defaultSort });
-    const sortState = TableSortHelper ? TableSortHelper.getSortState(sortRoot, defaultSort) : sortRoot;
     const toTimestamp = value => {
       const parsed = value ? Date.parse(value) : NaN;
       return isNaN(parsed) ? 0 : parsed;
     };
-    const accessors = {
-      holiday_date: row => toTimestamp(row.holiday_date),
-      title: row => (row.title || "").toLowerCase(),
-      notes: row => (row.notes || "").toLowerCase()
-    };
-    const sortedRows = TableSortHelper
-      ? [...list].sort((a, b) => TableSortHelper.compareRows(a, b, sortState.sortBy, sortState.sortDir, accessors))
-      : list;
-    sortedRows.forEach(row => {
-      const dateStr = row.holiday_date ? new Date(row.holiday_date).toLocaleDateString("da-DK") : "";
-      const delBtn = el("button", { class: "btn btn-small", "data-cal-local-delete": row.local_holiday_id }, "Slet");
-      tb.appendChild(el("tr", {},
-        el("td", {}, dateStr),
-        el("td", {}, row.title || ""),
-        el("td", {}, row.notes || ""),
-        el("td", {}, delBtn)
-      ));
+    TableSortHelper.renderTable({
+      tableSelector: "#tblCalendarLocal",
+      rows: Array.isArray(rows) ? rows : [],
+      columns: [
+        {
+          id: "holiday_date",
+          accessor: row => toTimestamp(row.holiday_date),
+          render: row => row.holiday_date ? new Date(row.holiday_date).toLocaleDateString("da-DK") : ""
+        },
+        {
+          id: "title",
+          accessor: row => (row.title || "").toLowerCase(),
+          render: row => row.title || ""
+        },
+        {
+          id: "notes",
+          accessor: row => (row.notes || "").toLowerCase(),
+          render: row => row.notes || ""
+        }
+      ],
+      stateRoot: sortRoot,
+      defaultSort,
+      emptyText: "Ingen lokale lukkedage.",
+      rowActions: row => el("button", { class: "btn btn-small", "data-cal-local-delete": row.local_holiday_id }, "Slet")
     });
-    if (TableSortHelper) {
-      TableSortHelper.applySortIndicators("#tblCalendarLocal", sortState);
-    }
   }
 
   async function calendarPullLocal() {

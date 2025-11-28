@@ -559,63 +559,75 @@ async function relList() {
     return;
   }
 
-  const tb = $("#tblRel tbody");
-  if (!tb) return;
+  if (!$("#tblRel tbody")) return;
 
-  tb.innerHTML = "";
-  const sortState = TableSortHelper.getSortState(st.relSort || (st.relSort = { sortBy: "relation_id", sortDir: "asc" }), { sortBy: "relation_id", sortDir: "asc" });
-  const accessors = {
-    relation_id: row => Number(row.relation_id) || 0,
-    local: row => {
-      const local = st.libs.byId[row.bibliotek_id];
-      return local ? fmtLibLabel(local).toLowerCase() : (row.bibliotek_id || "");
-    },
-    central: row => {
-      const central = st.libs.byId[row.central_id];
-      return central ? fmtLibLabel(central).toLowerCase() : (row.central_id || "");
-    },
-    relation_active: row => (row.active ? "true" : "false"),
-    borrower_active: row => {
-      const local = st.libs.byId[row.bibliotek_id];
-      return local && local.active !== false ? "true" : "false";
-    }
-  };
-  const sorted = [...(data || [])].sort((a, b) => TableSortHelper.compareRows(
-    a,
-    b,
-    sortState.sortBy,
-    sortState.sortDir,
-    accessors
-  ));
-  sorted.forEach(r => {
-    const local = st.libs.byId[r.bibliotek_id];
-    const central = st.libs.byId[r.central_id];
-
-    const activeSel = el("select", { "data-rel-id": r.relation_id, class: "rel-active" },
-      el("option", { value: "true" }, "Ja"),
-      el("option", { value: "false" }, "Nej")
-    );
-    activeSel.value = r.active ? "true" : "false";
-
-    const borrowerActive = local && local.active !== false ? "Ja" : "Nej";
-
-    const btnDel = el("button", {
+  const sortState = st.relSort || (st.relSort = { sortBy: "relation_id", sortDir: "asc" });
+  const rows = data || [];
+  TableSortHelper.renderTable({
+    tableSelector: "#tblRel",
+    rows,
+    columns: [
+      {
+        id: "relation_id",
+        accessor: row => Number(row.relation_id) || 0,
+        render: row => String(row.relation_id)
+      },
+      {
+        id: "local",
+        accessor: row => {
+          const local = st.libs.byId[row.bibliotek_id];
+          return local ? fmtLibLabel(local).toLowerCase() : (row.bibliotek_id || "");
+        },
+        render: row => {
+          const local = st.libs.byId[row.bibliotek_id];
+          return local ? fmtLibLabel(local) : row.bibliotek_id;
+        }
+      },
+      {
+        id: "central",
+        accessor: row => {
+          const central = st.libs.byId[row.central_id];
+          return central ? fmtLibLabel(central).toLowerCase() : (row.central_id || "");
+        },
+        render: row => {
+          const central = st.libs.byId[row.central_id];
+          return central ? fmtLibLabel(central) : row.central_id;
+        }
+      },
+      {
+        id: "relation_active",
+        accessor: row => (row.active ? "true" : "false"),
+        render: row => {
+          const activeSel = el("select", { "data-rel-id": row.relation_id, class: "rel-active" },
+            el("option", { value: "true" }, "Ja"),
+            el("option", { value: "false" }, "Nej")
+          );
+          activeSel.value = row.active ? "true" : "false";
+          return activeSel;
+        }
+      },
+      {
+        id: "borrower_active",
+        accessor: row => {
+          const local = st.libs.byId[row.bibliotek_id];
+          const isActive = local && local.active !== false;
+          return isActive ? "true" : "false";
+        },
+        render: row => {
+          const local = st.libs.byId[row.bibliotek_id];
+          const isActive = local && local.active !== false;
+          return isActive ? "Ja" : "Nej";
+        }
+      }
+    ],
+    stateRoot: sortState,
+    defaultSort: { sortBy: "relation_id", sortDir: "asc" },
+    emptyText: "Ingen relationer.",
+    rowActions: row => el("button", {
       class: "btn",
-      onclick: () => relDelete(r.relation_id)
-    }, "Slet");
-
-    const tr = el("tr", {},
-      el("td", {}, String(r.relation_id)),
-      el("td", {}, local ? fmtLibLabel(local) : r.bibliotek_id),
-      el("td", {}, central ? fmtLibLabel(central) : r.central_id),
-      el("td", {}, activeSel),
-      el("td", {}, borrowerActive),
-      el("td", {}, btnDel)
-    );
-    tb.appendChild(tr);
+      onclick: () => relDelete(row.relation_id)
+    }, "Slet")
   });
-
-  TableSortHelper.applySortIndicators("#tblRel", sortState);
   const filterLabel = filter ? (fmtLibLabel(st.libs.byId[filter]) || filter) : "";
   const msg = data && data.length
     ? `Antal relationer${filterLabel ? " for " + filterLabel : ""}: ${data.length}`
