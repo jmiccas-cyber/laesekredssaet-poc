@@ -8,14 +8,6 @@
   const el = StateLibStore.el || window.el;
   const setActiveButtonState = StateLibStore.setActiveButtonState || window.setActiveButtonState;
   const ExcelHelper = window.ExcelHelper || null;
-  const callSaetStore = (method, ...args) => {
-    const store = window.SaetStore;
-    const fn = store?.[method] || window[method];
-    if (typeof fn === "function") {
-      return fn(...args);
-    }
-    return undefined;
-  };
 
 // 6. Admin – Eksemplarer (tbl_beholdning)
 // ----------------------------------------------------------
@@ -177,8 +169,8 @@ async function loadInventorySummary() {
     list.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
   });
 
-  callSaetStore("refreshSaetInventoryControls");
-  callSaetStore("refreshSaetAvailabilityIndicators");
+  window.StoreRegistry?.getStore?.("SaetStore")?.refreshSaetInventoryControls?.();
+  window.StoreRegistry?.getStore?.("SaetStore")?.refreshSaetAvailabilityIndicators?.();
 }
 
 async function syncSaetMetadataFromIsbns(isbns) {

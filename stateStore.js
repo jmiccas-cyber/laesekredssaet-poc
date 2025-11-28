@@ -98,22 +98,6 @@ function callStore(name, method, ...args) {
   return undefined;
 }
 
-function callInventoryStore(method, ...args) {
-  return callStore("InventoryStore", method, ...args);
-}
-
-function callSaetStore(method, ...args) {
-  return callStore("SaetStore", method, ...args);
-}
-
-function callBookingStore(method, ...args) {
-  return callStore("BookingStore", method, ...args);
-}
-
-function callCalendarStore(method, ...args) {
-  return callStore("CalendarStore", method, ...args);
-}
-
 // ----------------------------------------------------------
 // 2. Global state
 // ----------------------------------------------------------
@@ -416,7 +400,7 @@ function renderLayout() {
     bookerView.classList.remove("hidden");
     panels.forEach(p => p.classList.remove("active"));
     $("#bookerView")?.classList.add("active");
-    callBookingStore("setBookerTab", st.b?.view || "search");
+    callStore("BookingStore", "setBookerTab", st.b?.view || "search");
   }
 }
 
@@ -437,12 +421,12 @@ function bindTabs() {
 
 function handleTabActivated(tabId) {
   if (tabId === "tab-calendar") {
-    callCalendarStore("calendarPullGlobal");
-    callCalendarStore("calendarPullLocal");
+    callStore("CalendarStore", "calendarPullGlobal");
+    callStore("CalendarStore", "calendarPullLocal");
   } else if (tabId === "tab-booking") {
-    callBookingStore("bookingRulePull");
+    callStore("BookingStore", "bookingRulePull");
   } else if (tabId === "tab-requests") {
-    callBookingStore("bookingRequestsPull");
+    callStore("BookingStore", "bookingRequestsPull");
   }
 }
 
@@ -863,16 +847,16 @@ async function refreshForRole() {
   renderLayout();
 
   if (st.role === "admin") {
-    await callInventoryStore("loadInventorySummary");
-    await callInventoryStore("eksPull");
-    await callSaetStore("saetPull");
+    await callStore("InventoryStore", "loadInventorySummary");
+    await callStore("InventoryStore", "eksPull");
+    await callStore("SaetStore", "saetPull");
     await relList();
-    await callCalendarStore("calendarPullGlobal");
-    await callCalendarStore("calendarPullLocal");
-    await callBookingStore("bookingRulePull");
-    await callBookingStore("bookingRequestsPull");
+    await callStore("CalendarStore", "calendarPullGlobal");
+    await callStore("CalendarStore", "calendarPullLocal");
+    await callStore("BookingStore", "bookingRulePull");
+    await callStore("BookingStore", "bookingRequestsPull");
   } else {
-    await callBookingStore("bookerSearch");
+    await callStore("BookingStore", "bookerSearch");
   }
 }
 
@@ -881,14 +865,14 @@ async function boot() {
   loadProfile();
   bindTabs();
   bindRoleControls();
-  callInventoryStore("bindEksControls");
-  callSaetStore("bindSaetControls");
+  callStore("InventoryStore", "bindEksControls");
+  callStore("SaetStore", "bindSaetControls");
   bindAccessControls();
-  callBookingStore("bindBookingRuleControls");
-  callBookingStore("bindBookingRequestControls");
-  callCalendarStore("bindCalendarControls");
+  callStore("BookingStore", "bindBookingRuleControls");
+  callStore("BookingStore", "bindBookingRequestControls");
+  callStore("CalendarStore", "bindCalendarControls");
   bindRelControls();
-  callBookingStore("bindBookerControls");
+  callStore("BookingStore", "bindBookerControls");
 
   await loadLibraries();
   await refreshForRole();
