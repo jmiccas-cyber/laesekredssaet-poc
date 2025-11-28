@@ -97,9 +97,65 @@
     return rows;
   }
 
+  function getValue(row, keys) {
+    if (!row || keys == null) return "";
+    const list = Array.isArray(keys) ? keys : [keys];
+    for (const key of list) {
+      if (key == null) continue;
+      if (row[key] != null && row[key] !== "") return row[key];
+      const strKey = String(key);
+      const lower = strKey.toLowerCase();
+      if (lower !== key && row[lower] != null && row[lower] !== "") {
+        return row[lower];
+      }
+    }
+    return "";
+  }
+
+  function normalizeRows(rawRows = [], columnMap = {}) {
+    const normalizedMap = {};
+    Object.entries(columnMap).forEach(([field, names]) => {
+      normalizedMap[field] = Array.isArray(names) ? names : [names];
+    });
+    return rawRows.map((row, idx) => {
+      const values = {};
+      Object.entries(normalizedMap).forEach(([field, names]) => {
+        values[field] = getValue(row, names);
+      });
+      return { line: idx + 2, values, raw: row };
+    });
+  }
+
+  function processActionRows(rawRows, options = {}) {
+    const {
+      columnMap = {},
+      actionField = "action",
+      defaultAction = "opdater",
+      onRow
+    } = options;
+    const normalized = normalizeRows(rawRows || [], columnMap);
+    const failures = [];
+    normalized.forEach(({ line, values, raw }) => {
+      let action = (values[actionField] || "").toString().trim().toLowerCase();
+      if (!action) action = defaultAction;
+      if (!onRow) return;
+      const result = onRow({ action, line, values, raw });
+      if (result === false || result == null) return;
+      if (typeof result === "string") {
+        failures.push(`Række ${line}: ${result}`);
+      } else if (Array.isArray(result?.errors)) {
+        result.errors.forEach(msg => failures.push(`Række ${line}: ${msg}`));
+      }
+    });
+    return { failures };
+  }
+
   window.ExcelHelper = Object.freeze({
     ensureSheetJs,
     exportRows,
-    readSheetRows
+    readSheetRows,
+    getValue,
+    normalizeRows,
+    processActionRows
   });
 })();

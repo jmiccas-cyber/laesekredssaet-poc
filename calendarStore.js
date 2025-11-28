@@ -177,37 +177,35 @@
 
     const additionMap = new Map();
     const deletionSet = new Set();
-    const failures = [];
-    const getValue = (row, ...keys) => {
-      for (const key of keys) {
-        if (row[key] != null && row[key] !== "") return row[key];
-        const lower = typeof key === "string" ? key.toLowerCase() : key;
-        if (row[lower] != null && row[lower] !== "") return row[lower];
+    const { failures } = ExcelHelper.processActionRows(rows, {
+      columnMap: {
+        action: ["Handling", "handling", "Action"],
+        date: ["Dato", "date"],
+        title: ["Titel", "title", "Beskrivelse"],
+        notes: ["Noter", "notes", "Note"]
+      },
+      defaultAction: "tilføj",
+      onRow: ({ action, values }) => {
+        const isoDate = normalizeHolidayDate(values.date);
+        if (!isoDate) {
+          return "dato mangler eller er ugyldig.";
+        }
+        if (action === "slet" || action === "delete") {
+          additionMap.delete(isoDate);
+          deletionSet.add(isoDate);
+          return;
+        }
+        if (action !== "tilføj" && action !== "add" && action !== "opdater") {
+          return `ukendt handling "${action}". Brug Tilføj eller Slet.`;
+        }
+        const title = String(values.title || "").trim();
+        if (!title) {
+          return "titel skal udfyldes.";
+        }
+        const notes = String(values.notes || "").trim();
+        additionMap.set(isoDate, { holiday_date: isoDate, title, notes });
+        deletionSet.delete(isoDate);
       }
-      return "";
-    };
-
-    rows.forEach((row, idx) => {
-      const line = idx + 2;
-      const actionRaw = String(getValue(row, "Handling", "handling", "Action")).trim().toLowerCase();
-      const action = actionRaw || "tilføj";
-      const isoDate = normalizeHolidayDate(getValue(row, "Dato", "date"));
-      if (!isoDate) {
-        failures.push(`Række ${line}: dato mangler eller er ugyldig.`);
-        return;
-      }
-      if (action === "slet" || action === "delete") {
-        additionMap.delete(isoDate);
-        deletionSet.add(isoDate);
-        return;
-      }
-      const title = String(getValue(row, "Titel", "title", "Beskrivelse")).trim();
-      if (!title) {
-        failures.push(`Række ${line}: titel skal udfyldes.`);
-        return;
-      }
-      const notes = String(getValue(row, "Noter", "notes", "Note")).trim();
-      additionMap.set(isoDate, { holiday_date: isoDate, title, notes });
     });
 
     const additions = Array.from(additionMap.values());
@@ -527,37 +525,32 @@
 
     const additionMap = new Map();
     const deletionSet = new Set();
-    const failures = [];
-    const getValue = (row, ...keys) => {
-      for (const key of keys) {
-        if (row[key] != null && row[key] !== "") return row[key];
-        const lower = typeof key === "string" ? key.toLowerCase() : key;
-        if (row[lower] != null && row[lower] !== "") return row[lower];
+    const { failures } = ExcelHelper.processActionRows(rows, {
+      columnMap: {
+        action: ["Handling", "handling", "Action"],
+        date: ["Dato", "date"],
+        title: ["Titel", "title", "Beskrivelse"],
+        notes: ["Noter", "notes", "Note"]
+      },
+      defaultAction: "tilføj",
+      onRow: ({ action, values }) => {
+        const isoDate = normalizeHolidayDate(values.date);
+        if (!isoDate) {
+          return "dato mangler eller er ugyldig.";
+        }
+        if (action === "slet" || action === "delete") {
+          additionMap.delete(isoDate);
+          deletionSet.add(isoDate);
+          return;
+        }
+        const title = String(values.title || "").trim();
+        if (!title) {
+          return "titel skal udfyldes.";
+        }
+        const notes = String(values.notes || "").trim();
+        additionMap.set(isoDate, { owner_bibliotek_id: ownerId, holiday_date: isoDate, title, notes });
+        deletionSet.delete(isoDate);
       }
-      return "";
-    };
-
-    rows.forEach((row, idx) => {
-      const line = idx + 2;
-      const actionRaw = String(getValue(row, "Handling", "handling", "Action")).trim().toLowerCase();
-      const action = actionRaw || "tilføj";
-      const isoDate = normalizeHolidayDate(getValue(row, "Dato", "date"));
-      if (!isoDate) {
-        failures.push(`Række ${line}: dato mangler eller er ugyldig.`);
-        return;
-      }
-      if (action === "slet" || action === "delete") {
-        additionMap.delete(isoDate);
-        deletionSet.add(isoDate);
-        return;
-      }
-      const title = String(getValue(row, "Titel", "title", "Beskrivelse")).trim();
-      if (!title) {
-        failures.push(`Række ${line}: titel skal udfyldes.`);
-        return;
-      }
-      const notes = String(getValue(row, "Noter", "notes", "Note")).trim();
-      additionMap.set(isoDate, { owner_bibliotek_id: ownerId, holiday_date: isoDate, title, notes });
     });
 
     const additions = Array.from(additionMap.values());

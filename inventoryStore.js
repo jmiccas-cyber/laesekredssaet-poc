@@ -489,73 +489,65 @@ async function importEksFromExcel(file) {
 
   const updates = [];
   const deletions = [];
-  const failures = [];
   const seen = new Set();
+  const { failures } = ExcelHelper.processActionRows(rows, {
+    columnMap: {
+      action: ["Handling", "handling", "Action"],
+      barcode: ["Barcode", "barcode", "Stregkode"],
+      title: ["Titel", "title"],
+      author: ["Forfatter", "author"],
+      isbn: ["ISBN", "isbn"],
+      faust: ["FAUST", "faust"],
+      active: ["Aktiv", "aktiv", "Active"]
+    },
+    defaultAction: "opdater",
+    onRow: ({ action, values }) => {
+      const barcode = String(values.barcode || "").trim();
+      if (!barcode) {
+        return "mangler stregkode.";
+      }
+      if (seen.has(barcode)) {
+        return `stregkode ${barcode} er duplikeret i Excel.`;
+      }
+      seen.add(barcode);
 
-  const getValue = (row, ...keys) => {
-    for (const key of keys) {
-      if (row[key] != null && row[key] !== "") return row[key];
-      const lower = typeof key === "string" ? key.toLowerCase() : key;
-      if (row[lower] != null && row[lower] !== "") return row[lower];
-    }
-    return "";
-  };
-
-  rows.forEach((row, idx) => {
-    const line = idx + 2;
-    const barcode = String(getValue(row, "Barcode", "barcode", "Stregkode")).trim();
-    if (!barcode) {
-      failures.push(`RÃ¦kke ${line}: mangler stregkode.`);
-      return;
-    }
-    if (seen.has(barcode)) {
-      failures.push(`RÃ¦kke ${line}: stregkode ${barcode} er duplikeret i Excel.`);
-      return;
-    }
-    seen.add(barcode);
-
-    let action = String(getValue(row, "Handling", "handling", "Action")).trim().toLowerCase();
-    if (!action) action = "opdater";
-
-    if (action === "slet") {
-      const isbn = existing.get(barcode);
-      if (!isbn) {
-        failures.push(`RÃ¦kke ${line}: stregkode ${barcode} findes ikke i databasen.`);
+      if (action === "slet" || action === "delete") {
+        const isbn = existing.get(barcode);
+        if (!isbn) {
+          return `stregkode ${barcode} findes ikke i databasen.`;
+        }
+        deletions.push({ barcode, isbn });
         return;
       }
-      deletions.push({ barcode, isbn });
-      return;
-    }
 
-    if (action !== "opdater") {
-      failures.push(`RÃ¦kke ${line}: ukendt handling "${action}". Brug Opdater eller Slet.`);
-      return;
-    }
+      if (action !== "opdater" && action !== "update") {
+        return `ukendt handling "${action}". Brug Opdater eller Slet.`;
+      }
 
-    const activeRaw = String(getValue(row, "Aktiv", "aktiv", "Active")).trim().toLowerCase();
-    let aktiv = true;
-    if (activeRaw === "inaktiv" || activeRaw === "false" || activeRaw === "nej") {
-      aktiv = false;
-    } else if (activeRaw === "aktiv" || activeRaw === "true" || activeRaw === "ja") {
-      aktiv = true;
-    }
+      const activeRaw = String(values.active || "").trim().toLowerCase();
+      let aktiv = true;
+      if (activeRaw === "inaktiv" || activeRaw === "false" || activeRaw === "nej") {
+        aktiv = false;
+      } else if (activeRaw === "aktiv" || activeRaw === "true" || activeRaw === "ja") {
+        aktiv = true;
+      }
 
-    const record = {
-      barcode,
-      title: String(getValue(row, "Titel", "title")).trim(),
-      author: String(getValue(row, "Forfatter", "author")).trim(),
-      isbn: String(getValue(row, "ISBN", "isbn")).trim(),
-      faust: String(getValue(row, "FAUST", "faust")).trim(),
-      aktiv,
-      owner_bibliotek_id: ownerId
-    };
+      const record = {
+        barcode,
+        title: String(values.title || "").trim(),
+        author: String(values.author || "").trim(),
+        isbn: String(values.isbn || "").trim(),
+        faust: String(values.faust || "").trim(),
+        aktiv,
+        owner_bibliotek_id: ownerId
+      };
 
-    const validation = eksValidate(record);
-    if (validation) {
-      failures.push(`RÃ¦kke ${line}: ${validation}`);
-      return;
+      const validation = eksValidate(record);
+      if (validation) {
+        return validation;
+      }
+      updates.push(record);
     }
-    updates.push(record);
   });
 
   if (!updates.length && !deletions.length) {

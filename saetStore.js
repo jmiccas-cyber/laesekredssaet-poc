@@ -180,17 +180,7 @@ async function importSaetFromExcel(file) {
 
   const updates = [];
   const deletions = [];
-  const failures = [];
   const seenIds = new Set();
-
-  const getValue = (row, ...keys) => {
-    for (const key of keys) {
-      if (row[key] != null && row[key] !== "") return row[key];
-      const lower = typeof key === "string" ? key.toLowerCase() : key;
-      if (row[lower] != null && row[lower] !== "") return row[lower];
-    }
-    return "";
-  };
   const toNumber = (val, fallback = 0) => {
     if (val === "" || val == null) return fallback;
     const num = Number(val);
@@ -203,100 +193,107 @@ async function importSaetFromExcel(file) {
     if (["false", "nej", "0"].includes(str)) return false;
     return fallback;
   };
+  const { failures } = ExcelHelper.processActionRows(rows, {
+    columnMap: {
+      action: ["Handling", "handling", "Action"],
+      set_id: ["ID", "set_id"],
+      title: ["Titel", "title"],
+      author: ["Forfatter", "author"],
+      isbn: ["ISBN", "isbn"],
+      faust: ["FAUST", "faust"],
+      requested_count: ["requested_count", "eksemplarer"],
+      loan_weeks: ["loan_weeks", "uger"],
+      buffer_days: ["buffer_days", "buffer"],
+      min_delivery: ["min_delivery", "mindste"],
+      visibility: ["visibility", "synlighed"],
+      active: ["active", "aktiv"],
+      allow_substitution: ["allow_substitution", "substitution"],
+      allow_partial: ["allow_partial", "partial"],
+      notes: ["notes", "Noter"]
+    },
+    defaultAction: "opdater",
+    onRow: ({ action, values }) => {
+      const idRaw = String(values.set_id || "").trim();
+      let setId = null;
+      if (idRaw) {
+        setId = Number(idRaw);
+        if (!Number.isFinite(setId)) {
+          return "ID er ikke et tal.";
+        }
+        if (seenIds.has(setId)) {
+          return `ID ${setId} er duplikeret i Excel.`;
+        }
+        seenIds.add(setId);
+      }
 
-  rows.forEach((row, idx) => {
-    const line = idx + 2;
-    const idRaw = String(getValue(row, "ID", "set_id")).trim();
-    let setId = null;
-    if (idRaw) {
-      setId = Number(idRaw);
-      if (!Number.isFinite(setId)) {
-        failures.push(`Række ${line}: ID er ikke et tal.`);
+      if (action === "slet" || action === "delete") {
+        if (!setId) {
+          return "Handling=Slet kræver et ID.";
+        }
+        if (!existingSets.has(String(setId))) {
+          return `Sæt ID ${setId} findes ikke.`;
+        }
+        deletions.push(setId);
         return;
       }
-      if (seenIds.has(setId)) {
-        failures.push(`Række ${line}: ID ${setId} er duplikeret i Excel.`);
-        return;
+
+      if (action !== "opdater" && action !== "update") {
+        return `ukendt handling "${action}". Brug Opdater eller Slet.`;
       }
-      seenIds.add(setId);
-    }
 
-    let action = String(getValue(row, "Handling", "handling", "Action")).trim().toLowerCase();
-    if (!action) action = "opdater";
+      const requested_count = toNumber(values.requested_count, 0);
+      const loan_weeks = toNumber(values.loan_weeks, 8);
+      const buffer_days = toNumber(values.buffer_days, 0);
+      const min_delivery = toNumber(values.min_delivery, 0);
+      let visibility = String(values.visibility || "").trim().toLowerCase() || "national";
+      if (!["national", "regional"].includes(visibility)) visibility = "national";
+      const active = toBool(values.active, true);
+      const allow_substitution = toBool(values.allow_substitution, false);
+      const allow_partial = toBool(values.allow_partial, false);
 
-    if (action === "slet") {
-      if (!setId) {
-        failures.push(`Række ${line}: Handling=Slet kræver et ID.`);
-        return;
+      const record = {
+        set_id: setId || undefined,
+        title: String(values.title || "").trim(),
+        author: String(values.author || "").trim(),
+        isbn: String(values.isbn || "").trim(),
+        faust: String(values.faust || "").trim(),
+        requested_count,
+        loan_weeks,
+        buffer_days,
+        visibility,
+        owner_bibliotek_id: ownerId,
+        active,
+        allow_substitution,
+        allow_partial,
+        min_delivery,
+        notes: String(values.notes || "").trim()
+      };
+
+      const existing = setId ? existingSets.get(String(setId)) : null;
+      if (setId && !existing) {
+        return `Sæt ID ${setId} findes ikke.`;
       }
-      if (!existingSets.has(String(setId))) {
-        failures.push(`Række ${line}: Sæt ID ${setId} findes ikke.`);
-        return;
+      if (existing && existing.isbn && existing.isbn !== record.isbn) {
+        return `Sæt ID ${setId} kan ikke ændre ISBN.`;
       }
-      deletions.push(setId);
-      return;
+
+      const savedCount = existing ? Number(existing.requested_count) || 0 : 0;
+      const validation = saetValidate(record, {
+        ownerId,
+        desiredCount: record.requested_count,
+        savedCount,
+        usageOverride
+      });
+      if (validation) {
+        return validation;
+      }
+
+      if (!usageOverride[ownerId]) usageOverride[ownerId] = {};
+      const currentTotal = usageOverride[ownerId][record.isbn] ?? saetUsageFor(ownerId, record.isbn);
+      usageOverride[ownerId][record.isbn] = (currentTotal - savedCount) + record.requested_count;
+
+      updates.push(record);
     }
-
-    if (action !== "opdater") {
-      failures.push(`Række ${line}: ukendt handling "${action}". Brug Opdater eller Slet.`);
-      return;
-    }
-
-    const requested_count = toNumber(getValue(row, "requested_count", "eksemplarer"), 0);
-    const loan_weeks = toNumber(getValue(row, "loan_weeks", "uger"), 8);
-    const buffer_days = toNumber(getValue(row, "buffer_days", "buffer"), 0);
-    const min_delivery = toNumber(getValue(row, "min_delivery", "mindste"), 0);
-    let visibility = String(getValue(row, "visibility", "synlighed")).trim().toLowerCase() || "national";
-    if (!["national", "regional"].includes(visibility)) visibility = "national";
-    const active = toBool(getValue(row, "active", "aktiv"), true);
-    const allow_substitution = toBool(getValue(row, "allow_substitution", "substitution"), false);
-    const allow_partial = toBool(getValue(row, "allow_partial", "partial"), false);
-
-    const record = {
-      set_id: setId || undefined,
-      title: String(getValue(row, "Titel", "title")).trim(),
-      author: String(getValue(row, "Forfatter", "author")).trim(),
-      isbn: String(getValue(row, "ISBN", "isbn")).trim(),
-      faust: String(getValue(row, "FAUST", "faust")).trim(),
-      requested_count,
-      loan_weeks,
-      buffer_days,
-      visibility,
-      owner_bibliotek_id: ownerId,
-      active,
-      allow_substitution,
-      allow_partial,
-      min_delivery,
-      notes: String(getValue(row, "notes", "Noter")).trim()
-    };
-
-    const existing = setId ? existingSets.get(String(setId)) : null;
-    if (setId && !existing) {
-      failures.push(`Række ${line}: Sæt ID ${setId} findes ikke.`);
-      return;
-    }
-    if (existing && existing.isbn && existing.isbn !== record.isbn) {
-      failures.push(`Række ${line}: Sæt ID ${setId} kan ikke ændre ISBN.`);
-      return;
-    }
-
-    const savedCount = existing ? Number(existing.requested_count) || 0 : 0;
-    const validation = saetValidate(record, {
-      ownerId,
-      desiredCount: record.requested_count,
-      savedCount,
-      usageOverride
-    });
-    if (validation) {
-      failures.push(`Række ${line}: ${validation}`);
-      return;
-    }
-
-    if (!usageOverride[ownerId]) usageOverride[ownerId] = {};
-    const currentTotal = usageOverride[ownerId][record.isbn] ?? saetUsageFor(ownerId, record.isbn);
-    usageOverride[ownerId][record.isbn] = (currentTotal - savedCount) + record.requested_count;
-
-    updates.push(record);
   });
 
   if (!updates.length && !deletions.length) {
