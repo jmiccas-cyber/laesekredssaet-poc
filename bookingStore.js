@@ -743,48 +743,90 @@
   }
 
   function renderBookerResults() {
-    const tb = $("#bTbl tbody");
-    if (!tb) return;
+    if (!$("#bTbl tbody")) return;
     const sortState = TableSortHelper.getSortState(st.b, { sortBy: "title", sortDir: "asc" });
     const from = st.b.page * st.b.pageSize;
     const to = from + st.b.pageSize;
-    const sorted = [...st.b.results].sort(compareBookerRows);
+    const sorted = [...(st.b.results || [])].sort(compareBookerRows);
     const slice = sorted.slice(from, to);
-    tb.innerHTML = "";
-    slice.forEach(r => {
-      const owner = st.libs.byId[r.owner_bibliotek_id];
-      const ownerLabel = owner ? (owner.bibliotek_navn?.split(" ")[0] || fmtLibLabel(owner)) : r.owner_bibliotek_id || "";
-      const ruleLabel = bookingRuleLabel(r.bookingRule) || "—";
-      const copies = r.requested_count || "";
-      const nextInfo = r.availableSlots?.length
-        ? renderSlotSelect(r)
-        : el("span", { class: "hint" }, "Ingen ledige datoer");
-      const btn = el("button", {
-        class: "btn btn-small",
-        type: "button",
-        "data-request-set": r.set_id
-      }, "Anmod om booking");
-      btn.disabled = !(r.availableSlots?.length);
-      btn.addEventListener("click", ev => {
-        ev.preventDefault();
-        const setId = Number(ev.currentTarget.getAttribute("data-request-set"));
-        bookerRequestBooking(setId);
-      });
-      tb.appendChild(el("tr", {},
-        el("td", {}, r.title || ""),
-        el("td", {}, r.author || ""),
-        el("td", {}, r.isbn || ""),
-        el("td", {}, r.faust || ""),
-        el("td", {}, r.visibility || ""),
-        el("td", {}, ownerLabel),
-        el("td", {}, ruleLabel),
-        el("td", {}, r.loan_weeks ? `${r.loan_weeks}` : ""),
-        el("td", {}, copies ? `${copies}` : ""),
-        el("td", {}, nextInfo),
-        el("td", {}, btn)
-      ));
+    TableSortHelper.renderTable({
+      tableSelector: "#bTbl",
+      rows: slice,
+      manualSort: true,
+      columns: [
+        {
+          id: "title",
+          accessor: row => (row.title || "").toLowerCase(),
+          render: row => row.title || ""
+        },
+        {
+          id: "author",
+          accessor: row => (row.author || "").toLowerCase(),
+          render: row => row.author || ""
+        },
+        {
+          id: "isbn",
+          accessor: row => row.isbn || "",
+          render: row => row.isbn || ""
+        },
+        {
+          id: "faust",
+          accessor: row => row.faust || "",
+          render: row => row.faust || ""
+        },
+        {
+          id: "visibility",
+          accessor: row => row.visibility || "",
+          render: row => row.visibility || ""
+        },
+        {
+          id: "owner",
+          accessor: row => (fmtLibLabel(st.libs.byId[row.owner_bibliotek_id]) || row.owner_bibliotek_id || "").toLowerCase(),
+          render: row => {
+            const owner = st.libs.byId[row.owner_bibliotek_id];
+            return owner ? (owner.bibliotek_navn?.split(" ")[0] || fmtLibLabel(owner)) : row.owner_bibliotek_id || "";
+          }
+        },
+        {
+          id: "rule",
+          accessor: row => bookingRuleLabel(row.bookingRule) || "",
+          render: row => bookingRuleLabel(row.bookingRule) || "—"
+        },
+        {
+          id: "loan_weeks",
+          accessor: row => Number(row.loan_weeks) || 0,
+          render: row => row.loan_weeks ? `${row.loan_weeks}` : ""
+        },
+        {
+          id: "requested_count",
+          accessor: row => Number(row.requested_count) || 0,
+          render: row => row.requested_count ? `${row.requested_count}` : ""
+        },
+        {
+          id: "next",
+          accessor: row => row.nextBooking?.start ? new Date(row.nextBooking.start).getTime() : Number.MAX_SAFE_INTEGER,
+          render: row => row.availableSlots?.length
+            ? renderSlotSelect(row)
+            : el("span", { class: "hint" }, "Ingen ledige datoer")
+        }
+      ],
+      stateRoot: st.b,
+      defaultSort: { sortBy: "title", sortDir: "asc" },
+      emptyText: "Ingen sæt fundet",
+      rowActions: row => {
+        const btn = el("button", {
+          class: "btn btn-small",
+          type: "button",
+          "data-request-set": row.set_id
+        }, "Anmod om booking");
+        btn.disabled = !(row.availableSlots?.length);
+        btn.addEventListener("click", ev => {
+          ev.preventDefault();
+          bookerRequestBooking(row.set_id);
+        });
+        return btn;
+      }
     });
-    TableSortHelper.applySortIndicators("#bTbl", sortState);
     const info = $("#bInfo");
     if (info) {
       const totalPages = Math.ceil((st.b.total || 0) / st.b.pageSize);

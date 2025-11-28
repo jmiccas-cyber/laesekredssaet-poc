@@ -73,7 +73,8 @@
       rowClass = () => "",
       rowKey = (row, idx) => idx,
       rowActions = null,
-      onRowRender = null
+      onRowRender = null,
+      manualSort = false
     } = options;
 
     const table = document.querySelector(tableSelector);
@@ -83,9 +84,10 @@
 
     const sortState = getSortState(stateRoot || {}, defaultSort);
     const accessors = Object.fromEntries(columns.map(col => [col.sortKey || col.id, col.accessor || (row => row[col.id])])); 
-    const sortedRows = Array.isArray(rows)
-      ? [...rows].sort((a, b) => compareRows(a, b, sortState.sortBy, sortState.sortDir, accessors))
-      : [];
+    const baseRows = Array.isArray(rows) ? [...rows] : [];
+    const sortedRows = manualSort
+      ? baseRows
+      : baseRows.sort((a, b) => compareRows(a, b, sortState.sortBy, sortState.sortDir, accessors));
 
     tbody.innerHTML = "";
     if (!sortedRows.length) {

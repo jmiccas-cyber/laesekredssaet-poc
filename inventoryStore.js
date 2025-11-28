@@ -619,11 +619,9 @@ async function importEksFromExcel(file) {
 }
 
 async function eksPull() {
-  const tb = $("#tblEks tbody");
-  if (!tb) return;
-
+  if (!$("#tblEks tbody")) return;
   if (!st.profile.adminCentralId) {
-    tb.innerHTML = "";
+    $("#tblEks tbody").innerHTML = "";
     $("#pinfo").textContent = "VÃƒÂ¦lg fÃƒÂ¸rst en admin-profil (centralbibliotek) via Skift: Admin Ã¢â€ â€ Booker.";
      updateEksSaveButton();
     return;
@@ -632,56 +630,123 @@ async function eksPull() {
   st.eks.total = await eksCount();
   const rows = await eksFetch();
 
-  tb.innerHTML = "";
-  rows.forEach(r => {
-    const tr = el("tr");
-    tr.dataset.barcode = r.barcode;
-    tr.dataset.original = JSON.stringify(r);
-
-    const bcLabel = el("span", { class: "bc-label" }, r.barcode || "");
-    const bcCell = el("td", {}, bcLabel);
-
-    const ti = el("input", { class: "title", value: r.title || "" });
-    const au = el("input", { class: "author", value: r.author || "" });
-    const isb = el("input", { class: "isbn", value: r.isbn || "" });
-    const fa = el("input", { class: "faust", value: r.faust || "" });
-    const aktSel = el("button", {
-      class: "btn btn-small active-flag",
-      type: "button"
-    }, "");
-    setActiveButtonState(aktSel, r.aktiv === false ? "false" : "true");
-    aktSel.addEventListener("click", () => {
-      const next = aktSel.dataset.value === "true" ? "false" : "true";
-      setActiveButtonState(aktSel, next);
-      markEksDirty(tr);
-    });
-
-    const btnReset = el("button", {
-      class: "btn",
-      onclick: () => eksRevertRow(tr)
-    }, "Fortryd");
-    const btnDel = el("button", {
-      class: "btn",
-      onclick: () => eksDeleteRow(tr)
-    }, "Slet");
-    const actions = el("td", {}, btnReset, " ", btnDel);
-
-    tr.append(
-      bcCell,
-      el("td", {}, ti),
-      el("td", {}, au),
-      el("td", {}, isb),
-      el("td", {}, fa),
-      el("td", {}, aktSel),
-      actions
-    );
-    eksAttachRowListeners(tr);
-    tb.appendChild(tr);
+  TableSortHelper.renderTable({
+    tableSelector: "#tblEks",
+    rows,
+    columns: [
+      {
+        id: "barcode",
+        accessor: row => row.barcode || "",
+        render: row => el("span", { class: "bc-label" }, row.barcode || "")
+      },
+      {
+        id: "title",
+        accessor: row => (row.title || "").toLowerCase(),
+        render: row => {
+          const input = el("input", { class: "title", value: row.title || "" });
+          input.addEventListener("input", () => {
+            const tr = input.closest("tr");
+            if (tr) markEksDirty(tr);
+          });
+          input.addEventListener("change", () => {
+            const tr = input.closest("tr");
+            if (tr) markEksDirty(tr);
+          });
+          return input;
+        }
+      },
+      {
+        id: "author",
+        accessor: row => (row.author || "").toLowerCase(),
+        render: row => {
+          const input = el("input", { class: "author", value: row.author || "" });
+          input.addEventListener("input", () => {
+            const tr = input.closest("tr");
+            if (tr) markEksDirty(tr);
+          });
+          input.addEventListener("change", () => {
+            const tr = input.closest("tr");
+            if (tr) markEksDirty(tr);
+          });
+          return input;
+        }
+      },
+      {
+        id: "isbn",
+        accessor: row => row.isbn || "",
+        render: row => {
+          const input = el("input", { class: "isbn", value: row.isbn || "" });
+          input.addEventListener("input", () => {
+            const tr = input.closest("tr");
+            if (tr) markEksDirty(tr);
+          });
+          input.addEventListener("change", () => {
+            const tr = input.closest("tr");
+            if (tr) markEksDirty(tr);
+          });
+          return input;
+        }
+      },
+      {
+        id: "faust",
+        accessor: row => row.faust || "",
+        render: row => {
+          const input = el("input", { class: "faust", value: row.faust || "" });
+          input.addEventListener("input", () => {
+            const tr = input.closest("tr");
+            if (tr) markEksDirty(tr);
+          });
+          input.addEventListener("change", () => {
+            const tr = input.closest("tr");
+            if (tr) markEksDirty(tr);
+          });
+          return input;
+        }
+      },
+      {
+        id: "aktiv",
+        accessor: row => (row.aktiv === false ? "false" : "true"),
+        render: row => {
+          const btn = el("button", {
+            class: "btn btn-small active-flag",
+            type: "button"
+          }, "");
+          setActiveButtonState(btn, row.aktiv === false ? "false" : "true");
+          btn.addEventListener("click", () => {
+            const tr = btn.closest("tr");
+            const next = btn.dataset.value === "true" ? "false" : "true";
+            setActiveButtonState(btn, next);
+            if (tr) markEksDirty(tr);
+          });
+          return btn;
+        }
+      }
+    ],
+    stateRoot: st.eks,
+    defaultSort: { sortBy: "barcode", sortDir: "asc" },
+    emptyText: "Ingen eksemplarer.",
+    rowActions: row => {
+      const btnReset = el("button", { class: "btn", type: "button" }, "Fortryd");
+      btnReset.addEventListener("click", () => {
+        const tr = btnReset.closest("tr");
+        if (tr) eksRevertRow(tr);
+      });
+      const btnDel = el("button", { class: "btn", type: "button" }, "Slet");
+      btnDel.addEventListener("click", () => {
+        const tr = btnDel.closest("tr");
+        if (tr) eksDeleteRow(tr);
+      });
+      return el("span", {}, btnReset, " ", btnDel);
+    },
+    onRowRender: (tr, row) => {
+      tr.dataset.barcode = row.barcode || "";
+      tr.dataset.original = JSON.stringify(row);
+      eksAttachRowListeners(tr);
+    }
   });
 
   renderEksPagerInfo();
   updateEksSaveButton();
-  TableSortHelper.applySortIndicators("#tblEks", TableSortHelper.getSortState(st.eks, { sortBy: "barcode", sortDir: "asc" }));
 }
 
 async function eksDeleteRow(tr) {
