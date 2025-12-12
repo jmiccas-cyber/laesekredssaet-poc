@@ -67,7 +67,7 @@ function setActiveButtonState(btn, val) {
 const PROFILE_KEY = "laesekredss_profile_v41";
 
 const st = {
-  role: "booker",
+  role: "admin",
   authRole: null,
   profile: {
     adminCentralId: null,

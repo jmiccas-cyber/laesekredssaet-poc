@@ -81,7 +81,13 @@ function isSuperLibrary(lib) {
 }
 
 function currentAdminId() {
-  return st.profile?.adminCentralId || "";
+  if (st.profile?.adminCentralId) return st.profile.adminCentralId;
+  const firstCentral = st.libs?.centrals?.[0]?.bibliotek_id;
+  if (firstCentral) {
+    st.profile.adminCentralId = firstCentral;
+    return firstCentral;
+  }
+  return '' ;
 }
 
 function resolveStore(name) {
@@ -916,6 +922,7 @@ window.LaesekredssApp = Object.freeze({
   refreshForRole,
   boot
 });
+
 
 
 
