@@ -875,9 +875,7 @@ function bindAccessControls() {
 // 11. Fælles refresh pr. rolle & boot
 // ----------------------------------------------------------
 
-async function refreshForRole() {
-  await syncRoleFromAuth();
-  renderRoleBadge();
+async function refreshForRole() {  renderRoleBadge();
   renderLayout();
 
   if (st.role === "admin") {
@@ -918,6 +916,7 @@ window.LaesekredssApp = Object.freeze({
   refreshForRole,
   boot
 });
+
 
 
 
