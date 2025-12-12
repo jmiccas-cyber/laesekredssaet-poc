@@ -1,4 +1,4 @@
-﻿// Inventory module (Admin – Eksemplarer)
+// Inventory module (Admin � Eksemplarer)
 
 (function () {
   const StateLibStore = window.StateLibStore || {};
@@ -8,10 +8,17 @@
   const el = StateLibStore.el || window.el;
   const setActiveButtonState = StateLibStore.setActiveButtonState || window.setActiveButtonState;
   const ExcelHelper = window.ExcelHelper || null;
+  const MessageHelper = window.MessageHelper || null;
+  const SupabaseHelper = window.SupabaseHelper || null;
+  const inventoryMessenger = MessageHelper?.create("#msg");
+  function setInventoryMsg(text, ok = false) {
+    if (inventoryMessenger) inventoryMessenger.set(text, ok);
+    else showMsg("#msg", text, ok);
+  }
 
-// 6. Admin – Eksemplarer (tbl_beholdning)
+// 6. Admin � Eksemplarer (tbl_beholdning)
 // ----------------------------------------------------------
-// 6. Admin Ã¢â‚¬â€œ Eksemplarer (tbl_beholdning)
+// 6. Admin â€“ Eksemplarer (tbl_beholdning)
 // ----------------------------------------------------------
 
 async function eksCount() {
@@ -30,7 +37,7 @@ async function eksCount() {
   }
   const { count, error } = await q;
   if (error) {
-    showMsg("#msg", "Fejl ved hentning: " + error.message);
+    setInventoryMsg("Fejl ved hentning: " + error.message);
     return 0;
   }
   return count || 0;
@@ -74,7 +81,7 @@ async function eksFetch() {
 
   const { data, error } = await q;
   if (error) {
-    showMsg("#msg", "Fejl ved hentning: " + error.message);
+    setInventoryMsg("Fejl ved hentning: " + error.message);
     return [];
   }
   return data || [];
@@ -91,10 +98,10 @@ function updateEksSaveButton() {
   const dirtyCount = eksDirtyRows().length;
   btn.disabled = dirtyCount === 0;
   if (dirtyCount > 0) {
-    const suffix = dirtyCount > 1 ? "ÃƒÂ¦ndringer" : "ÃƒÂ¦ndring";
+    const suffix = dirtyCount > 1 ? "Ã¦ndringer" : "Ã¦ndring";
     btn.textContent = `Gem ${dirtyCount} ${suffix}`;
   } else {
-    btn.textContent = "Gem alle ÃƒÂ¦ndringer";
+    btn.textContent = "Gem alle Ã¦ndringer";
   }
 }
 
@@ -217,7 +224,7 @@ async function syncSaetMetadataFromIsbns(isbns) {
       })
       .eq("isbn", isbn);
     if (updError) {
-      console.error("Kunne ikke opdatere sÃ¦t for ISBN", isbn, updError);
+      console.error("Kunne ikke opdatere sæt for ISBN", isbn, updError);
     } else {
       anyUpdated = true;
     }
@@ -250,7 +257,7 @@ async function fetchOwnerBarcodes(ownerId) {
     .select("barcode,isbn")
     .eq("owner_bibliotek_id", ownerId);
   if (error) {
-    showMsg("#msg", "Kunne ikke hente eksisterende eksemplarer: " + error.message);
+    setInventoryMsg("Kunne ikke hente eksisterende eksemplarer: " + error.message);
     return null;
   }
   const map = new Map();
@@ -268,7 +275,7 @@ async function fetchOwnerSetMap(ownerId) {
     .select("set_id,isbn,requested_count")
     .eq("owner_bibliotek_id", ownerId);
   if (error) {
-    showMsg("#msgSaet", "Kunne ikke hente eksisterende sÃ¦t: " + error.message);
+    showMsg("#msgSaet", "Kunne ikke hente eksisterende sæt: " + error.message);
     return null;
   }
   const map = new Map();
@@ -340,7 +347,7 @@ function eksRevertRow(tr) {
     }
     clearEksDirty(tr);
   } catch (e) {
-    console.warn("Kunne ikke fortryde rÃƒÂ¦kke", e);
+    console.warn("Kunne ikke fortryde rÃ¦kke", e);
   }
 }
 
@@ -348,12 +355,12 @@ function eksRevertRow(tr) {
 async function eksSaveAll() {
   if (!sb) return;
   if (!st.profile.adminCentralId) {
-    showMsg("#msg", "VÃƒÂ¦lg fÃƒÂ¸rst en admin-profil.");
+    setInventoryMsg("V�lg f�rst en admin-profil.");
     return;
   }
   const dirtyRows = eksDirtyRows();
   if (!dirtyRows.length) {
-    showMsg("#msg", "Der er ingen ÃƒÂ¦ndringer at gemme.");
+    setInventoryMsg("Der er ingen �ndringer at gemme.");
     return;
   }
 
@@ -362,21 +369,21 @@ async function eksSaveAll() {
     const rec = eksCollectRow(tr);
     const err = eksValidate(rec || {});
     if (err) {
-      showMsg("#msg", `Fejl i rÃƒÂ¦kke (${rec?.barcode || "ny"}): ${err}`);
+      setInventoryMsg(`Fejl i r�kke (${rec?.barcode || "ny"}) : ${err}`);
       tr.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     payload.push(rec);
   }
 
-  showMsg("#msg", "Gemmer ÃƒÂ¦ndringer...");
+  setInventoryMsg("Gemmer �ndringer...");
   const { error } = await sb.from("tbl_beholdning").upsert(payload, { onConflict: "barcode" });
   if (error) {
-    showMsg("#msg", "Fejl ved gem: " + error.message);
+    setInventoryMsg("Fejl ved gem: " + error.message);
     return;
   }
 
-  showMsg("#msg", `Gemte ${payload.length} ÃƒÂ¦ndring${payload.length > 1 ? "er" : ""}.`, true);
+  setInventoryMsg(`Gemte ${payload.length} �ndring${payload.length > 1 ? "er" : ""}.`, true);
   await eksPull();
   await loadInventorySummary();
   await syncSaetMetadataFromIsbns(payload.map(r => r.isbn));
@@ -395,11 +402,11 @@ async function exportEksToExcel() {
   if (!sb) return;
   const ownerId = currentAdminId();
   if (!ownerId) {
-    showMsg("#msg", "VÃ¦lg fÃ¸rst en admin-profil (centralbibliotek) via Skift: Admin â†” Booker.");
+    setInventoryMsg("V�lg f�rst en admin-profil (centralbibliotek) via Skift: Admin ? Booker.");
     return;
   }
 
-  showMsg("#msg", "Henter eksemplarer til Excel â€¦");
+  setInventoryMsg("Henter eksemplarer til Excel �");
   const { data, error } = await sb
     .from("tbl_beholdning")
     .select("barcode,title,author,isbn,faust,aktiv")
@@ -407,7 +414,7 @@ async function exportEksToExcel() {
     .order("barcode");
 
   if (error) {
-    showMsg("#msg", "Kunne ikke hente eksemplarer: " + error.message);
+    setInventoryMsg("Kunne ikke hente eksemplarer: " + error.message);
     return;
   }
 
@@ -422,7 +429,7 @@ async function exportEksToExcel() {
   }));
 
   if (!ExcelHelper) {
-    showMsg("#msg", "Excel-helper mangler. PrÃ¸v at genindlÃ¦se siden.");
+    setInventoryMsg("Excel-helper mangler. Pr�v at genindl�se siden.");
     return;
   }
   try {
@@ -444,27 +451,72 @@ async function exportEksToExcel() {
       successText: "Excel klar til download."
     });
   } catch (err) {
-    showMsg("#msg", err.message || "Kunne ikke generere Excel.");
+    setInventoryMsg(err.message || "Kunne ikke generere Excel.");
   }
+}
+
+function buildEksColumns() {
+  return [
+    {
+      id: "barcode",
+      accessor: row => row.barcode || "",
+      render: row => el("span", { class: "bc-label" }, row.barcode || "")
+    },
+    {
+      id: "title",
+      accessor: row => (row.title || "").toLowerCase(),
+      render: row => el("input", { class: "title", value: row.title || "" })
+    },
+    {
+      id: "author",
+      accessor: row => (row.author || "").toLowerCase(),
+      render: row => el("input", { class: "author", value: row.author || "" })
+    },
+    {
+      id: "isbn",
+      accessor: row => row.isbn || "",
+      render: row => el("input", { class: "isbn", value: row.isbn || "" })
+    },
+    {
+      id: "faust",
+      accessor: row => row.faust || "",
+      render: row => el("input", { class: "faust", value: row.faust || "" })
+    },
+    {
+      id: "aktiv",
+      accessor: row => (row.aktiv === false ? "false" : "true"),
+      render: row => {
+        const btn = el("button", { class: "btn btn-small active-flag", type: "button" }, "");
+        setActiveButtonState(btn, row.aktiv === false ? "false" : "true");
+        btn.addEventListener("click", () => {
+          const tr = btn.closest("tr");
+          const next = btn.dataset.value === "true" ? "false" : "true";
+          setActiveButtonState(btn, next);
+          if (tr) markEksDirty(tr);
+        });
+        return btn;
+      }
+    }
+  ];
 }
 
 async function importEksFromExcel(file) {
   if (!sb || !file) return;
   const ownerId = currentAdminId();
   if (!ownerId) {
-    showMsg("#msg", "VÃ¦lg fÃ¸rst en admin-profil (centralbibliotek) via Skift: Admin â†” Booker.");
+    setInventoryMsg("V�lg f�rst en admin-profil (centralbibliotek) via Skift: Admin ? Booker.");
     return;
   }
 
   if (!ExcelHelper) {
-    showMsg("#msg", "Excel-helper mangler. PrÃ¸v at genindlÃ¦se siden.");
+    setInventoryMsg("Excel-helper mangler. Pr�v at genindl�se siden.");
     return;
   }
   let rows;
   try {
     rows = await ExcelHelper.readSheetRows(file, {
       messageSelector: "#msg",
-      loadingText: "IndlÃ¦ser Excel â€¦",
+      loadingText: "Indlæser Excel …",
       emptySheetText: "Excel-arket er tomt."
     });
   } catch (err) {
@@ -543,7 +595,7 @@ async function importEksFromExcel(file) {
   });
 
   if (!updates.length && !deletions.length) {
-    showMsg("#msg", failures[0] || "Ingen gyldige rÃ¦kker fundet.");
+    setInventoryMsg(failures[0] || "Ingen gyldige r�kker fundet.");
     return;
   }
 
@@ -559,51 +611,56 @@ async function importEksFromExcel(file) {
     });
     if (blocking.length) {
       const sample = blocking.slice(0, 5).map(([isbn, count]) =>
-        `${isbn} (krÃ¦vet: ${Number(usageMap?.[ownerId]?.[isbn]) || 0}, tilbage efter sletning: ${Math.max(0, getInventoryCount(ownerId, isbn) - count)})`
+        `${isbn} (krævet: ${Number(usageMap?.[ownerId]?.[isbn]) || 0}, tilbage efter sletning: ${Math.max(0, getInventoryCount(ownerId, isbn) - count)})`
       );
-      showMsg("#msg", "Eksemplarer kan ikke slettes fÃ¸r tilhÃ¸rende sÃ¦t er nedtaget: " + sample.join(", "));
+      setInventoryMsg("Eksemplarer kan ikke slettes f�r tilh�rende s�t er nedtaget: " + sample.join(", "));
       return;
     }
-    const confirmMsg = `Der er ${deletions.length} stregkoder markeret til sletning. Handlingen kan ikke fortrydes. FortsÃ¦t?`;
+    const confirmMsg = `Der er ${deletions.length} stregkoder markeret til sletning. Handlingen kan ikke fortrydes. Fortsæt?`;
     if (!confirm(confirmMsg)) {
-      showMsg("#msg", "Import annulleret.");
+      setInventoryMsg("Import annulleret.");
       return;
     }
   }
 
-  const chunkSize = 100;
   let updatesDone = 0;
-  for (let i = 0; i < updates.length; i += chunkSize) {
-    const chunk = updates.slice(i, i + chunkSize);
-    const { error } = await sb.from("tbl_beholdning").upsert(chunk, { onConflict: "barcode" });
-    if (error) {
-      showMsg("#msg", "Fejl ved import: " + error.message);
+  if (updates.length) {
+    try {
+      const result = await SupabaseHelper.processChunks(updates, 100, async chunk => {
+        const { error } = await sb.from("tbl_beholdning").upsert(chunk, { onConflict: "barcode" });
+        if (error) throw error;
+      });
+      updatesDone = result?.processed || 0;
+    } catch (error) {
+      setInventoryMsg("Fejl ved import: " + error.message);
       return;
     }
-    updatesDone += chunk.length;
   }
 
   let deletesDone = 0;
-  for (let i = 0; i < deletions.length; i += chunkSize) {
-    const chunk = deletions.slice(i, i + chunkSize);
-    const { error } = await sb
-      .from("tbl_beholdning")
-      .delete()
-      .eq("owner_bibliotek_id", ownerId)
-      .in("barcode", chunk.map(d => d.barcode));
-    if (error) {
-      showMsg("#msg", "Fejl ved sletning: " + error.message);
+  if (deletions.length) {
+    try {
+      const result = await SupabaseHelper.processChunks(deletions, 100, async chunk => {
+        const { error } = await sb
+          .from("tbl_beholdning")
+          .delete()
+          .eq("owner_bibliotek_id", ownerId)
+          .in("barcode", chunk.map(d => d.barcode));
+        if (error) throw error;
+      });
+      deletesDone = result?.processed || 0;
+    } catch (error) {
+      setInventoryMsg("Fejl ved sletning: " + error.message);
       return;
     }
-    deletesDone += chunk.length;
   }
 
   const parts = [];
   if (updatesDone) parts.push(`opdaterede ${updatesDone} eksemplarer`);
   if (deletesDone) parts.push(`slettede ${deletesDone}`);
-  showMsg("#msg", parts.length ? `Import gennemfÃ¸rt: ${parts.join(", ")}.` : "Import gennemfÃ¸rt.", true);
+  setInventoryMsg(parts.length ? `Import gennemf�rt: ${parts.join(", ")}.` : "Import gennemf�rt.", true);
   if (failures.length) {
-    alert("FÃ¸lgende rÃ¦kker blev sprunget over:\n" + failures.join("\n"));
+    alert("Følgende rækker blev sprunget over:\n" + failures.join("\n"));
   }
   await eksPull();
   await loadInventorySummary();
@@ -614,8 +671,8 @@ async function eksPull() {
   if (!$("#tblEks tbody")) return;
   if (!st.profile.adminCentralId) {
     $("#tblEks tbody").innerHTML = "";
-    $("#pinfo").textContent = "VÃƒÂ¦lg fÃƒÂ¸rst en admin-profil (centralbibliotek) via Skift: Admin Ã¢â€ â€ Booker.";
-     updateEksSaveButton();
+    $("#pinfo").textContent = "V�lg f�rst en admin-profil (centralbibliotek) via Skift: Admin ? Booker.";
+    updateEksSaveButton();
     return;
   }
 
@@ -625,99 +682,11 @@ async function eksPull() {
   TableSortHelper.renderTable({
     tableSelector: "#tblEks",
     rows,
-    columns: [
-      {
-        id: "barcode",
-        accessor: row => row.barcode || "",
-        render: row => el("span", { class: "bc-label" }, row.barcode || "")
-      },
-      {
-        id: "title",
-        accessor: row => (row.title || "").toLowerCase(),
-        render: row => {
-          const input = el("input", { class: "title", value: row.title || "" });
-          input.addEventListener("input", () => {
-            const tr = input.closest("tr");
-            if (tr) markEksDirty(tr);
-          });
-          input.addEventListener("change", () => {
-            const tr = input.closest("tr");
-            if (tr) markEksDirty(tr);
-          });
-          return input;
-        }
-      },
-      {
-        id: "author",
-        accessor: row => (row.author || "").toLowerCase(),
-        render: row => {
-          const input = el("input", { class: "author", value: row.author || "" });
-          input.addEventListener("input", () => {
-            const tr = input.closest("tr");
-            if (tr) markEksDirty(tr);
-          });
-          input.addEventListener("change", () => {
-            const tr = input.closest("tr");
-            if (tr) markEksDirty(tr);
-          });
-          return input;
-        }
-      },
-      {
-        id: "isbn",
-        accessor: row => row.isbn || "",
-        render: row => {
-          const input = el("input", { class: "isbn", value: row.isbn || "" });
-          input.addEventListener("input", () => {
-            const tr = input.closest("tr");
-            if (tr) markEksDirty(tr);
-          });
-          input.addEventListener("change", () => {
-            const tr = input.closest("tr");
-            if (tr) markEksDirty(tr);
-          });
-          return input;
-        }
-      },
-      {
-        id: "faust",
-        accessor: row => row.faust || "",
-        render: row => {
-          const input = el("input", { class: "faust", value: row.faust || "" });
-          input.addEventListener("input", () => {
-            const tr = input.closest("tr");
-            if (tr) markEksDirty(tr);
-          });
-          input.addEventListener("change", () => {
-            const tr = input.closest("tr");
-            if (tr) markEksDirty(tr);
-          });
-          return input;
-        }
-      },
-      {
-        id: "aktiv",
-        accessor: row => (row.aktiv === false ? "false" : "true"),
-        render: row => {
-          const btn = el("button", {
-            class: "btn btn-small active-flag",
-            type: "button"
-          }, "");
-          setActiveButtonState(btn, row.aktiv === false ? "false" : "true");
-          btn.addEventListener("click", () => {
-            const tr = btn.closest("tr");
-            const next = btn.dataset.value === "true" ? "false" : "true";
-            setActiveButtonState(btn, next);
-            if (tr) markEksDirty(tr);
-          });
-          return btn;
-        }
-      }
-    ],
+    columns: buildEksColumns(),
     stateRoot: st.eks,
     defaultSort: { sortBy: "barcode", sortDir: "asc" },
     emptyText: "Ingen eksemplarer.",
-    rowActions: row => {
+    rowActions: () => {
       const btnReset = el("button", { class: "btn", type: "button" }, "Fortryd");
       btnReset.addEventListener("click", () => {
         const tr = btnReset.closest("tr");
@@ -761,14 +730,14 @@ async function eksDeleteRow(tr) {
       .eq("isbn", isbn)
       .eq("aktiv", true);
     if (countError) {
-      showMsg("#msg", "Kunne ikke verificere beholdning: " + countError.message);
+      setInventoryMsg("Kunne ikke verificere beholdning: " + countError.message);
       return;
     }
     const usageMap = await fetchSaetUsage();
     st.saet.usage = usageMap;
     const reserved = Number(usageMap?.[ownerId]?.[isbn]) || 0;
     if ((available ?? 0) - 1 < reserved) {
-      showMsg("#msg", `Eksemplarer for ISBN ${isbn} kan ikke slettes fÃ¸r tilhÃ¸rende sÃ¦t reduceres (krÃ¦vet: ${reserved}, tilbage efter sletning: ${(available ?? 0) - 1}).`);
+      setInventoryMsg(`Eksemplarer for ISBN ${isbn} kan ikke slettes f�r tilh�rende s�t reduceres (kr�vet: ${reserved}, tilbage efter sletning: ${(available ?? 0) - 1}).`);
       return;
     }
   }
@@ -776,10 +745,10 @@ async function eksDeleteRow(tr) {
   if (!confirm("Slet eksemplar " + bc + "?")) return;
   const { error } = await sb.from("tbl_beholdning").delete().eq("barcode", bc);
   if (error) {
-    showMsg("#msg", "Fejl ved sletning: " + error.message);
+    setInventoryMsg("Fejl ved sletning: " + error.message);
     return;
   }
-  showMsg("#msg", "Eksemplar slettet", true);
+  setInventoryMsg("Eksemplar slettet", true);
   tr.remove();
   st.eks.total = Math.max(0, (st.eks.total || 0) - 1);
   renderEksPagerInfo();
@@ -814,7 +783,7 @@ function eksNewRow() {
       tr.remove();
       updateEksSaveButton();
     }
-  }, "AnnullÃƒÂ©r");
+  }, "AnnullÃ©r");
   const info = el("span", { class: "hint" }, "Gem via knappen ovenfor");
 
   tr.append(
@@ -915,5 +884,4 @@ function bindEksControls() {
   });
   window.StoreRegistry?.registerStore?.("InventoryStore", InventoryStore);
 })();
-const InventoryStore = window.InventoryStore || {};
-InventoryStore.init?.({ state: StateLibStore.st, getSupabaseClient: StateLibStore.getSupabaseClient, uiHelpers: { showMsg, el, $ } });
+

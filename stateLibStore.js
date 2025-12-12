@@ -3,8 +3,9 @@
 
 (() => {
 
-const SUPABASE_URL = "https://qlkrzinyqirnigcwadki.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsa3J6aW55cWlybmlnY3dhZGtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI3NjY2NjgsImV4cCI6MjA3ODM0MjY2OH0.-SV3dn7reKHeYis40I-aF3av0_XmCP-ZqB9KR6JT2so";
+const SUPABASE_CONFIG = window.SUPABASE_CONFIG || {};
+const SUPABASE_URL = SUPABASE_CONFIG.url || "";
+const SUPABASE_KEY = SUPABASE_CONFIG.anonKey || "";
 const HOLIDAY_TABLE = "tbl_national_holidays";
 const LOCAL_HOLIDAY_TABLE = "tbl_local_holidays";
 const BOOKING_RULE_TABLE = "tbl_booking_rules";
@@ -64,7 +65,8 @@ function setActiveButtonState(btn, val) {
 const PROFILE_KEY = "laesekredss_profile_v41";
 
 const st = {
-  role: "admin",
+  role: "booker",
+  authRole: null,
   profile: {
     adminCentralId: null,
     bookerLocalId: null
@@ -147,6 +149,10 @@ function initSupabase() {
     console.error("Supabase JS bibliotek ikke fundet.");
     return;
   }
+  if (!SUPABASE_URL || !SUPABASE_KEY) {
+    console.error("Supabase konfiguration mangler (url/anonKey). Indlæs supabase.config.js.");
+    return;
+  }
   sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 }
 
@@ -204,6 +210,7 @@ window.StateLibStore = Object.freeze({
   loadProfile,
   saveProfile,
   loadLibraries,
+  SUPABASE_CONFIG,
   SUPABASE_URL,
   HOLIDAY_TABLE,
   LOCAL_HOLIDAY_TABLE,

@@ -9,10 +9,24 @@
   const LOCAL_HOLIDAY_TABLE = StateLibStore.LOCAL_HOLIDAY_TABLE || window.LOCAL_HOLIDAY_TABLE;
   const showMsg = window.showMsg || (() => {});
   const ExcelHelper = window.ExcelHelper || null;
+  const MessageHelper = window.MessageHelper || null;
+  const SupabaseHelper = window.SupabaseHelper || null;
   const currentAdminId = window.currentAdminId || (() => "");
   const fmtLibLabel = window.fmtLibLabel || (() => "");
   const isSuperLibrary = window.isSuperLibrary || (() => false);
   const TableSortHelper = window.TableSortHelper || null;
+  const calendarMessenger = MessageHelper?.create("#calendarMsg");
+  const calendarLocalMessenger = MessageHelper?.create("#calendarLocalMsg");
+
+  function setCalendarMsg(text, ok = false) {
+    if (calendarMessenger) calendarMessenger.set(text, ok);
+    else showMsg("#calendarMsg", text, ok);
+  }
+
+  function setCalendarLocalMsg(text, ok = false) {
+    if (calendarLocalMessenger) calendarLocalMessenger.set(text, ok);
+    else showMsg("#calendarLocalMsg", text, ok);
+  }
 
   function setCalendarFormEnabledGlobal(enabled) {
     ["#calDate", "#calTitle", "#calNotes", "#btnCalAdd", "#btnCalExport", "#btnCalImport", "#calImportFile"].forEach(sel => {
@@ -105,16 +119,16 @@
     if (!sb) return;
     const adminLib = st.libs.byId[currentAdminId()];
     if (!isSuperLibrary(adminLib)) {
-      showMsg("#calendarMsg", "Kun super admin kan eksportere kalenderen.");
+    setCalendarMsg("Kun super admin kan eksportere kalenderen.");
       return;
     }
-    showMsg("#calendarMsg", "Genererer Excel …");
+    setCalendarMsg("Genererer Excel …");
     const { data, error } = await sb
       .from(HOLIDAY_TABLE)
       .select("holiday_date,title,notes")
       .order("holiday_date", { ascending: true });
     if (error) {
-      showMsg("#calendarMsg", "Kunne ikke hente kalender: " + error.message);
+      setCalendarMsg("Kunne ikke hente kalender: " + error.message);
       return;
     }
     const rows = (data || []).map(row => ({
@@ -123,7 +137,7 @@
       Noter: row.notes || ""
     }));
     if (!ExcelHelper) {
-      showMsg("#calendarMsg", "Excel-helper mangler. Prøv at genindlæse siden.");
+      setCalendarMsg("Excel-helper mangler. Prøv at genindlæse siden.");
       return;
     }
     try {
@@ -137,7 +151,7 @@
         successText: "Excel klar til download."
       });
     } catch (err) {
-      showMsg("#calendarMsg", err.message || "Kunne ikke generere Excel.");
+      setCalendarMsg(err.message || "Kunne ikke generere Excel.");
     }
   }
 
@@ -145,11 +159,11 @@
     if (!sb || !file) return;
     const adminLib = st.libs.byId[currentAdminId()];
     if (!isSuperLibrary(adminLib)) {
-      showMsg("#calendarMsg", "Kun super admin kan importere kalenderen.");
+      setCalendarMsg("Kun super admin kan importere kalenderen.");
       return;
     }
     if (!ExcelHelper) {
-      showMsg("#calendarMsg", "Excel-helper mangler. Prøv at genindlæse siden.");
+      setCalendarMsg("Excel-helper mangler. Prøv at genindlæse siden.");
       return;
     }
     let rows;
@@ -203,40 +217,45 @@
     const deletions = Array.from(deletionSet);
 
     if (!additions.length && !deletions.length) {
-      showMsg("#calendarMsg", failures[0] || "Ingen gyldige rækker fundet.");
+      setCalendarMsg(failures[0] || "Ingen gyldige rækker fundet.");
       return;
     }
 
-    const chunkSize = 100;
     let upsertsDone = 0;
-    for (let i = 0; i < additions.length; i += chunkSize) {
-      const chunk = additions.slice(i, i + chunkSize);
-      const { error } = await sb.from(HOLIDAY_TABLE).upsert(chunk, { onConflict: "holiday_date" });
-      if (error) {
-        showMsg("#calendarMsg", "Fejl ved import: " + error.message);
+    if (additions.length) {
+      try {
+        const result = await SupabaseHelper.processChunks(additions, 100, async chunk => {
+          const { error } = await sb.from(HOLIDAY_TABLE).upsert(chunk, { onConflict: "holiday_date" });
+          if (error) throw error;
+        });
+        upsertsDone = result?.processed || 0;
+      } catch (error) {
+        setCalendarMsg("Fejl ved import: " + error.message);
         return;
       }
-      upsertsDone += chunk.length;
     }
 
     let deletesDone = 0;
-    for (let i = 0; i < deletions.length; i += chunkSize) {
-      const chunk = deletions.slice(i, i + chunkSize);
-      const { error } = await sb
-        .from(HOLIDAY_TABLE)
-        .delete()
-        .in("holiday_date", chunk);
-      if (error) {
-        showMsg("#calendarMsg", "Fejl ved sletning: " + error.message);
+    if (deletions.length) {
+      try {
+        const result = await SupabaseHelper.processChunks(deletions, 100, async chunk => {
+          const { error } = await sb
+            .from(HOLIDAY_TABLE)
+            .delete()
+            .in("holiday_date", chunk);
+          if (error) throw error;
+        });
+        deletesDone = result?.processed || 0;
+      } catch (error) {
+        setCalendarMsg("Fejl ved sletning: " + error.message);
         return;
       }
-      deletesDone += chunk.length;
     }
 
     const parts = [];
     if (upsertsDone) parts.push(`opdaterede ${upsertsDone} dag(e)`);
     if (deletesDone) parts.push(`slettede ${deletesDone}`);
-    showMsg("#calendarMsg", parts.length ? `Import gennemført: ${parts.join(", ")}.` : "Import gennemført.", true);
+    setCalendarMsg(parts.length ? `Import gennemført: ${parts.join(", ")}.` : "Import gennemført.", true);
     if (failures.length) {
       alert("Følgende rækker blev sprunget over:\n" + failures.join("\n"));
     }
@@ -245,7 +264,6 @@
 
   async function calendarPullGlobal() {
     if (!sb) return;
-    const msgSel = "#calendarMsg";
     const adminLib = st.libs.byId[currentAdminId()];
     const isSuper = isSuperLibrary(adminLib);
     const globalSection = $("#calendarGlobalSection");
@@ -253,23 +271,23 @@
     setCalendarFormEnabledGlobal(isSuper);
     if (!isSuper) {
       renderCalendarRowsGlobal([]);
-      showMsg(msgSel, "Kun super admin kan vedligeholde kalenderen.");
+      setCalendarMsg("Kun super admin kan vedligeholde kalenderen.");
       return;
     }
 
-    showMsg(msgSel, "Henter kalender...");
+    setCalendarMsg("Henter kalender...");
     const { data, error } = await sb
       .from(HOLIDAY_TABLE)
       .select("holiday_id,holiday_date,title,notes")
       .order("holiday_date", { ascending: true });
 
     if (error) {
-      showMsg(msgSel, "Kunne ikke hente kalender: " + error.message);
+      setCalendarMsg("Kunne ikke hente kalender: " + error.message);
       return;
     }
     st.calendar.list = data || [];
     renderCalendarRowsGlobal(st.calendar.list);
-    showMsg(msgSel, st.calendar.list.length ? `Indlæst ${st.calendar.list.length} dag(e).` : "Ingen dage registreret.", true);
+    setCalendarMsg(st.calendar.list.length ? `Indlæst ${st.calendar.list.length} dag(e).` : "Ingen dage registreret.", true);
   }
 
   function renderCalendarLocalRows(rows) {
@@ -309,7 +327,6 @@
 
   async function calendarPullLocal() {
     if (!sb) return;
-    const msgSel = "#calendarLocalMsg";
     const section = $("#calendarLocalSection");
     const ownerLabel = $("#calendarLocalOwner");
     const ownerId = currentAdminId();
@@ -317,54 +334,54 @@
     if (section) section.style.display = st.role === "admin" ? "" : "none";
     if (!ownerId || st.role !== "admin") {
       renderCalendarLocalRows([]);
-      showMsg(msgSel, st.role === "admin" ? "Vælg et centralbibliotek først." : "Kalender er kun tilgængelig for admins.");
+      setCalendarLocalMsg(st.role === "admin" ? "Vælg et centralbibliotek først." : "Kalender er kun tilgængelig for admins.");
       return;
     }
     if (ownerLabel) ownerLabel.textContent = fmtLibLabel(adminLib) || ownerId;
-    showMsg(msgSel, "Henter lokal kalender...");
+    setCalendarLocalMsg("Henter lokal kalender...");
     const { data, error } = await sb
       .from(LOCAL_HOLIDAY_TABLE)
       .select("local_holiday_id,holiday_date,title,notes,source_global")
       .eq("owner_bibliotek_id", ownerId)
       .order("holiday_date", { ascending: true });
     if (error) {
-      showMsg(msgSel, "Kunne ikke hente lokal kalender: " + error.message);
+      setCalendarLocalMsg("Kunne ikke hente lokal kalender: " + error.message);
       return;
     }
     st.calendar.local = data || [];
     renderCalendarLocalRows(st.calendar.local);
-    showMsg(msgSel, st.calendar.local.length ? `Indlæst ${st.calendar.local.length} dag(e).` : "Ingen lokale dage registreret.", true);
+    setCalendarLocalMsg(st.calendar.local.length ? `Indlæst ${st.calendar.local.length} dag(e).` : "Ingen lokale dage registreret.", true);
   }
 
   async function calendarLocalAdd() {
     if (!sb) return;
     const ownerId = currentAdminId();
     if (!ownerId) {
-      showMsg("#calendarLocalMsg", "Vælg først et centralbibliotek.");
+      setCalendarLocalMsg("Vælg først et centralbibliotek.");
       return;
     }
     const date = $("#calLocalDate")?.value || "";
     const title = $("#calLocalTitle")?.value.trim() || "";
     const notes = $("#calLocalNotes")?.value.trim() || "";
     if (!date) {
-      showMsg("#calendarLocalMsg", "Dato skal udfyldes.");
+      setCalendarLocalMsg("Dato skal udfyldes.");
       return;
     }
     if (!title) {
-      showMsg("#calendarLocalMsg", "Beskrivelse skal udfyldes.");
+      setCalendarLocalMsg("Beskrivelse skal udfyldes.");
       return;
     }
-    showMsg("#calendarLocalMsg", "Gemmer dag...");
+    setCalendarLocalMsg("Gemmer dag...");
     const payload = { owner_bibliotek_id: ownerId, holiday_date: date, title, notes, source_global: false };
     const { error } = await sb.from(LOCAL_HOLIDAY_TABLE).insert(payload);
     if (error) {
-      showMsg("#calendarLocalMsg", "Kunne ikke gemme: " + error.message);
+      setCalendarLocalMsg("Kunne ikke gemme: " + error.message);
       return;
     }
     $("#calLocalDate").value = "";
     $("#calLocalTitle").value = "";
     $("#calLocalNotes").value = "";
-    showMsg("#calendarLocalMsg", "Dag gemt.", true);
+    setCalendarLocalMsg("Dag gemt.", true);
     if (st.calendar.localSets) {
       delete st.calendar.localSets[ownerId];
     }
@@ -375,16 +392,16 @@
     if (!sb || !id) return;
     const ownerId = currentAdminId();
     if (!ownerId) {
-      showMsg("#calendarLocalMsg", "Vælg først et centralbibliotek.");
+      setCalendarLocalMsg("Vælg først et centralbibliotek.");
       return;
     }
     if (!confirm("Slet denne dag fra lokal kalender?")) return;
     const { error } = await sb.from(LOCAL_HOLIDAY_TABLE).delete().eq("local_holiday_id", id).eq("owner_bibliotek_id", ownerId);
     if (error) {
-      showMsg("#calendarLocalMsg", "Kunne ikke slette: " + error.message);
+      setCalendarLocalMsg("Kunne ikke slette: " + error.message);
       return;
     }
-    showMsg("#calendarLocalMsg", "Dag slettet.", true);
+    setCalendarLocalMsg("Dag slettet.", true);
     if (st.calendar.localSets) {
       delete st.calendar.localSets[ownerId];
     }
@@ -395,16 +412,16 @@
     if (!sb) return;
     const ownerId = currentAdminId();
     if (!ownerId) {
-      showMsg("#calendarLocalMsg", "Vælg først et centralbibliotek.");
+      setCalendarLocalMsg("Vælg først et centralbibliotek.");
       return;
     }
-    showMsg("#calendarLocalMsg", "Synkroniserer globale dage …");
+    setCalendarLocalMsg("Synkroniserer globale dage …");
     const { data: globalRows, error: globalError } = await sb
       .from(HOLIDAY_TABLE)
       .select("holiday_date,title,notes")
       .order("holiday_date", { ascending: true });
     if (globalError) {
-      showMsg("#calendarLocalMsg", "Kunne ikke hente globale dage: " + globalError.message);
+      setCalendarLocalMsg("Kunne ikke hente globale dage: " + globalError.message);
       return;
     }
     const { data: existing } = await sb
@@ -427,12 +444,12 @@
         const chunk = toInsert.slice(i, i + chunkSize);
         const { error } = await sb.from(LOCAL_HOLIDAY_TABLE).upsert(chunk, { onConflict: "owner_bibliotek_id,holiday_date" });
         if (error) {
-          showMsg("#calendarLocalMsg", "Synkronisering fejlede: " + error.message);
+          setCalendarLocalMsg("Synkronisering fejlede: " + error.message);
           return;
         }
       }
     }
-    showMsg("#calendarLocalMsg", toInsert.length ? `Tilføjede ${toInsert.length} global(e) dag(e).` : "Alle globale dage var allerede til stede.", true);
+    setCalendarLocalMsg(toInsert.length ? `Tilføjede ${toInsert.length} global(e) dag(e).` : "Alle globale dage var allerede til stede.", true);
     if (st.calendar.localSets) {
       delete st.calendar.localSets[ownerId];
     }
@@ -443,17 +460,17 @@
     if (!sb) return;
     const ownerId = currentAdminId();
     if (!ownerId) {
-      showMsg("#calendarLocalMsg", "Vælg først et centralbibliotek.");
+      setCalendarLocalMsg("Vælg først et centralbibliotek.");
       return;
     }
-    showMsg("#calendarLocalMsg", "Genererer Excel …");
+    setCalendarLocalMsg("Genererer Excel …");
     const { data, error } = await sb
       .from(LOCAL_HOLIDAY_TABLE)
       .select("holiday_date,title,notes")
       .eq("owner_bibliotek_id", ownerId)
       .order("holiday_date", { ascending: true });
     if (error) {
-      showMsg("#calendarLocalMsg", "Kunne ikke hente kalender: " + error.message);
+      setCalendarLocalMsg("Kunne ikke hente kalender: " + error.message);
       return;
     }
     const rows = (data || []).map(row => ({
@@ -462,7 +479,7 @@
       Noter: row.notes || ""
     }));
     if (!ExcelHelper) {
-      showMsg("#calendarLocalMsg", "Excel-helper mangler. Prøv at genindlæse siden.");
+      setCalendarLocalMsg("Excel-helper mangler. Prøv at genindlæse siden.");
       return;
     }
     try {
@@ -476,7 +493,7 @@
         successText: "Excel klar til download."
       });
     } catch (err) {
-      showMsg("#calendarLocalMsg", err.message || "Kunne ikke generere Excel.");
+      setCalendarLocalMsg(err.message || "Kunne ikke generere Excel.");
     }
   }
 
@@ -484,11 +501,11 @@
     if (!sb || !file) return;
     const ownerId = currentAdminId();
     if (!ownerId) {
-      showMsg("#calendarLocalMsg", "Vælg først et centralbibliotek.");
+      setCalendarLocalMsg("Vælg først et centralbibliotek.");
       return;
     }
     if (!ExcelHelper) {
-      showMsg("#calendarLocalMsg", "Excel-helper mangler. Prøv at genindlæse siden.");
+      setCalendarLocalMsg("Excel-helper mangler. Prøv at genindlæse siden.");
       return;
     }
     let rows;
@@ -539,41 +556,46 @@
     const deletions = Array.from(deletionSet);
 
     if (!additions.length && !deletions.length) {
-      showMsg("#calendarLocalMsg", failures[0] || "Ingen gyldige rækker fundet.");
+      setCalendarLocalMsg(failures[0] || "Ingen gyldige rækker fundet.");
       return;
     }
 
-    const chunkSize = 100;
     let upsertsDone = 0;
-    for (let i = 0; i < additions.length; i += chunkSize) {
-      const chunk = additions.slice(i, i + chunkSize);
-      const { error } = await sb.from(LOCAL_HOLIDAY_TABLE).upsert(chunk, { onConflict: "owner_bibliotek_id,holiday_date" });
-      if (error) {
-        showMsg("#calendarLocalMsg", "Fejl ved import: " + error.message);
+    if (additions.length) {
+      try {
+        const result = await SupabaseHelper.processChunks(additions, 100, async chunk => {
+          const { error } = await sb.from(LOCAL_HOLIDAY_TABLE).upsert(chunk, { onConflict: "owner_bibliotek_id,holiday_date" });
+          if (error) throw error;
+        });
+        upsertsDone = result?.processed || 0;
+      } catch (error) {
+        setCalendarLocalMsg("Fejl ved import: " + error.message);
         return;
       }
-      upsertsDone += chunk.length;
     }
 
     let deletesDone = 0;
-    for (let i = 0; i < deletions.length; i += chunkSize) {
-      const chunk = deletions.slice(i, i + chunkSize);
-      const { error } = await sb
-        .from(LOCAL_HOLIDAY_TABLE)
-        .delete()
-        .eq("owner_bibliotek_id", ownerId)
-        .in("holiday_date", chunk);
-      if (error) {
-        showMsg("#calendarLocalMsg", "Fejl ved sletning: " + error.message);
+    if (deletions.length) {
+      try {
+        const result = await SupabaseHelper.processChunks(deletions, 100, async chunk => {
+          const { error } = await sb
+            .from(LOCAL_HOLIDAY_TABLE)
+            .delete()
+            .eq("owner_bibliotek_id", ownerId)
+            .in("holiday_date", chunk);
+          if (error) throw error;
+        });
+        deletesDone = result?.processed || 0;
+      } catch (error) {
+        setCalendarLocalMsg("Fejl ved sletning: " + error.message);
         return;
       }
-      deletesDone += chunk.length;
     }
 
     const parts = [];
     if (upsertsDone) parts.push(`opdaterede ${upsertsDone} dag(e)`);
     if (deletesDone) parts.push(`slettede ${deletesDone}`);
-    showMsg("#calendarLocalMsg", parts.length ? `Import gennemført: ${parts.join(", ")}.` : "Import gennemført.", true);
+    setCalendarLocalMsg(parts.length ? `Import gennemført: ${parts.join(", ")}.` : "Import gennemført.", true);
     if (failures.length) {
       alert("Følgende rækker blev sprunget over:\n" + failures.join("\n"));
     }
@@ -589,22 +611,22 @@
     const title = $("#calTitle")?.value.trim() || "";
     const notes = $("#calNotes")?.value.trim() || "";
     if (!date) {
-      showMsg("#calendarMsg", "Dato skal udfyldes.");
+      setCalendarMsg("Dato skal udfyldes.");
       return;
     }
     if (!title) {
-      showMsg("#calendarMsg", "Beskrivelse skal udfyldes.");
+      setCalendarMsg("Beskrivelse skal udfyldes.");
       return;
     }
-    showMsg("#calendarMsg", "Gemmer dag...");
+    setCalendarMsg("Gemmer dag...");
     const payload = { holiday_date: date, title, notes };
     const { error } = await sb.from(HOLIDAY_TABLE).insert(payload);
     if (error) {
-      showMsg("#calendarMsg", "Kunne ikke gemme: " + error.message);
+      setCalendarMsg("Kunne ikke gemme: " + error.message);
       return;
     }
     clearCalendarFormGlobal();
-    showMsg("#calendarMsg", "Dag tilføjet.", true);
+    setCalendarMsg("Dag tilføjet.", true);
     await calendarPullGlobal();
   }
 
@@ -613,10 +635,10 @@
     if (!confirm("Slet denne dag fra kalenderen?")) return;
     const { error } = await sb.from(HOLIDAY_TABLE).delete().eq("holiday_id", id);
     if (error) {
-      showMsg("#calendarMsg", "Kunne ikke slette: " + error.message);
+      setCalendarMsg("Kunne ikke slette: " + error.message);
       return;
     }
-    showMsg("#calendarMsg", "Dag slettet.", true);
+    setCalendarMsg("Dag slettet.", true);
     await calendarPullGlobal();
   }
 

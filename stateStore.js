@@ -126,6 +126,39 @@ function saveProfile() {
   }
 }
 
+async function syncRoleFromAuth() {
+  if (!sb?.auth) {
+    st.authRole = null;
+    if (st.role === "admin" || !st.role) {
+      st.role = "booker";
+    }
+    return;
+  }
+  try {
+    const { data, error } = await sb.auth.getSession();
+    if (error) {
+      console.warn("Kunne ikke hente auth-session:", error);
+      return;
+    }
+    const session = data?.session;
+    const rawRole = session?.user?.app_metadata?.role
+      || session?.user?.user_metadata?.role
+      || (Array.isArray(session?.user?.user_metadata?.roles) ? session.user.user_metadata.roles[0] : null);
+    const normalized = rawRole ? String(rawRole).toLowerCase() : null;
+    if (normalized === "admin" || normalized === "booker") {
+      st.authRole = normalized;
+      st.role = normalized;
+    } else if (!st.role || st.role === "admin") {
+      st.authRole = null;
+      st.role = "booker";
+    } else {
+      st.authRole = null;
+    }
+  } catch (err) {
+    console.warn("Auth sync fejlede:", err);
+  }
+}
+
 // ----------------------------------------------------------
 // 4. Biblioteker (tbl_bibliotek)
 // ----------------------------------------------------------
@@ -452,7 +485,13 @@ async function openRoleModal(targetRole) {
     return;
   }
 
-  roleSelect.value = targetRole || st.role;
+  const canAdmin = st.authRole === "admin";
+  const adminOption = roleSelect?.querySelector("option[value='admin']");
+  if (adminOption) {
+    adminOption.disabled = !canAdmin;
+  }
+  const desiredRole = targetRole || st.role;
+  roleSelect.value = canAdmin ? desiredRole : "booker";
 
   // 3+4) Fyld dropdowns via central helper
   await loadProfileDropdown();
@@ -475,6 +514,10 @@ async function openRoleModal(targetRole) {
     const newRole = roleSelect.value;
 
     if (newRole === "admin") {
+      if (st.authRole !== "admin") {
+        alert("Kun brugere med admin-rolle i Supabase kan v?lge admin.");
+        return;
+      }
       if (!adminSel.value) {
         alert("Vælg et centralbibliotek.");
         return;
@@ -843,6 +886,7 @@ function bindAccessControls() {
 // ----------------------------------------------------------
 
 async function refreshForRole() {
+  await syncRoleFromAuth();
   renderRoleBadge();
   renderLayout();
 
@@ -884,7 +928,3 @@ window.LaesekredssApp = Object.freeze({
   refreshForRole,
   boot
 });
-
-
-
-

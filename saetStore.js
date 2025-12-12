@@ -76,11 +76,11 @@ async function exportSaetToExcel() {
   if (!sb) return;
   const ownerId = st.saet.owner || currentAdminId();
   if (!ownerId) {
-    showMsg("#msgSaet", "Vælg først en admin-profil (centralbibliotek).");
+    setSaetMsg( "Vælg først en admin-profil (centralbibliotek).");
     return;
   }
 
-  showMsg("#msgSaet", "Henter sæt til Excel …");
+  setSaetMsg( "Henter sæt til Excel …");
   const { data, error } = await sb
     .from("tbl_saet")
     .select("set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes")
@@ -88,7 +88,7 @@ async function exportSaetToExcel() {
     .order("set_id");
 
   if (error) {
-    showMsg("#msgSaet", "Kunne ikke hente sæt: " + error.message);
+    setSaetMsg( "Kunne ikke hente sæt: " + error.message);
     return;
   }
 
@@ -111,7 +111,7 @@ async function exportSaetToExcel() {
   }));
 
   if (!ExcelHelper) {
-    showMsg("#msgSaet", "Excel-helper mangler. Prøv at genindlæse siden.");
+    setSaetMsg( "Excel-helper mangler. Prøv at genindlæse siden.");
     return;
   }
   try {
@@ -141,7 +141,7 @@ async function exportSaetToExcel() {
       successText: "Excel med sæt er klar."
     });
   } catch (err) {
-    showMsg("#msgSaet", err.message || "Kunne ikke generere Excel.");
+    setSaetMsg( err.message || "Kunne ikke generere Excel.");
   }
 }
 
@@ -149,12 +149,12 @@ async function importSaetFromExcel(file) {
   if (!sb || !file) return;
   const ownerId = st.saet.owner || currentAdminId();
   if (!ownerId) {
-    showMsg("#msgSaet", "Vælg først en admin-profil (centralbibliotek).");
+    setSaetMsg( "Vælg først en admin-profil (centralbibliotek).");
     return;
   }
 
   if (!ExcelHelper) {
-    showMsg("#msgSaet", "Excel-helper mangler. Prøv at genindlæse siden.");
+    setSaetMsg( "Excel-helper mangler. Prøv at genindlæse siden.");
     return;
   }
   let rows;
@@ -297,49 +297,54 @@ async function importSaetFromExcel(file) {
   });
 
   if (!updates.length && !deletions.length) {
-    showMsg("#msgSaet", failures[0] || "Ingen gyldige rækker fundet.");
+    setSaetMsg( failures[0] || "Ingen gyldige rækker fundet.");
     return;
   }
 
   if (deletions.length) {
     const confirmMsg = `Der er ${deletions.length} sæt markeret til sletning. Handlingen kan ikke fortrydes. Fortsæt?`;
     if (!confirm(confirmMsg)) {
-      showMsg("#msgSaet", "Import annulleret.");
+      setSaetMsg( "Import annulleret.");
       return;
     }
   }
 
-  const chunkSize = 100;
   let upsertsDone = 0;
-  for (let i = 0; i < updates.length; i += chunkSize) {
-    const chunk = updates.slice(i, i + chunkSize);
-    const { error } = await sb.from("tbl_saet").upsert(chunk, { onConflict: "set_id" });
-    if (error) {
-      showMsg("#msgSaet", "Fejl ved import: " + error.message);
+  if (updates.length) {
+    try {
+      const result = await SupabaseHelper.processChunks(updates, 100, async chunk => {
+        const { error } = await sb.from("tbl_saet").upsert(chunk, { onConflict: "set_id" });
+        if (error) throw error;
+      });
+      upsertsDone = result?.processed || 0;
+    } catch (error) {
+      setSaetMsg("Fejl ved import: " + error.message);
       return;
     }
-    upsertsDone += chunk.length;
   }
 
   let deletesDone = 0;
-  for (let i = 0; i < deletions.length; i += chunkSize) {
-    const chunk = deletions.slice(i, i + chunkSize);
-    const { error } = await sb
-      .from("tbl_saet")
-      .delete()
-      .eq("owner_bibliotek_id", ownerId)
-      .in("set_id", chunk);
-    if (error) {
-      showMsg("#msgSaet", "Fejl ved sletning af sæt: " + error.message);
+  if (deletions.length) {
+    try {
+      const result = await SupabaseHelper.processChunks(deletions, 100, async chunk => {
+        const { error } = await sb
+          .from("tbl_saet")
+          .delete()
+          .eq("owner_bibliotek_id", ownerId)
+          .in("set_id", chunk);
+        if (error) throw error;
+      });
+      deletesDone = result?.processed || 0;
+    } catch (error) {
+      setSaetMsg("Fejl ved sletning af sæt: " + error.message);
       return;
     }
-    deletesDone += chunk.length;
   }
 
   const parts = [];
   if (upsertsDone) parts.push(`opdaterede ${upsertsDone} sæt`);
   if (deletesDone) parts.push(`slettede ${deletesDone} sæt`);
-  showMsg("#msgSaet", parts.length ? `Import gennemført: ${parts.join(", ")}.` : "Import gennemført.", true);
+  setSaetMsg( parts.length ? `Import gennemført: ${parts.join(", ")}.` : "Import gennemført.", true);
   if (failures.length) {
     alert("Følgende rækker blev sprunget over:\n" + failures.join("\n"));
   }
@@ -519,7 +524,7 @@ async function saetSaveAll() {
   if (!sb) return;
   const dirtyRows = saetDirtyRows();
   if (!dirtyRows.length) {
-    showMsg("#msgSaet", "Der er ingen ændringer at gemme.");
+    setSaetMsg( "Der er ingen ændringer at gemme.");
     return;
   }
 
@@ -531,7 +536,7 @@ async function saetSaveAll() {
     const record = saetCollectRow(tr);
     if (!record) continue;
     if (!record.owner_bibliotek_id) {
-      showMsg("#msgSaet", "Angiv et ejerbibliotek for alle sæt.");
+      setSaetMsg( "Angiv et ejerbibliotek for alle sæt.");
       return;
     }
 
@@ -539,7 +544,7 @@ async function saetSaveAll() {
     if (!ownerSets) {
       ownerSets = await fetchOwnerSetMap(record.owner_bibliotek_id);
       if (ownerSets === null) {
-        showMsg("#msgSaet", "Kunne ikke hente eksisterende sæt for valgte ejer.");
+        setSaetMsg( "Kunne ikke hente eksisterende sæt for valgte ejer.");
         return;
       }
       ownerCache[record.owner_bibliotek_id] = ownerSets;
@@ -553,7 +558,7 @@ async function saetSaveAll() {
       usageOverride
     });
     if (validation) {
-      showMsg("#msgSaet", validation);
+      setSaetMsg( validation);
       tr.scrollIntoView({ block: "center", behavior: "smooth" });
       tr.classList.add("error");
       setTimeout(() => tr.classList.remove("error"), 2000);
@@ -573,17 +578,17 @@ async function saetSaveAll() {
   }
 
   if (!payload.length) {
-    showMsg("#msgSaet", "Ingen gyldige ændringer at gemme.");
+    setSaetMsg( "Ingen gyldige ændringer at gemme.");
     return;
   }
 
-  showMsg("#msgSaet", "Gemmer ændringer...");
+  setSaetMsg( "Gemmer ændringer...");
   const { error } = await sb.from("tbl_saet").upsert(payload, { onConflict: "set_id" });
   if (error) {
-    showMsg("#msgSaet", "Fejl ved gem: " + error.message);
+    setSaetMsg( "Fejl ved gem: " + error.message);
     return;
   }
-  showMsg("#msgSaet", `Gemte ${payload.length} ændring${payload.length > 1 ? "er" : ""}.`, true);
+  setSaetMsg( `Gemte ${payload.length} ændring${payload.length > 1 ? "er" : ""}.`, true);
   await saetPull();
 }
 
@@ -626,7 +631,7 @@ async function saetCount(ownerFilter) {
   }
   const { count, error } = await q;
   if (error) {
-    showMsg("#msgSaet", "Fejl ved hentning: " + error.message);
+    setSaetMsg( "Fejl ved hentning: " + error.message);
     return 0;
   }
   return count || 0;
@@ -655,7 +660,7 @@ async function saetFetch(ownerFilter) {
 
   const { data, error } = await q;
   if (error) {
-    showMsg("#msgSaet", "Fejl ved hentning: " + error.message);
+    setSaetMsg( "Fejl ved hentning: " + error.message);
     return [];
   }
   return data || [];
@@ -700,10 +705,10 @@ async function saetPull() {
   if (!activeOwner) {
     tb.innerHTML = "";
     $("#saetPinfo").textContent = "";
-    showMsg("#msgSaet", "VÃ¦lg fÃ¸rst en admin-profil (centralbibliotek) via Skift: Admin â†” Booker.");
+    setSaetMsg( "VÃ¦lg fÃ¸rst en admin-profil (centralbibliotek) via Skift: Admin â†” Booker.");
     return;
   }
-  showMsg("#msgSaet", "");
+  setSaetMsg( "");
 
   st.saet.vis = "";
   st.saet.q = $("#saetQ")?.value || "";
@@ -944,9 +949,9 @@ async function saetDeleteRow(tr) {
   if (!confirm("Slet sÃ¦t " + setId + "?")) return;
   const { error } = await sb.from("tbl_saet").delete().eq("set_id", Number(setId));
   if (error) {
-    showMsg("#msgSaet", "Fejl ved sletning: " + error.message);
+    setSaetMsg( "Fejl ved sletning: " + error.message);
   } else {
-    showMsg("#msgSaet", "SÃ¦t slettet", true);
+    setSaetMsg( "SÃ¦t slettet", true);
     await saetPull();
   }
 }
@@ -960,7 +965,7 @@ function saetNewRow() {
 
   const ownerId = currentAdminId();
   if (!ownerId) {
-    showMsg("#msgSaet", "VÃ¦lg fÃ¸rst en admin-profil (centralbibliotek) via Skift: Admin â†” Booker.");
+    setSaetMsg( "VÃ¦lg fÃ¸rst en admin-profil (centralbibliotek) via Skift: Admin â†” Booker.");
     return;
   }
 
@@ -1080,7 +1085,7 @@ function bindSaetControls() {
   $("#btnSaetMine")?.addEventListener("click", () => {
     const adminId = currentAdminId();
     if (!adminId) {
-      showMsg("#msgSaet", "VÃ¦lg fÃ¸rst en admin-profil (centralbibliotek).");
+      setSaetMsg( "VÃ¦lg fÃ¸rst en admin-profil (centralbibliotek).");
       return;
     }
     st.saet.owner = adminId;
@@ -1188,4 +1193,5 @@ SaetStore.init?.({
     $: StateLibStoreRef.$ || window.$
   }
 });
+
 
