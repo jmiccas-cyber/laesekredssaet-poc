@@ -302,7 +302,7 @@
     if (!client) return;
     const ruleSel = $("#bookingRuleSelect");
     const rule = ruleSel?.value || BOOKING_RULE_DEFAULT;
-    showMsg("#bookingRuleMsg", "Gemmer bookingregel …");
+    showMsg("#bookingRuleMsg", "Gemmer bookingregel");
     const payload = { owner_bibliotek_id: ownerId, rule };
     const { error } = await client
       .from(BOOKING_RULE_TABLE)
@@ -343,17 +343,17 @@
         {
           id: "title",
           accessor: row => (row.set?.title || "").toLowerCase(),
-          render: row => row.set?.title || `Sæt #${row.set_id}` || "—"
+          render: row => row.set?.title || `Sæt #${row.set_id}` || "�"
         },
         {
           id: "author",
           accessor: row => (row.set?.author || "").toLowerCase(),
-          render: row => row.set?.author || "—"
+          render: row => row.set?.author || "�"
         },
         {
           id: "isbn",
           accessor: row => row.set?.isbn || "",
-          render: row => row.set?.isbn || "—"
+          render: row => row.set?.isbn || "�"
         },
         {
           id: "requester",
@@ -379,7 +379,7 @@
         {
           id: "status",
           accessor: row => (row.booking_status || "").toLowerCase(),
-          render: row => (row.booking_status || "").replace(/^\w/, ch => ch.toUpperCase()) || "—"
+          render: row => (row.booking_status || "").replace(/^\w/, ch => ch.toUpperCase()) || "�"
         }
       ],
       stateRoot: sortState,
@@ -405,7 +405,7 @@
     const ownerId = currentAdminId();
     const ownerLabel = $("#bookingRequestsOwner");
     if (ownerLabel) {
-      ownerLabel.textContent = fmtLibLabel(st.libs.byId[ownerId]) || ownerId || "—";
+      ownerLabel.textContent = fmtLibLabel(st.libs.byId[ownerId]) || ownerId || "�";
     }
     if (!ownerId) {
       renderBookingRequestsTable([]);
@@ -414,7 +414,7 @@
     }
     const client = refreshClient();
     if (!client) return;
-    showMsg("#bookingRequestsMsg", "Henter anmodninger …");
+    showMsg("#bookingRequestsMsg", "Henter anmodninger �");
     const { data, error } = await client
       .from("tbl_booking")
       .select("booking_id,set_id,start_date,end_date,booking_status,requester_bibliotek_id,owner_bibliotek_id")
@@ -448,7 +448,7 @@
     const updates = isApprove
       ? { booking_status: BOOKING_STATUS_BOOKED }
       : { booking_status: BOOKING_STATUS_CANCELLED };
-    showMsg(msgSel, isApprove ? "Godkender anmodning …" : "Afviser anmodning …");
+    showMsg(msgSel, isApprove ? "Godkender anmodning �" : "Afviser anmodning �");
     const { error } = await client
       .from("tbl_booking")
       .update(updates)
@@ -561,7 +561,7 @@
     if (!st.booking.mySortDir) st.booking.mySortDir = "asc";
     const client = refreshClient();
     if (!client) return;
-    showMsg("#bMyMsg", "Henter anmodninger …");
+    showMsg("#bMyMsg", "Henter anmodninger �");
     const { data, error } = await client
       .from("tbl_booking")
       .select("booking_id,set_id,start_date,end_date,booking_status,owner_bibliotek_id")
@@ -588,7 +588,7 @@
       const setInfo = setMap.get(row.set_id) || null;
       let warning = "";
       if (!setInfo) {
-        warning = "Sæt er ikke længere tilgængeligt.";
+        warning = "æt er ikke længere tilgængeligt.";
       } else if (setInfo.active === false) {
         warning = "Sæt er sat som inaktivt.";
       } else if (typeof getInventoryCount === "function" && setInfo.isbn) {
@@ -600,7 +600,7 @@
       }
       const statusLower = (row.booking_status || "").toLowerCase();
       if (statusLower === (BOOKING_STATUS_CANCELLED || "").toLowerCase()) {
-        warning = warning ? `Afvist – ${warning}` : "Afvist";
+        warning = warning ? `Afvist � ${warning}` : "Afvist";
       }
       return {
         ...row,
@@ -628,7 +628,7 @@
     }
     const client = refreshClient();
     if (!client) return;
-    showMsg("#bMyMsg", "Annullerer anmodning …");
+    showMsg("#bMyMsg", "Annullerer anmodning �");
     const { error } = await client
       .from("tbl_booking")
       .update({
@@ -689,7 +689,7 @@
       }
     });
     row.availableSlots?.slice(0, 50).forEach(slot => {
-      const label = `${formatDateDisplay(slot.start_date)} → ${formatDateDisplay(slot.end_date)}`;
+      const label = `${formatDateDisplay(slot.start_date)} ? ${formatDateDisplay(slot.end_date)}`;
       select.appendChild(el("option", { value: `${slot.booking_id}` }, label));
     });
     if (row.selectedSlotId) {
@@ -790,7 +790,7 @@
         {
           id: "rule",
           accessor: row => bookingRuleLabel(row.bookingRule) || "",
-          render: row => bookingRuleLabel(row.bookingRule) || "—"
+          render: row => bookingRuleLabel(row.bookingRule) || "�"
         },
         {
           id: "loan_weeks",
@@ -830,7 +830,7 @@
     const info = $("#bInfo");
     if (info) {
       const totalPages = Math.ceil((st.b.total || 0) / st.b.pageSize);
-      info.textContent = st.b.total ? `Side ${st.b.page + 1}/${Math.max(1, totalPages)} – ${st.b.total} sæt` : "Ingen sæt fundet";
+      info.textContent = st.b.total ? `Side ${st.b.page + 1}/${Math.max(1, totalPages)} � ${st.b.total} sæt` : "Ingen sæt fundet";
     }
   }
 
@@ -893,6 +893,14 @@
       showMsg("#bMsg", "Vælg først en booker-profil (regionsbibliotek).");
       return;
     }
+  const inventoryStore = window.InventoryStore || {};
+  if (typeof inventoryStore.loadInventorySummary === "function") {
+    try {
+      await inventoryStore.loadInventorySummary();
+    } catch (err) {
+      console.warn("Kunne ikke opdatere beholdningsoversigt:", err);
+    }
+  }
     setBookerTab("search");
     st.b.q = $("#bQ")?.value || "";
     st.b.weeks = Number($("#bWeeks")?.value || 8);
@@ -932,19 +940,28 @@
     renderBookerResults();
   }
 
-  async function bookerRequestBooking(setId) {
+    async function bookerRequestBooking(setId) {
     if (!setId) return;
     const row = st.b.resultsMap?.[setId];
     if (!row) return;
     const requesterId = st.profile.bookerLocalId;
     if (!requesterId) {
-      showMsg("#bMsg", "Vælg først et regionsbibliotek via Skift: Admin ↔ Booker.");
+      showMsg("#bMsg", "Vælg først et regionsbibliotek via Skift: Admin ? Booker.");
       return;
     }
     const bookingId = row.selectedSlotId || row.availableSlots?.[0]?.booking_id;
     if (!bookingId) {
       showMsg("#bMsg", "Vælg en ledig periode først.");
       return;
+    }
+    const inventoryStore = window.InventoryStore || {};
+    const getInventoryCount = typeof inventoryStore.getInventoryCount === "function" ? inventoryStore.getInventoryCount : null;
+    if (getInventoryCount && row.isbn) {
+      const invCount = getInventoryCount(row.owner_bibliotek_id, row.isbn);
+      if (!invCount || invCount <= 0) {
+        showMsg("#bMsg", "Sæt kan ikke bookes: ingen eksemplarer tilgængelige.");
+        return;
+      }
     }
     const targetSlot = row.availableSlots?.find(slot => `${slot.booking_id}` === bookingId);
     if (!targetSlot) {
@@ -953,7 +970,7 @@
     }
     const client = refreshClient();
     if (!client) return;
-    showMsg("#bMsg", "Sender bookinganmodning …");
+    showMsg("#bMsg", "Sender bookinganmodning .");
     const { data, error } = await client
       .from("tbl_booking")
       .update({
@@ -1088,3 +1105,13 @@ BookingStore.init?.({
     $: window.StateLibStore?.$ || window.$
   }
 });
+
+
+
+
+
+
+
+
+
+
