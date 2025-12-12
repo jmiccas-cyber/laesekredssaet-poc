@@ -76,11 +76,11 @@ async function exportSaetToExcel() {
   if (!sb) return;
   const ownerId = st.saet.owner || currentAdminId();
   if (!ownerId) {
-    setSaetMsg( "Vælg først en admin-profil (centralbibliotek).");
+    
     return;
   }
 
-  setSaetMsg( "Henter sæt til Excel …");
+  
   const { data, error } = await sb
     .from("tbl_saet")
     .select("set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes")
@@ -88,7 +88,7 @@ async function exportSaetToExcel() {
     .order("set_id");
 
   if (error) {
-    setSaetMsg( "Kunne ikke hente sæt: " + error.message);
+    
     return;
   }
 
@@ -111,7 +111,7 @@ async function exportSaetToExcel() {
   }));
 
   if (!ExcelHelper) {
-    setSaetMsg( "Excel-helper mangler. Prøv at genindlæse siden.");
+    
     return;
   }
   try {
@@ -141,7 +141,7 @@ async function exportSaetToExcel() {
       successText: "Excel med sæt er klar."
     });
   } catch (err) {
-    setSaetMsg( err.message || "Kunne ikke generere Excel.");
+    
   }
 }
 
@@ -149,12 +149,12 @@ async function importSaetFromExcel(file) {
   if (!sb || !file) return;
   const ownerId = st.saet.owner || currentAdminId();
   if (!ownerId) {
-    setSaetMsg( "Vælg først en admin-profil (centralbibliotek).");
+    
     return;
   }
 
   if (!ExcelHelper) {
-    setSaetMsg( "Excel-helper mangler. Prøv at genindlæse siden.");
+    
     return;
   }
   let rows;
@@ -297,14 +297,14 @@ async function importSaetFromExcel(file) {
   });
 
   if (!updates.length && !deletions.length) {
-    setSaetMsg( failures[0] || "Ingen gyldige rækker fundet.");
+    
     return;
   }
 
   if (deletions.length) {
     const confirmMsg = `Der er ${deletions.length} sæt markeret til sletning. Handlingen kan ikke fortrydes. Fortsæt?`;
     if (!confirm(confirmMsg)) {
-      setSaetMsg( "Import annulleret.");
+      
       return;
     }
   }
@@ -318,7 +318,7 @@ async function importSaetFromExcel(file) {
       });
       upsertsDone = result?.processed || 0;
     } catch (error) {
-      setSaetMsg("Fejl ved import: " + error.message);
+      
       return;
     }
   }
@@ -336,7 +336,7 @@ async function importSaetFromExcel(file) {
       });
       deletesDone = result?.processed || 0;
     } catch (error) {
-      setSaetMsg("Fejl ved sletning af sæt: " + error.message);
+      
       return;
     }
   }
@@ -344,7 +344,7 @@ async function importSaetFromExcel(file) {
   const parts = [];
   if (upsertsDone) parts.push(`opdaterede ${upsertsDone} sæt`);
   if (deletesDone) parts.push(`slettede ${deletesDone} sæt`);
-  setSaetMsg( parts.length ? `Import gennemført: ${parts.join(", ")}.` : "Import gennemført.", true);
+  saetSetMsg( parts.length ? `Import gennemført: ${parts.join(", ")}.` : "Import gennemført.", true);
   if (failures.length) {
     alert("Følgende rækker blev sprunget over:\n" + failures.join("\n"));
   }
@@ -524,7 +524,7 @@ async function saetSaveAll() {
   if (!sb) return;
   const dirtyRows = saetDirtyRows();
   if (!dirtyRows.length) {
-    setSaetMsg( "Der er ingen ændringer at gemme.");
+    
     return;
   }
 
@@ -536,7 +536,7 @@ async function saetSaveAll() {
     const record = saetCollectRow(tr);
     if (!record) continue;
     if (!record.owner_bibliotek_id) {
-      setSaetMsg( "Angiv et ejerbibliotek for alle sæt.");
+      
       return;
     }
 
@@ -544,7 +544,7 @@ async function saetSaveAll() {
     if (!ownerSets) {
       ownerSets = await fetchOwnerSetMap(record.owner_bibliotek_id);
       if (ownerSets === null) {
-        setSaetMsg( "Kunne ikke hente eksisterende sæt for valgte ejer.");
+        
         return;
       }
       ownerCache[record.owner_bibliotek_id] = ownerSets;
@@ -558,7 +558,7 @@ async function saetSaveAll() {
       usageOverride
     });
     if (validation) {
-      setSaetMsg( validation);
+      
       tr.scrollIntoView({ block: "center", behavior: "smooth" });
       tr.classList.add("error");
       setTimeout(() => tr.classList.remove("error"), 2000);
@@ -578,17 +578,17 @@ async function saetSaveAll() {
   }
 
   if (!payload.length) {
-    setSaetMsg( "Ingen gyldige ændringer at gemme.");
+    
     return;
   }
 
-  setSaetMsg( "Gemmer ændringer...");
+  
   const { error } = await sb.from("tbl_saet").upsert(payload, { onConflict: "set_id" });
   if (error) {
-    setSaetMsg( "Fejl ved gem: " + error.message);
+    
     return;
   }
-  setSaetMsg( `Gemte ${payload.length} ændring${payload.length > 1 ? "er" : ""}.`, true);
+  
   await saetPull();
 }
 
@@ -631,7 +631,7 @@ async function saetCount(ownerFilter) {
   }
   const { count, error } = await q;
   if (error) {
-    setSaetMsg( "Fejl ved hentning: " + error.message);
+    
     return 0;
   }
   return count || 0;
@@ -660,7 +660,7 @@ async function saetFetch(ownerFilter) {
 
   const { data, error } = await q;
   if (error) {
-    setSaetMsg( "Fejl ved hentning: " + error.message);
+    
     return [];
   }
   return data || [];
@@ -705,10 +705,10 @@ async function saetPull() {
   if (!activeOwner) {
     tb.innerHTML = "";
     $("#saetPinfo").textContent = "";
-    setSaetMsg( "VÃ¦lg fÃ¸rst en admin-profil (centralbibliotek) via Skift: Admin â†” Booker.");
+    
     return;
   }
-  setSaetMsg( "");
+  
 
   st.saet.vis = "";
   st.saet.q = $("#saetQ")?.value || "";
@@ -949,9 +949,9 @@ async function saetDeleteRow(tr) {
   if (!confirm("Slet sÃ¦t " + setId + "?")) return;
   const { error } = await sb.from("tbl_saet").delete().eq("set_id", Number(setId));
   if (error) {
-    setSaetMsg( "Fejl ved sletning: " + error.message);
+    
   } else {
-    setSaetMsg( "SÃ¦t slettet", true);
+    
     await saetPull();
   }
 }
@@ -965,7 +965,7 @@ function saetNewRow() {
 
   const ownerId = currentAdminId();
   if (!ownerId) {
-    setSaetMsg( "VÃ¦lg fÃ¸rst en admin-profil (centralbibliotek) via Skift: Admin â†” Booker.");
+    
     return;
   }
 
@@ -1085,7 +1085,7 @@ function bindSaetControls() {
   $("#btnSaetMine")?.addEventListener("click", () => {
     const adminId = currentAdminId();
     if (!adminId) {
-      setSaetMsg( "VÃ¦lg fÃ¸rst en admin-profil (centralbibliotek).");
+      
       return;
     }
     st.saet.owner = adminId;
@@ -1195,3 +1195,16 @@ SaetStore.init?.({
 });
 
 
+
+
+
+(() => {
+  function saetSetMsg(text, ok = false) {
+    const box = document.querySelector('#saetMsg');
+    if (!box) return;
+    box.textContent = text || '';
+    box.style.display = text ? 'block' : 'none';
+    box.classList.toggle('ok', !!ok);
+  }
+  window.saetSetMsg = saetSetMsg;
+})();
