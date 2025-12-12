@@ -337,9 +337,8 @@ td {
       transform: translateY(0);
     }
   </style>
-  <script src="https://unpkg.com/@supabase/supabase-js@2.48.0/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
-  <!-- Fallback CDN if unpkg is blocked -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.48.0/dist/umd/supabase.min.js" crossorigin="anonymous"></script>
+  <!-- Supabase client (single CDN load to avoid CORS conflicts); add a local copy if CDNs are blocked -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.48.0/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 <header>
