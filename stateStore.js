@@ -1,4 +1,4 @@
-﻿// ----------------------------------------------------------
+// ----------------------------------------------------------
 // 1. Konfiguration & utilities
 // ----------------------------------------------------------
 
@@ -43,7 +43,7 @@ function ensureSheetJs() {
       const script = document.createElement("script");
       script.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
       script.onload = () => resolve();
-      script.onerror = () => reject(new Error("Kunne ikke indlæse Excel-biblioteket."));
+      script.onerror = () => reject(new Error("Kunne ikke indl�se Excel-biblioteket."));
       document.head.appendChild(script);
     });
   }
@@ -94,7 +94,7 @@ function callStore(name, method, ...args) {
   if (typeof fn === "function") {
     return fn(...args);
   }
-  console.warn(`${name}.${method} er ikke tilgængelig.`);
+  console.warn(`${name}.${method} er ikke tilg�ngelig.`);
   return undefined;
 }
 
@@ -105,7 +105,7 @@ function callStore(name, method, ...args) {
 // ----------------------------------------------------------
 // 3. Supabase & profil
 // ----------------------------------------------------------
-// (håndteres via stateLibStore)
+// (h�ndteres via stateLibStore)
 
 function initSupabase() {
   if (typeof baseInitSupabase === "function") {
@@ -228,7 +228,7 @@ function populateRegionSelects() {
   const detailSel = document.querySelector("#relDetailSel");
   if (detailSel) {
     const current = detailSel.value;
-    detailSel.innerHTML = '<option value="">(vælg regionsbibliotek)</option>';
+    detailSel.innerHTML = '<option value="">(v�lg regionsbibliotek)</option>';
     locals.forEach(lib => {
       detailSel.appendChild(el("option", { value: lib.bibliotek_id }, fmtLibLabel(lib)));
     });
@@ -268,7 +268,7 @@ function renderRegionDetails() {
 
   resetFields();
   setDisabled(true);
-  if (info) info.textContent = "Vælg et regionsbibliotek for at se detaljer.";
+  if (info) info.textContent = "V�lg et regionsbibliotek for at se detaljer.";
 
   if (!id) {
     return;
@@ -276,7 +276,7 @@ function renderRegionDetails() {
 
   const lib = st.libs.byId[id];
   if (!lib) {
-    if (info) info.textContent = "Biblioteket findes ikke længere.";
+    if (info) info.textContent = "Biblioteket findes ikke l�ngere.";
     return;
   }
 
@@ -295,7 +295,7 @@ async function saveRegionDetails() {
   const info = $("#relDetailInfo");
   const id = $("#relDetailSel")?.value || "";
   if (!id) {
-    if (info) info.textContent = "Vælg et regionsbibliotek først.";
+    if (info) info.textContent = "V�lg et regionsbibliotek f�rst.";
     return;
   }
   const name = $("#relDetailName")?.value?.trim() || "";
@@ -385,14 +385,14 @@ function renderRoleBadge() {
   if (st.role === "admin") {
     const id = st.profile.adminCentralId;
     const lib = id ? st.libs.byId[id] : null;
-    profileText.textContent = lib ? ` · ${fmtLibLabel(lib)}` : " · (ingen central valgt)";
+    profileText.textContent = lib ? ` � ${fmtLibLabel(lib)}` : " � (ingen central valgt)";
     if (relCentralReadonly) {
       relCentralReadonly.value = lib ? fmtLibLabel(lib) : "";
     }
   } else {
     const id = st.profile.bookerLocalId;
     const lib = id ? st.libs.byId[id] : null;
-    profileText.textContent = lib ? ` · ${fmtLibLabel(lib)}` : " · (ingen regionsbibliotek valgt)";
+    profileText.textContent = lib ? ` � ${fmtLibLabel(lib)}` : " � (ingen regionsbibliotek valgt)";
   }
 }
 
@@ -423,7 +423,7 @@ function renderLayout() {
     adminTabs.classList.remove("hidden");
     bookerView.classList.add("hidden");
 
-    // Aktiver første admin-tab, hvis ingen valgt
+    // Aktiver f�rste admin-tab, hvis ingen valgt
     if (!panels.some(p => p.classList.contains("active"))) {
       const firstBtn = document.querySelector('nav.tabs button[data-tab="tab-eks"]');
       if (firstBtn) firstBtn.click();
@@ -473,7 +473,7 @@ async function openRoleModal(targetRole) {
   const adminSel   = document.querySelector("#adminProfileSel");
   const bookerSel  = document.querySelector("#bookerProfileSel");
 
-  // 1) Hent biblioteker frisk hver gang modal åbnes
+  // 1) Hent biblioteker frisk hver gang modal �bnes
   await loadLibraries();
 
   // 2) Hvis der stadig ikke er biblioteker, giv en klar fejl
@@ -485,18 +485,14 @@ async function openRoleModal(targetRole) {
     return;
   }
 
-  const canAdmin = st.authRole === "admin";
-  const adminOption = roleSelect?.querySelector("option[value='admin']");
-  if (adminOption) {
-    adminOption.disabled = !canAdmin;
-  }
+  // Allow selecting admin without auth gating (security hardening to be added later)
   const desiredRole = targetRole || st.role;
-  roleSelect.value = canAdmin ? desiredRole : "booker";
+  roleSelect.value = desiredRole || "booker";
 
   // 3+4) Fyld dropdowns via central helper
   await loadProfileDropdown();
 
-  // 5) Vis/hide blokke afhængigt af valgt rolle
+  // 5) Vis/hide blokke afh�ngigt af valgt rolle
   function updateRoleWrap() {
     if (roleSelect.value === "admin") {
       adminWrap.style.display = "block";
@@ -514,12 +510,8 @@ async function openRoleModal(targetRole) {
     const newRole = roleSelect.value;
 
     if (newRole === "admin") {
-      if (st.authRole !== "admin") {
-        alert("Kun brugere med admin-rolle i Supabase kan v?lge admin.");
-        return;
-      }
-      if (!adminSel.value) {
-        alert("Vælg et centralbibliotek.");
+            if (!adminSel.value) {
+        alert("V�lg et centralbibliotek.");
         return;
       }
       st.role = "admin";
@@ -532,7 +524,7 @@ async function openRoleModal(targetRole) {
 
     if (newRole === "booker") {
       if (!bookerSel.value) {
-        alert("Vælg et regionsbibliotek.");
+        alert("V�lg et regionsbibliotek.");
         return;
       }
       st.role = "booker";
@@ -561,10 +553,10 @@ function bindRoleControls() {
 }
 
 // ----------------------------------------------------------
-// 8. Admin – Region / relationer (tbl_bibliotek_relation)
+// 8. Admin � Region / relationer (tbl_bibliotek_relation)
 // ----------------------------------------------------------
 
-// 8. Admin â€“ Region / relationer (tbl_bibliotek_relation)
+// 8. Admin – Region / relationer (tbl_bibliotek_relation)
 // ----------------------------------------------------------
 
 async function relList() {
@@ -695,16 +687,16 @@ async function relAddExisting() {
   if (!sb) return;
   const centralId = $("#relCentralAssign")?.value || currentAdminId();
   if (!centralId) {
-    showMsg("#msgRel", "VÃ¦lg fÃ¸rst et centralbibliotek.");
+    showMsg("#msgRel", "Vælg først et centralbibliotek.");
     return;
   }
   const local = $("#relLocal")?.value;
   if (!local) {
-    showMsg("#msgRel", "VÃ¦lg regionsbibliotek.");
+    showMsg("#msgRel", "Vælg regionsbibliotek.");
     return;
   }
   if (local === centralId) {
-    showMsg("#msgRel", "Et bibliotek kan ikke vÃ¦re sin egen region.");
+    showMsg("#msgRel", "Et bibliotek kan ikke være sin egen region.");
     return;
   }
 
@@ -725,7 +717,7 @@ async function relCreateLocal() {
   if (!sb) return;
   const centralId = $("#newLocalCentral")?.value || currentAdminId();
   if (!centralId) {
-    showMsg("#msgRel", "VÃ¦lg hvilket centralbibliotek regionen skal tilknyttes.");
+    showMsg("#msgRel", "Vælg hvilket centralbibliotek regionen skal tilknyttes.");
     return;
   }
   const id = $("#newLocalId")?.value.trim();
@@ -738,7 +730,7 @@ async function relCreateLocal() {
   const active = activeStr === "true";
 
   if (!id || id.length > 20) {
-    showMsg("#msgRel", "ID skal udfyldes (1â€“20 tegn).");
+    showMsg("#msgRel", "ID skal udfyldes (1–20 tegn).");
     return;
   }
   if (!name) {
@@ -794,16 +786,16 @@ function bindRelControls() {
     relList();
   });
   renderRegionDetails();
-  // Auto-gem Ã¦ndringer i active-dropdowns nÃ¥r man forlader fanen kunne laves her â€“ vi holder det manuelt
+  // Auto-gem ændringer i active-dropdowns når man forlader fanen kunne laves her – vi holder det manuelt
 }
 
 // ----------------------------------------------------------
 
 // ----------------------------------------------------------
-// 9. Admin – Adgang (super admin)
+// 9. Admin � Adgang (super admin)
 // ----------------------------------------------------------
 
-// 9. Admin â€“ Adgang (super admin)
+// 9. Admin – Adgang (super admin)
 // ----------------------------------------------------------
 
 function renderAccessTable() {
@@ -840,13 +832,13 @@ async function toggleSuperAdmin(bibId, makeSuper) {
   const centrals = st.libs.centrals || [];
   const currentSuper = centrals.filter(lib => lib.is_super_admin).length || 0;
   if (!makeSuper && currentSuper <= 1) {
-    showMsg("#accessMsg", "Der skal altid være mindst én super admin.");
+    showMsg("#accessMsg", "Der skal altid v�re mindst �n super admin.");
     return;
   }
   if (accessUpdating) return;
   accessUpdating = true;
   renderAccessTable();
-  showMsg("#accessMsg", "Opdaterer super admin-adgang …");
+  showMsg("#accessMsg", "Opdaterer super admin-adgang �");
   const { error } = await sb
     .from("tbl_bibliotek")
     .update({ is_super_admin: makeSuper })
@@ -862,7 +854,7 @@ async function toggleSuperAdmin(bibId, makeSuper) {
   renderAccessTable();
   const lib = st.libs.byId[bibId];
   const label = fmtLibLabel(lib) || bibId;
-  showMsg("#accessMsg", makeSuper ? `${label} er nu super admin.` : `${label} er ikke længere super admin.`, true);
+  showMsg("#accessMsg", makeSuper ? `${label} er nu super admin.` : `${label} er ikke l�ngere super admin.`, true);
 }
 
 function bindAccessControls() {
@@ -882,7 +874,7 @@ function bindAccessControls() {
 // ----------------------------------------------------------
 
 // ----------------------------------------------------------
-// 11. Fælles refresh pr. rolle & boot
+// 11. F�lles refresh pr. rolle & boot
 // ----------------------------------------------------------
 
 async function refreshForRole() {
@@ -928,3 +920,4 @@ window.LaesekredssApp = Object.freeze({
   refreshForRole,
   boot
 });
+
