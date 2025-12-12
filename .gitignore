@@ -60,7 +60,6 @@ web_modules/
 .node_repl_history
 
 # Supabase client config (keep secrets out of git)
-supabase.config.js
 
 # Output of 'npm pack'
 *.tgz

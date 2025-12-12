@@ -1,7 +1,7 @@
-﻿// Copy this file to supabase.config.js and fill in your Supabase project settings.
-// Do NOT commit supabase.config.js with real keys.
+// Local Supabase config template. If SUPABASE_CONFIG is already set (e.g. by supabase.config.js), this file will not override it.
+// Do not place real production keys here if you commit this file.
 
-window.SUPABASE_CONFIG = {
-  url: "https://your-project.supabase.co",
-  anonKey: "YOUR_SUPABASE_ANON_KEY"
+window.SUPABASE_CONFIG = window.SUPABASE_CONFIG || {
+  url: "",
+  anonKey: ""
 };
