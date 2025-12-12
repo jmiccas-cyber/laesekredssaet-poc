@@ -127,11 +127,9 @@ function saveProfile() {
 }
 
 async function syncRoleFromAuth() {
+  // If no Supabase auth client is available, keep the manually selected role.
   if (!sb?.auth) {
     st.authRole = null;
-    if (st.role === "admin" || !st.role) {
-      st.role = "booker";
-    }
     return;
   }
   try {
@@ -920,4 +918,6 @@ window.LaesekredssApp = Object.freeze({
   refreshForRole,
   boot
 });
+
+
 
