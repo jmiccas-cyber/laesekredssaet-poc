@@ -24,8 +24,9 @@
   }
 
   async function saetSelectWithMode(buildQuery) {
-    let result = await buildQuery(true);
-    if (saetIsBookingModeError(result.error)) {
+    const tryInclude = saetBookingModeSupported;
+    let result = await buildQuery(tryInclude);
+    if (result.error && (saetIsBookingModeError(result.error) || tryInclude)) {
       saetBookingModeSupported = false;
       result = await buildQuery(false);
     }

@@ -19,6 +19,7 @@
   const BOOKING_SLOT_HORIZON_MONTHS = StateLibStore.BOOKING_SLOT_HORIZON_MONTHS || window.BOOKING_SLOT_HORIZON_MONTHS || 12;
   const BOOKING_MODE_ADVANCED = "advanced";
   const BOOKING_MODE_SIMPLE = "simple";
+  let bookingModeSupported = true;
 
   const getClient = () => StateLibStore.getSupabaseClient?.() || window.sb || null;
   let sb = getClient();
@@ -43,8 +44,10 @@
   }
 
   async function selectSaetWithMode(buildQuery) {
-    let result = await buildQuery(true);
-    if (isBookingModeColumnError(result.error)) {
+    const tryInclude = bookingModeSupported;
+    let result = await buildQuery(tryInclude);
+    if (result.error && (isBookingModeColumnError(result.error) || tryInclude)) {
+      bookingModeSupported = false;
       result = await buildQuery(false);
     }
     return result;
@@ -905,7 +908,7 @@
     const info = $("#bInfo");
     if (info) {
       const totalPages = Math.ceil((st.b.total || 0) / st.b.pageSize);
-      info.textContent = st.b.total ? `Side ${st.b.page + 1}/${Math.max(1, totalPages)} af ${st.b.total} saet` : "Ingen saet fundet";
+      info.textContent = st.b.total ? `Side ${st.b.page + 1}/${Math.max(1, totalPages)} af ${st.b.total} sæt` : "Ingen sæt fundet";
     }
   }
 
@@ -957,7 +960,7 @@
         qNat,
         centralIds.length ? qReg.in("owner_bibliotek_id", centralIds) : { data: [], error: null }
       ]);
-      if (includeMode && (isBookingModeColumnError(natRes.error) || isBookingModeColumnError(regRes.error))) {
+      if (includeMode && (natRes.error || regRes.error)) {
         includeMode = false;
         continue;
       }
