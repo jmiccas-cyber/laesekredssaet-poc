@@ -17,6 +17,8 @@
   const BOOKING_RULE_OPTIONS = StateLibStore.BOOKING_RULE_OPTIONS || window.BOOKING_RULE_OPTIONS || [];
   const BOOKING_RULE_DEFAULT = StateLibStore.BOOKING_RULE_DEFAULT || window.BOOKING_RULE_DEFAULT || BOOKING_RULE_OPTIONS[0]?.value || "first_working_day";
   const BOOKING_SLOT_HORIZON_MONTHS = StateLibStore.BOOKING_SLOT_HORIZON_MONTHS || window.BOOKING_SLOT_HORIZON_MONTHS || 12;
+  const BOOKING_MODE_ADVANCED = "advanced";
+  const BOOKING_MODE_SIMPLE = "simple";
 
   const getClient = () => StateLibStore.getSupabaseClient?.() || window.sb || null;
   let sb = getClient();
@@ -25,6 +27,11 @@
     (BOOKING_STATUS_REQUESTED || "").toLowerCase() || "requested",
     (BOOKING_STATUS_BOOKED || "").toLowerCase() || "booked"
   ]);
+
+  function getBookingMode(row) {
+    const mode = (row?.booking_mode || row?.bookingMode || "").toLowerCase();
+    return mode === BOOKING_MODE_SIMPLE ? BOOKING_MODE_SIMPLE : BOOKING_MODE_ADVANCED;
+  }
 
   function refreshClient() {
     sb = getClient();
@@ -84,6 +91,19 @@
     return d;
   }
 
+  function startOfMonth(date) {
+    const d = new Date(date);
+    d.setDate(1);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  function endOfNextMonth(date) {
+    const d = new Date(date.getFullYear(), date.getMonth() + 2, 0);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
   function firstWorkingDayOfMonth(year, month, set) {
     return nextWorkingDay(new Date(year, month, 1), set);
   }
@@ -121,7 +141,21 @@
     });
   }
 
-  function generateSlots(row, rule, holidaySet, minStart, horizon) {
+  function generateSimpleSlots(minStart, horizon) {
+    const slots = [];
+    let candidate = startOfMonth(minStart);
+    if (candidate < minStart) {
+      candidate = startOfMonth(addMonths(minStart, 1));
+    }
+    while (candidate < horizon) {
+      const end = endOfNextMonth(candidate);
+      slots.push({ start: toIsoDate(candidate), end: toIsoDate(end) });
+      candidate = addMonths(candidate, 1);
+    }
+    return slots;
+  }
+
+  function generateAdvancedSlots(row, rule, holidaySet, minStart, horizon) {
     const slots = [];
     let candidate = firstWorkingDayOfMonth(minStart.getFullYear(), minStart.getMonth(), holidaySet);
     if (rule === BOOKING_RULE_EVERY14) {
@@ -140,6 +174,12 @@
       candidate = advanceFirstRule(candidate, holidaySet);
     }
     return slots;
+  }
+
+  function generateSlots(row, rule, holidaySet, minStart, horizon) {
+    return getBookingMode(row) === BOOKING_MODE_SIMPLE
+      ? generateSimpleSlots(minStart, horizon)
+      : generateAdvancedSlots(row, rule, holidaySet, minStart, horizon);
   }
 
   async function fetchBookingsForSetIds(ids) {
@@ -181,22 +221,34 @@
     const existing = data || [];
     const planned = generateSlots(row, rule, holidaySet, start, horizon);
     const existingKeys = new Set(existing.map(b => `${b.start_date}::${b.end_date}`));
+    const plannedKeys = new Set(planned.map(slot => `${slot.start}::${slot.end}`));
     const missing = planned.filter(slot => !existingKeys.has(`${slot.start}::${slot.end}`));
-    if (!missing.length) return;
-    const payload = missing.map(slot => ({
-      owner_bibliotek_id: row.owner_bibliotek_id,
-      set_id: row.set_id,
-      start_date: slot.start,
-      end_date: slot.end,
-      booking_status: BOOKING_STATUS_AVAILABLE
-    }));
-    const chunkSize = 100;
-    for (let i = 0; i < payload.length; i += chunkSize) {
-      const chunk = payload.slice(i, i + chunkSize);
-      const { error: insertError } = await client.from("tbl_booking").insert(chunk);
-      if (insertError) {
-        console.error("ensureBookingSlotsForSet insert:", insertError);
-        return;
+    if (missing.length) {
+      const payload = missing.map(slot => ({
+        owner_bibliotek_id: row.owner_bibliotek_id,
+        set_id: row.set_id,
+        start_date: slot.start,
+        end_date: slot.end,
+        booking_status: BOOKING_STATUS_AVAILABLE
+      }));
+      const chunkSize = 100;
+      for (let i = 0; i < payload.length; i += chunkSize) {
+        const chunk = payload.slice(i, i + chunkSize);
+        const { error: insertError } = await client.from("tbl_booking").insert(chunk);
+        if (insertError) {
+          console.error("ensureBookingSlotsForSet insert:", insertError);
+          return;
+        }
+      }
+    }
+    const extraAvailableIds = existing
+      .filter(b => b.booking_status === BOOKING_STATUS_AVAILABLE && !plannedKeys.has(`${b.start_date}::${b.end_date}`))
+      .map(b => b.booking_id);
+    if (extraAvailableIds.length) {
+      try {
+        await client.from("tbl_booking").delete().in("booking_id", extraAvailableIds);
+      } catch (deleteErr) {
+        console.warn("ensureBookingSlotsForSet delete:", deleteErr);
       }
     }
   }
@@ -212,7 +264,7 @@
       const holidaySet = await loadOwnerHolidaySet(ownerId);
       const { data, error } = await client
         .from("tbl_saet")
-        .select("set_id,loan_weeks,buffer_days,owner_bibliotek_id,active")
+        .select("set_id,loan_weeks,buffer_days,owner_bibliotek_id,active,booking_mode")
         .eq("owner_bibliotek_id", ownerId)
         .eq("active", true);
       if (error) {
@@ -256,7 +308,8 @@
     return st.bookingRules.byOwner?.[ownerId]?.rule || BOOKING_RULE_DEFAULT;
   }
 
-  function bookingRuleLabel(value) {
+  function bookingRuleLabel(value, mode) {
+    if ((mode || value) === BOOKING_MODE_SIMPLE) return "Simpel (2 mdr)";
     return BOOKING_RULE_OPTIONS.find(opt => opt.value === value)?.label || "";
   }
 
@@ -286,7 +339,7 @@
       });
       sel.value = st.bookingRules.owner || currentAdminId();
     }
-    await loadBookingRules(true);
+    await loadBookingRulesetrue);
     const currentRule = currentBookingRule(st.bookingRules.owner || currentAdminId());
     if (selectRule) selectRule.value = currentRule;
     showMsg(msg, "");
@@ -324,7 +377,7 @@
     if (!client) return map;
     const { data, error } = await client
       .from("tbl_saet")
-      .select("set_id,title,author,owner_bibliotek_id,loan_weeks,buffer_days,requested_count,isbn,active")
+      .select("set_id,title,author,owner_bibliotek_id,loan_weeks,buffer_days,requested_count,isbn,active,booking_mode")
       .in("set_id", ids);
     if (error) {
       console.error("fetchSaetMapByIds:", error);
@@ -343,17 +396,17 @@
         {
           id: "title",
           accessor: row => (row.set?.title || "").toLowerCase(),
-          render: row => row.set?.title || `Sæt #${row.set_id}` || "�"
+          render: row => row.set?.title || `set #${row.set_id}` || "?"
         },
         {
           id: "author",
           accessor: row => (row.set?.author || "").toLowerCase(),
-          render: row => row.set?.author || "�"
+          render: row => row.set?.author || "?"
         },
         {
           id: "isbn",
           accessor: row => row.set?.isbn || "",
-          render: row => row.set?.isbn || "�"
+          render: row => row.set?.isbn || "?"
         },
         {
           id: "requester",
@@ -379,7 +432,7 @@
         {
           id: "status",
           accessor: row => (row.booking_status || "").toLowerCase(),
-          render: row => (row.booking_status || "").replace(/^\w/, ch => ch.toUpperCase()) || "�"
+          render: row => (row.booking_status || "").replace(/^\w/, ch => ch.toUpperCase()) || "?"
         }
       ],
       stateRoot: sortState,
@@ -405,7 +458,7 @@
     const ownerId = currentAdminId();
     const ownerLabel = $("#bookingRequestsOwner");
     if (ownerLabel) {
-      ownerLabel.textContent = fmtLibLabel(st.libs.byId[ownerId]) || ownerId || "�";
+      ownerLabel.textContent = fmtLibLabel(st.libs.byId[ownerId]) || ownerId || "?";
     }
     if (!ownerId) {
       renderBookingRequestsTable([]);
@@ -414,7 +467,7 @@
     }
     const client = refreshClient();
     if (!client) return;
-    showMsg("#bookingRequestsMsg", "Henter anmodninger �");
+    showMsg("#bookingRequestsMsg", "Henter anmodninger ?");
     const { data, error } = await client
       .from("tbl_booking")
       .select("booking_id,set_id,start_date,end_date,booking_status,requester_bibliotek_id,owner_bibliotek_id")
@@ -448,7 +501,7 @@
     const updates = isApprove
       ? { booking_status: BOOKING_STATUS_BOOKED }
       : { booking_status: BOOKING_STATUS_CANCELLED };
-    showMsg(msgSel, isApprove ? "Godkender anmodning �" : "Afviser anmodning �");
+    showMsg(msgSel, isApprove ? "Godkender anmodning ?" : "Afviser anmodning ?");
     const { error } = await client
       .from("tbl_booking")
       .update(updates)
@@ -468,7 +521,7 @@
           booking_status: BOOKING_STATUS_AVAILABLE
         });
       } catch (insertErr) {
-        console.warn("Kunne ikke indsætte ny booking-slot efter afvisning:", insertErr);
+        console.warn("Kunne ikke indsette ny booking-slot efter afvisning:", insertErr);
       }
     }
     showMsg(msgSel, isApprove ? "Anmodning godkendt." : "Anmodning afvist.", true);
@@ -487,7 +540,7 @@
         {
           id: "title",
           accessor: row => (row.set?.title || "").toLowerCase(),
-          render: row => row.set?.title || `Sæt #${row.set_id}` || ""
+          render: row => row.set?.title || `set #${row.set_id}` || ""
         },
         {
           id: "owner",
@@ -561,7 +614,7 @@
     if (!st.booking.mySortDir) st.booking.mySortDir = "asc";
     const client = refreshClient();
     if (!client) return;
-    showMsg("#bMyMsg", "Henter anmodninger �");
+    showMsg("#bMyMsg", "Henter anmodninger ?");
     const { data, error } = await client
       .from("tbl_booking")
       .select("booking_id,set_id,start_date,end_date,booking_status,owner_bibliotek_id")
@@ -588,7 +641,7 @@
       const setInfo = setMap.get(row.set_id) || null;
       let warning = "";
       if (!setInfo) {
-        warning = "æt er ikke længere tilgængeligt.";
+        warning = "Sæt er ikke længere tilgængeligt.";
       } else if (setInfo.active === false) {
         warning = "Sæt er sat som inaktivt.";
       } else if (typeof getInventoryCount === "function" && setInfo.isbn) {
@@ -600,7 +653,7 @@
       }
       const statusLower = (row.booking_status || "").toLowerCase();
       if (statusLower === (BOOKING_STATUS_CANCELLED || "").toLowerCase()) {
-        warning = warning ? `Afvist � ${warning}` : "Afvist";
+        warning = warning ? `Afvist - ${warning}` : "Afvist";
       }
       return {
         ...row,
@@ -628,7 +681,7 @@
     }
     const client = refreshClient();
     if (!client) return;
-    showMsg("#bMyMsg", "Annullerer anmodning �");
+    showMsg("#bMyMsg", "Annullerer anmodning ?");
     const { error } = await client
       .from("tbl_booking")
       .update({
@@ -689,7 +742,7 @@
       }
     });
     row.availableSlots?.slice(0, 50).forEach(slot => {
-      const label = `${formatDateDisplay(slot.start_date)} ? ${formatDateDisplay(slot.end_date)}`;
+      const label = `${formatDateDisplay(slot.start_date)} - ${formatDateDisplay(slot.end_date)}`;
       select.appendChild(el("option", { value: `${slot.booking_id}` }, label));
     });
     if (row.selectedSlotId) {
@@ -721,7 +774,7 @@
         case "owner":
           return normalize(row.owner_bibliotek_id);
         case "rule":
-          return normalize(row.bookingRule);
+          return normalize(row.bookingMode === BOOKING_MODE_SIMPLE ? BOOKING_MODE_SIMPLE : row.bookingRule);
         case "loan_weeks":
           return numberize(row.loan_weeks);
         case "requested_count":
@@ -789,13 +842,13 @@
         },
         {
           id: "rule",
-          accessor: row => bookingRuleLabel(row.bookingRule) || "",
-          render: row => bookingRuleLabel(row.bookingRule) || "�"
+          accessor: row => row.bookingMode === BOOKING_MODE_SIMPLE ? BOOKING_MODE_SIMPLE : (row.bookingRule || ""),
+          render: row => bookingRuleLabel(row.bookingRule, row.bookingMode) || "?"
         },
         {
           id: "loan_weeks",
-          accessor: row => Number(row.loan_weeks) || 0,
-          render: row => row.loan_weeks ? `${row.loan_weeks}` : ""
+          accessor: row => row.bookingMode === BOOKING_MODE_SIMPLE ? Number.MAX_SAFE_INTEGER : Number(row.loan_weeks) || 0,
+          render: row => row.bookingMode === BOOKING_MODE_SIMPLE ? "2 mdr" : (row.loan_weeks ? `${row.loan_weeks}` : "")
         },
         {
           id: "requested_count",
@@ -830,7 +883,7 @@
     const info = $("#bInfo");
     if (info) {
       const totalPages = Math.ceil((st.b.total || 0) / st.b.pageSize);
-      info.textContent = st.b.total ? `Side ${st.b.page + 1}/${Math.max(1, totalPages)} � ${st.b.total} sæt` : "Ingen sæt fundet";
+      info.textContent = st.b.total ? `Side ${st.b.page + 1}/${Math.max(1, totalPages)} af ${st.b.total} sæt` : "Ingen sæt fundet";
     }
   }
 
@@ -856,11 +909,11 @@
     const q = st.b.q;
     const centralIds = st.b.centralIds || [];
     let qNat = client.from("tbl_saet")
-      .select("set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,active,requested_count,loan_weeks,buffer_days")
+      .select("set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,active,requested_count,loan_weeks,buffer_days,booking_mode")
       .ilike("visibility", "national")
       .eq("active", true);
     let qReg = client.from("tbl_saet")
-      .select("set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,active,requested_count,loan_weeks,buffer_days")
+      .select("set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,active,requested_count,loan_weeks,buffer_days,booking_mode")
       .ilike("visibility", "regional")
       .eq("active", true);
     if (q) {
@@ -917,9 +970,11 @@
     await Promise.all(ownerIds.map(id => loadOwnerHolidaySet(id)));
     const baseDate = st.b.start ? new Date(st.b.start) : new Date();
     await Promise.all(results.map(async r => {
-      const holidaySet = await loadOwnerHolidaySet(r.owner_bibliotek_id);
+      const mode = getBookingMode(r);
+      r.bookingMode = mode;
+      const holidaySet = mode === BOOKING_MODE_SIMPLE ? null : await loadOwnerHolidaySet(r.owner_bibliotek_id);
       const bookings = bookingMap.get(r.set_id) || [];
-      const rule = currentBookingRule(r.owner_bibliotek_id);
+      const rule = mode === BOOKING_MODE_SIMPLE ? BOOKING_MODE_SIMPLE : currentBookingRule(r.owner_bibliotek_id);
       r.bookingRule = rule;
       const availableSlots = bookings
         .filter(b => b.booking_status === BOOKING_STATUS_AVAILABLE && new Date(b.start_date) >= baseDate)
@@ -931,7 +986,10 @@
       r.selectedSlotId = availableSlots.length ? `${availableSlots[0].booking_id}` : "";
     }));
     const minWeeks = Number(st.b.weeks) || 0;
-    const filtered = minWeeks ? results.filter(r => (Number(r.loan_weeks) || 0) >= minWeeks) : results;
+    const filtered = minWeeks ? results.filter(r => {
+      const weeksValue = getBookingMode(r) === BOOKING_MODE_SIMPLE ? 8 : (Number(r.loan_weeks) || 0);
+      return weeksValue >= minWeeks;
+    }) : results;
     st.b.results = filtered;
     st.b.allResults = filtered;
     st.b.total = filtered.length;
@@ -1003,7 +1061,7 @@
       const bookingId = Number(btn.getAttribute("data-booking-approve") || btn.getAttribute("data-booking-cancel"));
       const setId = Number(btn.getAttribute("data-booking-set"));
       if (!bookingId) return;
-      if (btn.hasAttribute("data-booking-approve")) {
+      if (btn.hasettribute("data-booking-approve")) {
         bookingRequestsUpdate(bookingId, "approve", setId);
       } else {
         bookingRequestsUpdate(bookingId, "cancel", setId);
@@ -1055,9 +1113,9 @@
         }
         return;
       }
-      const dismissBtn = evt.target.closest("button[data-my-dismiss]");
-      if (dismissBtn) {
-        const bookingId = Number(dismissBtn.getAttribute("data-my-dismiss"));
+      const dismissetn = evt.target.closest("button[data-my-dismiss]");
+      if (dismissetn) {
+        const bookingId = Number(dismissetn.getAttribute("data-my-dismiss"));
         if (bookingId) {
           bookerDismissCancelledRequest(bookingId);
         }
@@ -1105,13 +1163,3 @@ BookingStore.init?.({
     $: window.StateLibStore?.$ || window.$
   }
 });
-
-
-
-
-
-
-
-
-
-

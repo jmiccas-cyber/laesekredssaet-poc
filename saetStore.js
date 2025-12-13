@@ -1,7 +1,7 @@
-// 7. Admin � S�t (tbl_saet)
+﻿// 7. Admin – Sæt (tbl_saet)
 // ----------------------------------------------------------
 
-// 7. Admin – Sæt (tbl_saet)
+// 7. Admin sæt (tbl_saet)
 // ----------------------------------------------------------
 (function () {
   const StateLibStore = window.StateLibStore || {};
@@ -45,18 +45,19 @@ function saetUsageFor(ownerId, isbn) {
 }
 
 function saetValidate(r, opts = {}) {
+  const bookingMode = (r.booking_mode || "advanced").toLowerCase();
   if (!r.title) return "Titel skal udfyldes";
   if (!r.visibility || !["national", "regional"].includes(r.visibility.toLowerCase())) {
-    return "Synlighed skal v�re national eller regional";
+    return "Synlighed skal være national eller regional";
   }
   if (!r.owner_bibliotek_id) return "Ejer (centralbibliotek) skal udfyldes";
-  if (!r.isbn) return "V�lg et ISBN fra beholdningen";
-  if (r.requested_count <= 0) return "Et s�t skal indeholde mindst 1 eksemplar";
-  if (r.loan_weeks < 1 || r.loan_weeks > 12) {
-    return "Bookingperioden skal v�re mellem 1 og 12 uger";
+  if (!r.isbn) return "Vælg et ISBN fra beholdningen";
+  if (r.requested_count <= 0) return "Et sæt skal indeholde mindst 1 eksemplar";
+  if (bookingMode !== "simple" && (r.loan_weeks < 1 || r.loan_weeks > 12)) {
+    return "Bookingperioden skal være mellem 1 og 12 uger";
   }
   if (r.buffer_days < 0 || r.min_delivery < 0) {
-    return "Talv�rdier m� ikke v�re negative";
+    return "Talværdier må ikke være negative";
   }
   if (opts.ownerId && opts.desiredCount != null) {
     const available = getInventoryCount(opts.ownerId, r.isbn);
@@ -66,7 +67,7 @@ function saetValidate(r, opts = {}) {
     const otherUsed = Math.max(0, used - savedCount);
     const remaining = available - otherUsed;
     if (opts.desiredCount > remaining) {
-      return `Der er kun ${Math.max(0, remaining)} eksemplarer tilbage af ISBN ${r.isbn}. (${available} i alt, ${otherUsed} bruges i andre s�t)`;
+      return `Der er kun ${Math.max(0, remaining)} eksemplarer tilbage af ISBN ${r.isbn}. (${available} i alt, ${otherUsed} bruges i andre sæt)`;
     }
   }
   return null;
@@ -83,7 +84,7 @@ async function exportSaetToExcel() {
   
   const { data, error } = await sb
     .from("tbl_saet")
-    .select("set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes")
+    .select("set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes,booking_mode")
     .eq("owner_bibliotek_id", ownerId)
     .order("set_id");
 
@@ -102,6 +103,7 @@ async function exportSaetToExcel() {
     requested_count: row.requested_count ?? "",
     loan_weeks: row.loan_weeks ?? "",
     buffer_days: row.buffer_days ?? "",
+    booking_mode: row.booking_mode || "advanced",
     visibility: row.visibility || "national",
     active: row.active ? "true" : "false",
     allow_substitution: row.allow_substitution ? "true" : "false",
@@ -117,7 +119,7 @@ async function exportSaetToExcel() {
   try {
     await ExcelHelper.exportRows({
       rows,
-      sheetName: "S�t",
+      sheetName: "Sæt",
       fileName: `saet_${ownerId}.xlsx`,
       emptyRowTemplate: {
         Handling: "Opdater",
@@ -129,6 +131,7 @@ async function exportSaetToExcel() {
         requested_count: "",
         loan_weeks: "",
         buffer_days: "",
+        booking_mode: "advanced",
         visibility: "national",
         active: "true",
         allow_substitution: "false",
@@ -138,7 +141,7 @@ async function exportSaetToExcel() {
       },
       messageSelector: "#msgSaet",
       beforeText: null,
-      successText: "Excel med s�t er klar."
+      successText: "Excel med sæt er klar."
     });
   } catch (err) {
     
@@ -161,7 +164,7 @@ async function importSaetFromExcel(file) {
   try {
     rows = await ExcelHelper.readSheetRows(file, {
       messageSelector: "#msgSaet",
-      loadingText: "Indl�ser Excel �",
+      loadingText: "Indlæser Excel …",
       emptySheetText: "Excel-arket er tomt."
     });
   } catch (err) {
@@ -204,6 +207,7 @@ async function importSaetFromExcel(file) {
       requested_count: ["requested_count", "eksemplarer"],
       loan_weeks: ["loan_weeks", "uger"],
       buffer_days: ["buffer_days", "buffer"],
+      booking_mode: ["booking_mode", "bookingmode", "booking_model"],
       min_delivery: ["min_delivery", "mindste"],
       visibility: ["visibility", "synlighed"],
       active: ["active", "aktiv"],
@@ -228,10 +232,10 @@ async function importSaetFromExcel(file) {
 
       if (action === "slet" || action === "delete") {
         if (!setId) {
-          return "Handling=Slet kr�ver et ID.";
+          return "Handling=Slet kræver et ID.";
         }
         if (!existingSets.has(String(setId))) {
-          return `S�t ID ${setId} findes ikke.`;
+          return `Sæt ID ${setId} findes ikke.`;
         }
         deletions.push(setId);
         return;
@@ -244,6 +248,8 @@ async function importSaetFromExcel(file) {
       const requested_count = toNumber(values.requested_count, 0);
       const loan_weeks = toNumber(values.loan_weeks, 8);
       const buffer_days = toNumber(values.buffer_days, 0);
+      const booking_mode_raw = String(values.booking_mode || "").trim().toLowerCase();
+      const booking_mode = booking_mode_raw === "simple" ? "simple" : "advanced";
       const min_delivery = toNumber(values.min_delivery, 0);
       let visibility = String(values.visibility || "").trim().toLowerCase() || "national";
       if (!["national", "regional"].includes(visibility)) visibility = "national";
@@ -260,6 +266,7 @@ async function importSaetFromExcel(file) {
         requested_count,
         loan_weeks,
         buffer_days,
+        booking_mode,
         visibility,
         owner_bibliotek_id: ownerId,
         active,
@@ -271,10 +278,10 @@ async function importSaetFromExcel(file) {
 
       const existing = setId ? existingSets.get(String(setId)) : null;
       if (setId && !existing) {
-        return `S�t ID ${setId} findes ikke.`;
+        return `Sæt ID ${setId} findes ikke.`;
       }
       if (existing && existing.isbn && existing.isbn !== record.isbn) {
-        return `S�t ID ${setId} kan ikke �ndre ISBN.`;
+        return `Sæt ID ${setId} kan ikke ændre ISBN.`;
       }
 
       const savedCount = existing ? Number(existing.requested_count) || 0 : 0;
@@ -302,7 +309,7 @@ async function importSaetFromExcel(file) {
   }
 
   if (deletions.length) {
-    const confirmMsg = `Der er ${deletions.length} s�t markeret til sletning. Handlingen kan ikke fortrydes. Forts�t?`;
+    const confirmMsg = `Der er ${deletions.length} sæt markeret til sletning. Handlingen kan ikke fortrydes. Fortsæt?`;
     if (!confirm(confirmMsg)) {
       
       return;
@@ -342,11 +349,11 @@ async function importSaetFromExcel(file) {
   }
 
   const parts = [];
-  if (upsertsDone) parts.push(`opdaterede ${upsertsDone} s�t`);
-  if (deletesDone) parts.push(`slettede ${deletesDone} s�t`);
-  saetSetMsg( parts.length ? `Import gennemf�rt: ${parts.join(", ")}.` : "Import gennemf�rt.", true);
+  if (upsertsDone) parts.push(`opdaterede ${upsertsDone} sæt`);
+  if (deletesDone) parts.push(`slettede ${deletesDone} sæt`);
+  saetSetMsg( parts.length ? `Import gennemført: ${parts.join(", ")}.` : "Import gennemført.", true);
   if (failures.length) {
-    alert("F�lgende r�kker blev sprunget over:\n" + failures.join("\n"));
+    alert("Følgende rækker blev sprunget over:\n" + failures.join("\n"));
   }
   await saetPull();
 }
@@ -370,9 +377,9 @@ function populateSaetIsbnSelect(selectEl, ownerId, selectedIsbn) {
   }
 
   selectEl.disabled = false;
-  selectEl.appendChild(el("option", { value: "" }, "(v�lg ISBN)"));
+  selectEl.appendChild(el("option", { value: "" }, "(vælg ISBN)"));
   inventory.forEach(meta => {
-    const label = `${meta.isbn || ""} � ${meta.title || "(uden titel)"} � ${meta.author || ""} � ${meta.faust || ""}`;
+    const label = `${meta.isbn || ""} – ${meta.title || "(uden titel)"} – ${meta.author || ""} – ${meta.faust || ""}`;
     selectEl.appendChild(el("option", { value: meta.isbn }, label));
   });
 
@@ -406,7 +413,7 @@ function updateSaetAvailability(tr) {
 
   const savedCount = Number(tr.dataset.savedCount || 0);
   if (!ownerId || !isbn) {
-    hint.title = "Vælg først ejer og ISBN.";
+    hint.title = "VÃ¦lg fÃ¸rst ejer og ISBN.";
     hint.dataset.state = "error";
     reqInput.max = "";
     return;
@@ -421,7 +428,7 @@ function updateSaetAvailability(tr) {
 
   if (!available || maxForRow <= 0) {
     hint.title = available
-      ? `Andre sæt bruger ${otherUsed} af ${available} eksemplarer. Der er ingen ledige tilbage.`
+      ? `Andre sÃ¦t bruger ${otherUsed} af ${available} eksemplarer. Der er ingen ledige tilbage.`
       : "Ingen eksemplarer i beholdningen med dette ISBN.";
     hint.dataset.state = "error";
     reqInput.max = maxForRow || 0;
@@ -429,10 +436,10 @@ function updateSaetAvailability(tr) {
   }
 
   if (desired > maxForRow) {
-    hint.title = `Du har valgt ${desired}, men der er kun ${maxForRow} ledige (${available} total, ${otherUsed} bruges af andre sæt).`;
+    hint.title = `Du har valgt ${desired}, men der er kun ${maxForRow} ledige (${available} total, ${otherUsed} bruges af andre sÃ¦t).`;
     hint.dataset.state = "warning";
   } else {
-    hint.title = `Andre sæt bruger ${otherUsed} af ${available} eksemplarer. Max til dette sæt: ${maxForRow}.`;
+    hint.title = `Andre sÃ¦t bruger ${otherUsed} af ${available} eksemplarer. Max til dette sÃ¦t: ${maxForRow}.`;
     hint.dataset.state = "ok";
   }
   reqInput.max = maxForRow || "";
@@ -441,6 +448,24 @@ function updateSaetAvailability(tr) {
 function saetDirtyRows() {
   return Array.from(document.querySelectorAll("#tblSaet tbody tr"))
     .filter(tr => tr.dataset.dirty === "1");
+}
+
+function saetApplyBookingMode(tr) {
+  if (!tr) return;
+  const modeSel = tr.querySelector(".saet-mode");
+  const mode = (modeSel?.value || "advanced").toLowerCase();
+  const isSimple = mode === "simple";
+  const weeksInput = tr.querySelector(".saet-weeks");
+  const bufferInput = tr.querySelector(".saet-buffer");
+  [weeksInput, bufferInput].forEach(input => {
+    if (!input) return;
+    input.disabled = isSimple;
+    input.classList.toggle("disabled", isSimple);
+  });
+  const hint = tr.querySelector(".saet-mode-hint");
+  if (hint) {
+    hint.textContent = isSimple ? "2 mdr fast periode" : "";
+  }
 }
 
 function markSaetDirty(tr) {
@@ -466,11 +491,11 @@ function updateSaetSaveButton() {
   const dirtyCount = saetDirtyRows().length;
   btn.disabled = dirtyCount === 0;
   if (dirtyCount > 0) {
-    const suffix = dirtyCount === 1 ? "�ndring" : "�ndringer";
+    const suffix = dirtyCount === 1 ? "ændring" : "ændringer";
     btn.textContent = `Gem ${dirtyCount} ${suffix}`;
     btn.title = "";
   } else {
-    btn.textContent = "Gem alle �ndringer";
+    btn.textContent = "Gem alle ændringer";
     btn.title = "";
   }
 }
@@ -486,10 +511,14 @@ function saetAttachRowListeners(tr) {
         ctrl.classList.contains("saet-owner")) {
         updateSaetAvailability(tr);
       }
+      if (ctrl.classList.contains("saet-mode")) {
+        saetApplyBookingMode(tr);
+      }
     };
     ctrl.addEventListener("input", handler);
     ctrl.addEventListener("change", handler);
   });
+  saetApplyBookingMode(tr);
 }
 
 function saetCollectRow(tr) {
@@ -511,6 +540,7 @@ function saetCollectRow(tr) {
     requested_count: toNumber(".saet-requested"),
     loan_weeks: toNumber(".saet-weeks"),
     buffer_days: toNumber(".saet-buffer"),
+    booking_mode: (getVal(".saet-mode") || "advanced").toLowerCase(),
     visibility: (getVal(".saet-vis") || "national").toLowerCase(),
     owner_bibliotek_id: ownerId,
     active: boolFromSelect(".saet-active"),
@@ -588,7 +618,16 @@ async function saetSaveAll() {
     
     return;
   }
-  
+  const ownersToRefresh = Array.from(new Set(payload.map(r => r.owner_bibliotek_id).filter(Boolean)));
+  const bookingStore = window.BookingStore || {};
+  if (ownersToRefresh.length && typeof bookingStore.regenerateBookingSlotsForOwner === "function") {
+    try {
+      await Promise.all(ownersToRefresh.map(id => bookingStore.regenerateBookingSlotsForOwner(id)));
+    } catch (err) {
+      console.warn("Kunne ikke regenerere booking-slots efter gem:", err);
+    }
+  }
+
   await saetPull();
 }
 
@@ -642,7 +681,7 @@ async function saetFetch(ownerFilter) {
   const from = st.saet.page * st.saet.pageSize;
   const to = from + st.saet.pageSize - 1;
   let q = sb.from("tbl_saet")
-    .select("set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes");
+    .select("set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes,booking_mode");
 
   const f = st.saet;
   const owner = ownerFilter || f.owner || currentAdminId();
@@ -792,7 +831,7 @@ async function saetPull() {
             min: "1",
             style: "width:6ch"
           });
-          const hint = el("span", { class: "saet-availability", title: "" }, "�");
+          const hint = el("span", { class: "saet-availability", title: "" }, "•");
           hint.dataset.state = "error";
           reqInput.addEventListener("input", () => {
             const tr = reqInput.closest("tr");
@@ -803,6 +842,19 @@ async function saetPull() {
             if (tr) updateSaetAvailability(tr);
           });
           return el("span", {}, reqInput, " ", hint);
+        }
+      },
+      {
+        id: "booking_mode",
+        accessor: row => (row.booking_mode || "advanced"),
+        render: row => {
+          const select = el("select", { class: "saet-mode" },
+            el("option", { value: "advanced" }, "Avanceret"),
+            el("option", { value: "simple" }, "Simpel (2 mdr)")
+          );
+          select.value = (row.booking_mode || "advanced").toLowerCase() === "simple" ? "simple" : "advanced";
+          const hint = el("div", { class: "saet-mode-hint hint" }, select.value === "simple" ? "2 mdr" : "");
+          return el("div", {}, select, hint);
         }
       },
       {
@@ -890,7 +942,7 @@ async function saetPull() {
     ],
     stateRoot: st.saet,
     defaultSort: { sortBy: "set_id", sortDir: "asc" },
-    emptyText: "Ingen s�t fundet.",
+    emptyText: "Ingen sæt fundet.",
     rowActions: row => {
       const btn = el("button", { class: "btn btn-small", type: "button" }, "Slet");
       btn.addEventListener("click", () => {
@@ -910,8 +962,8 @@ async function saetPull() {
   updateSaetSaveButton();
   const totalPages = Math.ceil((st.saet.total || 0) / st.saet.pageSize);
   $("#saetPinfo").textContent = st.saet.total
-    ? `Side ${st.saet.page + 1}/${totalPages} – ${st.saet.total} sæt`
-    : "Ingen sæt fundet";
+    ? `Side ${st.saet.page + 1}/${totalPages} â€“ ${st.saet.total} sÃ¦t`
+    : "Ingen sÃ¦t fundet";
 }
 
 function ensureSaetCapacity(ownerId, isbn, requestedCount, currentSetId, savedCount = 0, usageOverride) {
@@ -931,7 +983,7 @@ function ensureSaetCapacity(ownerId, isbn, requestedCount, currentSetId, savedCo
   if (requestedCount > maxForSet) {
     return {
       ok: false,
-      message: `Der er ${available} eksemplarer og andre sæt bruger ${otherUsed}. Maksimalt ${Math.max(0, maxForSet)} til dette sæt.`
+      message: `Der er ${available} eksemplarer og andre sÃ¦t bruger ${otherUsed}. Maksimalt ${Math.max(0, maxForSet)} til dette sÃ¦t.`
     };
   }
 
@@ -946,7 +998,7 @@ async function saetDeleteRow(tr) {
     updateSaetSaveButton();
     return;
   }
-  if (!confirm("Slet sæt " + setId + "?")) return;
+  if (!confirm("Slet sÃ¦t " + setId + "?")) return;
   const { error } = await sb.from("tbl_saet").delete().eq("set_id", Number(setId));
   if (error) {
     
@@ -1019,7 +1071,7 @@ function saetNewRow() {
       tr.remove();
       updateSaetSaveButton();
     }
-  }, "Annullér");
+  }, "AnnullÃ©r");
   if (isbnSel.disabled) {
     const saveBtn = $("#btnSaetSaveAll");
     if (saveBtn) {
@@ -1029,8 +1081,15 @@ function saetNewRow() {
   }
 
   const reqIn = el("input", { type: "number", class: "saet-requested", value: "1", min: "1", style: "width:6ch" });
-  const reqHint = el("span", { class: "saet-availability", title: "" }, "●");
+  const reqHint = el("span", { class: "saet-availability", title: "" }, "â—");
   reqHint.dataset.state = "error";
+  const modeSel = el("select", { class: "saet-mode" },
+    el("option", { value: "advanced" }, "Avanceret"),
+    el("option", { value: "simple" }, "Simpel (2 mdr)")
+  );
+  modeSel.value = "advanced";
+  const modeHint = el("div", { class: "saet-mode-hint hint" }, "");
+  const modeWrap = el("div", {}, modeSel, modeHint);
   const weeksIn = el("input", { type: "number", class: "saet-weeks", value: "8", min: "1", max: "12" });
   const bufferIn = el("input", { type: "number", class: "saet-buffer", value: "0", min: "0", style: "width:6ch" });
   const bufferWrap = el("div", { class: "buffer-wrap" }, bufferIn, " dg");
@@ -1043,6 +1102,7 @@ function saetNewRow() {
     el("td", {}, authorIn),
     el("td", {}, el("input", { class: "saet-faust", style: "width:6ch", readonly: true })),
     el("td", {}, reqIn, " ", reqHint),
+    el("td", {}, modeWrap),
     el("td", {}, weeksIn),
     el("td", {}, bufferWrap),
     el("td", {}, visSel),
@@ -1159,6 +1219,7 @@ function refreshSaetAvailabilityIndicators() {
     applyInventoryMeta,
     updateSaetAvailability,
     saetDirtyRows,
+    saetApplyBookingMode,
     markSaetDirty,
     clearSaetDirty,
     updateSaetSaveButton,
