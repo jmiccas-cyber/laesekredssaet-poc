@@ -31,7 +31,7 @@
 
   function getBookingMode(row) {
     const mode = (row?.booking_mode || row?.bookingMode || "").toLowerCase();
-    return mode === BOOKING_MODE_SIMPLE ? BOOKING_MODE_SIMPLE : BOOKING_MODE_ADVANCED;
+    return mode === BOOKING_MODE_ADVANCED ? BOOKING_MODE_ADVANCED : BOOKING_MODE_SIMPLE;
   }
 
   function refreshClient() {
@@ -49,6 +49,8 @@
     if (result.error && (isBookingModeColumnError(result.error) || tryInclude)) {
       bookingModeSupported = false;
       result = await buildQuery(false);
+    } else if (!result.error && tryInclude) {
+      bookingModeSupported = true;
     }
     return result;
   }
@@ -933,7 +935,7 @@
     if (!client) return [];
     const q = st.b.q;
     const centralIds = st.b.centralIds || [];
-    let includeMode = true;
+    let includeMode = bookingModeSupported;
     while (true) {
       const columns = includeMode
         ? "set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,active,requested_count,loan_weeks,buffer_days,booking_mode"
@@ -962,6 +964,7 @@
       ]);
       if (includeMode && (natRes.error || regRes.error)) {
         includeMode = false;
+        bookingModeSupported = false;
         continue;
       }
       if (natRes.error) {

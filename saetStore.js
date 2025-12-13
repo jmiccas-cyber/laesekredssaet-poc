@@ -29,6 +29,8 @@
     if (result.error && (saetIsBookingModeError(result.error) || tryInclude)) {
       saetBookingModeSupported = false;
       result = await buildQuery(false);
+    } else if (!result.error && tryInclude) {
+      saetBookingModeSupported = true;
     }
     return result;
   }
@@ -60,7 +62,7 @@ function saetUsageFor(ownerId, isbn) {
 }
 
 function saetValidate(r, opts = {}) {
-  const bookingMode = (r.booking_mode || "advanced").toLowerCase();
+  const bookingMode = (r.booking_mode || "simple").toLowerCase();
   if (!r.title) return "Titel skal udfyldes";
   if (!r.visibility || !["national", "regional"].includes(r.visibility.toLowerCase())) {
     return "Synlighed skal være national eller regional";
@@ -123,7 +125,7 @@ async function exportSaetToExcel() {
     requested_count: row.requested_count ?? "",
     loan_weeks: row.loan_weeks ?? "",
     buffer_days: row.buffer_days ?? "",
-    booking_mode: row.booking_mode || "advanced",
+    booking_mode: row.booking_mode || "simple",
     visibility: row.visibility || "national",
     active: row.active ? "true" : "false",
     allow_substitution: row.allow_substitution ? "true" : "false",
@@ -151,7 +153,7 @@ async function exportSaetToExcel() {
         requested_count: "",
         loan_weeks: "",
         buffer_days: "",
-        booking_mode: "advanced",
+        booking_mode: "simple",
         visibility: "national",
         active: "true",
         allow_substitution: "false",
@@ -269,7 +271,7 @@ async function importSaetFromExcel(file) {
       const loan_weeks = toNumber(values.loan_weeks, 8);
       const buffer_days = toNumber(values.buffer_days, 0);
       const booking_mode_raw = String(values.booking_mode || "").trim().toLowerCase();
-      const booking_mode = booking_mode_raw === "simple" ? "simple" : "advanced";
+      const booking_mode = booking_mode_raw === "advanced" ? "advanced" : "simple";
       const min_delivery = toNumber(values.min_delivery, 0);
       let visibility = String(values.visibility || "").trim().toLowerCase() || "national";
       if (!["national", "regional"].includes(visibility)) visibility = "national";
@@ -560,7 +562,7 @@ function saetCollectRow(tr) {
     requested_count: toNumber(".saet-requested"),
     loan_weeks: toNumber(".saet-weeks"),
     buffer_days: toNumber(".saet-buffer"),
-    booking_mode: (getVal(".saet-mode") || "advanced").toLowerCase(),
+    booking_mode: (getVal(".saet-mode") || "simple").toLowerCase(),
     visibility: (getVal(".saet-vis") || "national").toLowerCase(),
     owner_bibliotek_id: ownerId,
     active: boolFromSelect(".saet-active"),
@@ -877,13 +879,13 @@ async function saetPull() {
       },
       {
         id: "booking_mode",
-        accessor: row => (row.booking_mode || "advanced"),
+        accessor: row => (row.booking_mode || "simple"),
         render: row => {
           const select = el("select", { class: "saet-mode" },
-            el("option", { value: "advanced" }, "Avanceret"),
-            el("option", { value: "simple" }, "Simpel (2 mdr)")
+            el("option", { value: "simple" }, "Simpel (2 mdr)"),
+            el("option", { value: "advanced" }, "Avanceret")
           );
-          select.value = (row.booking_mode || "advanced").toLowerCase() === "simple" ? "simple" : "advanced";
+          select.value = (row.booking_mode || "simple").toLowerCase() === "advanced" ? "advanced" : "simple";
           const hint = el("div", { class: "saet-mode-hint hint" }, select.value === "simple" ? "2 mdr" : "");
           return el("div", {}, select, hint);
         }
@@ -1115,11 +1117,11 @@ function saetNewRow() {
   const reqHint = el("span", { class: "saet-availability", title: "" }, "â—");
   reqHint.dataset.state = "error";
   const modeSel = el("select", { class: "saet-mode" },
-    el("option", { value: "advanced" }, "Avanceret"),
-    el("option", { value: "simple" }, "Simpel (2 mdr)")
+    el("option", { value: "simple" }, "Simpel (2 mdr)"),
+    el("option", { value: "advanced" }, "Avanceret")
   );
-  modeSel.value = "advanced";
-  const modeHint = el("div", { class: "saet-mode-hint hint" }, "");
+  modeSel.value = "simple";
+  const modeHint = el("div", { class: "saet-mode-hint hint" }, "2 mdr");
   const modeWrap = el("div", {}, modeSel, modeHint);
   const weeksIn = el("input", { type: "number", class: "saet-weeks", value: "8", min: "1", max: "12" });
   const bufferIn = el("input", { type: "number", class: "saet-buffer", value: "0", min: "0", style: "width:6ch" });
