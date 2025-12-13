@@ -38,6 +38,18 @@
     return sb;
   }
 
+  function isBookingModeColumnError(error) {
+    return !!(error?.message && /booking_mode/i.test(error.message));
+  }
+
+  async function selectSaetWithMode(buildQuery) {
+    let result = await buildQuery(true);
+    if (isBookingModeColumnError(result.error)) {
+      result = await buildQuery(false);
+    }
+    return result;
+  }
+
   function toIsoDate(date) {
     if (!(date instanceof Date)) return "";
     const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -262,11 +274,16 @@
       await loadBookingRules();
       const rule = currentBookingRule(ownerId);
       const holidaySet = await loadOwnerHolidaySet(ownerId);
-      const { data, error } = await client
-        .from("tbl_saet")
-        .select("set_id,loan_weeks,buffer_days,owner_bibliotek_id,active,booking_mode")
-        .eq("owner_bibliotek_id", ownerId)
-        .eq("active", true);
+      const { data, error } = await selectSaetWithMode(includeMode => {
+        const columns = includeMode
+          ? "set_id,loan_weeks,buffer_days,owner_bibliotek_id,active,booking_mode"
+          : "set_id,loan_weeks,buffer_days,owner_bibliotek_id,active";
+        return client
+          .from("tbl_saet")
+          .select(columns)
+          .eq("owner_bibliotek_id", ownerId)
+          .eq("active", true);
+      });
       if (error) {
         console.error("regenerateBookingSlotsForOwner:", error);
         return;
@@ -339,7 +356,7 @@
       });
       sel.value = st.bookingRules.owner || currentAdminId();
     }
-    await loadBookingRulesetrue);
+    await loadBookingRules(true);
     const currentRule = currentBookingRule(st.bookingRules.owner || currentAdminId());
     if (selectRule) selectRule.value = currentRule;
     showMsg(msg, "");
@@ -375,10 +392,15 @@
     if (!ids?.length) return map;
     const client = refreshClient();
     if (!client) return map;
-    const { data, error } = await client
-      .from("tbl_saet")
-      .select("set_id,title,author,owner_bibliotek_id,loan_weeks,buffer_days,requested_count,isbn,active,booking_mode")
-      .in("set_id", ids);
+    const { data, error } = await selectSaetWithMode(includeMode => {
+      const columns = includeMode
+        ? "set_id,title,author,owner_bibliotek_id,loan_weeks,buffer_days,requested_count,isbn,active,booking_mode"
+        : "set_id,title,author,owner_bibliotek_id,loan_weeks,buffer_days,requested_count,isbn,active";
+      return client
+        .from("tbl_saet")
+        .select(columns)
+        .in("set_id", ids);
+    });
     if (error) {
       console.error("fetchSaetMapByIds:", error);
       return map;
@@ -883,7 +905,7 @@
     const info = $("#bInfo");
     if (info) {
       const totalPages = Math.ceil((st.b.total || 0) / st.b.pageSize);
-      info.textContent = st.b.total ? `Side ${st.b.page + 1}/${Math.max(1, totalPages)} af ${st.b.total} sæt` : "Ingen sæt fundet";
+      info.textContent = st.b.total ? `Side ${st.b.page + 1}/${Math.max(1, totalPages)} af ${st.b.total} saet` : "Ingen saet fundet";
     }
   }
 
@@ -908,37 +930,47 @@
     if (!client) return [];
     const q = st.b.q;
     const centralIds = st.b.centralIds || [];
-    let qNat = client.from("tbl_saet")
-      .select("set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,active,requested_count,loan_weeks,buffer_days,booking_mode")
-      .ilike("visibility", "national")
-      .eq("active", true);
-    let qReg = client.from("tbl_saet")
-      .select("set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,active,requested_count,loan_weeks,buffer_days,booking_mode")
-      .ilike("visibility", "regional")
-      .eq("active", true);
-    if (q) {
-      const search = [
-        `title.ilike.%${q}%`,
-        `author.ilike.%${q}%`,
-        `isbn.ilike.%${q}%`,
-        `faust.ilike.%${q}%`
-      ].join(",");
-      qNat = qNat.or(search);
-      qReg = qReg.or(search);
+    let includeMode = true;
+    while (true) {
+      const columns = includeMode
+        ? "set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,active,requested_count,loan_weeks,buffer_days,booking_mode"
+        : "set_id,title,author,isbn,faust,visibility,owner_bibliotek_id,active,requested_count,loan_weeks,buffer_days";
+      let qNat = client.from("tbl_saet")
+        .select(columns)
+        .ilike("visibility", "national")
+        .eq("active", true);
+      let qReg = client.from("tbl_saet")
+        .select(columns)
+        .ilike("visibility", "regional")
+        .eq("active", true);
+      if (q) {
+        const search = [
+          `title.ilike.%${q}%`,
+          `author.ilike.%${q}%`,
+          `isbn.ilike.%${q}%`,
+          `faust.ilike.%${q}%`
+        ].join(",");
+        qNat = qNat.or(search);
+        qReg = qReg.or(search);
+      }
+      const [natRes, regRes] = await Promise.all([
+        qNat,
+        centralIds.length ? qReg.in("owner_bibliotek_id", centralIds) : { data: [], error: null }
+      ]);
+      if (includeMode && (isBookingModeColumnError(natRes.error) || isBookingModeColumnError(regRes.error))) {
+        includeMode = false;
+        continue;
+      }
+      if (natRes.error) {
+        showMsg("#bMsg", "Fejl ved national søgning: " + natRes.error.message);
+        return [];
+      }
+      if (regRes.error) {
+        showMsg("#bMsg", "Fejl ved regional søgning: " + regRes.error.message);
+        return [];
+      }
+      return (natRes.data || []).concat(regRes.data || []);
     }
-    const [natRes, regRes] = await Promise.all([
-      qNat,
-      centralIds.length ? qReg.in("owner_bibliotek_id", centralIds) : { data: [], error: null }
-    ]);
-    if (natRes.error) {
-      showMsg("#bMsg", "Fejl ved national søgning: " + natRes.error.message);
-      return [];
-    }
-    if (regRes.error) {
-      showMsg("#bMsg", "Fejl ved regional søgning: " + regRes.error.message);
-      return [];
-    }
-    return (natRes.data || []).concat(regRes.data || []);
   }
 
   async function bookerSearch() {
@@ -946,14 +978,14 @@
       showMsg("#bMsg", "Vælg først en booker-profil (regionsbibliotek).");
       return;
     }
-  const inventoryStore = window.InventoryStore || {};
-  if (typeof inventoryStore.loadInventorySummary === "function") {
-    try {
-      await inventoryStore.loadInventorySummary();
-    } catch (err) {
-      console.warn("Kunne ikke opdatere beholdningsoversigt:", err);
+    const inventoryStore = window.InventoryStore || {};
+    if (typeof inventoryStore.loadInventorySummary === "function") {
+      try {
+        await inventoryStore.loadInventorySummary();
+      } catch (err) {
+        console.warn("Kunne ikke opdatere beholdningsoversigt:", err);
+      }
     }
-  }
     setBookerTab("search");
     st.b.q = $("#bQ")?.value || "";
     st.b.weeks = Number($("#bWeeks")?.value || 8);

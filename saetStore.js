@@ -17,6 +17,20 @@
   const showMsg = window.showMsg || (() => {});
   const ExcelHelper = window.ExcelHelper || null;
   const currentAdminId = window.currentAdminId || (() => "");
+  let saetBookingModeSupported = true;
+
+  function saetIsBookingModeError(error) {
+    return !!(error?.message && /booking_mode/i.test(error.message));
+  }
+
+  async function saetSelectWithMode(buildQuery) {
+    let result = await buildQuery(true);
+    if (saetIsBookingModeError(result.error)) {
+      saetBookingModeSupported = false;
+      result = await buildQuery(false);
+    }
+    return result;
+  }
 
 async function fetchSaetUsage() {
   if (!sb) return {};
@@ -82,11 +96,16 @@ async function exportSaetToExcel() {
   }
 
   
-  const { data, error } = await sb
-    .from("tbl_saet")
-    .select("set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes,booking_mode")
-    .eq("owner_bibliotek_id", ownerId)
-    .order("set_id");
+  const { data, error } = await saetSelectWithMode(includeMode => {
+    const columns = includeMode
+      ? "set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes,booking_mode"
+      : "set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes";
+    return sb
+      .from("tbl_saet")
+      .select(columns)
+      .eq("owner_bibliotek_id", ownerId)
+      .order("set_id");
+  });
 
   if (error) {
     
@@ -613,7 +632,12 @@ async function saetSaveAll() {
   }
 
   
-  const { error } = await sb.from("tbl_saet").upsert(payload, { onConflict: "set_id" });
+  const payloadToSave = saetBookingModeSupported ? payload : payload.map(record => {
+    const { booking_mode, ...rest } = record;
+    return rest;
+  });
+
+  const { error } = await sb.from("tbl_saet").upsert(payloadToSave, { onConflict: "set_id" });
   if (error) {
     
     return;
@@ -680,24 +704,30 @@ async function saetFetch(ownerFilter) {
   if (!sb) return [];
   const from = st.saet.page * st.saet.pageSize;
   const to = from + st.saet.pageSize - 1;
-  let q = sb.from("tbl_saet")
-    .select("set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes,booking_mode");
+  let baseQuery = () => sb.from("tbl_saet");
+  let selectColumns = includeMode => includeMode
+    ? "set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes,booking_mode"
+    : "set_id,title,author,isbn,faust,requested_count,loan_weeks,buffer_days,visibility,owner_bibliotek_id,active,allow_substitution,allow_partial,min_delivery,notes";
 
   const f = st.saet;
   const owner = ownerFilter || f.owner || currentAdminId();
-  if (owner) q = q.eq("owner_bibliotek_id", owner);
-  if (f.vis) q = q.eq("visibility", f.vis);
-  if (f.q) {
-    const v = f.q;
-    q = q.or([
-      `title.ilike.%${v}%`,
-      `author.ilike.%${v}%`,
-      `isbn.ilike.%${v}%`,
-      `faust.ilike.%${v}%`
-    ].join(","));
-  }
+  const selectResult = await saetSelectWithMode(includeMode => {
+    let q = baseQuery().select(selectColumns(includeMode));
+    if (owner) q = q.eq("owner_bibliotek_id", owner);
+    if (f.vis) q = q.eq("visibility", f.vis);
+    if (f.q) {
+      const v = f.q;
+      q = q.or([
+        `title.ilike.%${v}%`,
+        `author.ilike.%${v}%`,
+        `isbn.ilike.%${v}%`,
+        `faust.ilike.%${v}%`
+      ].join(","));
+    }
+    return q;
+  });
 
-  const { data, error } = await q;
+  const { data, error } = selectResult;
   if (error) {
     
     return [];
